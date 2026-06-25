@@ -57,7 +57,6 @@ export default function MatchHistory({ matches, players, onDelete }: Props) {
 
             {expanded === match.id && (
               <div className="border-t border-white/10 p-4">
-                {/* Per-player totals */}
                 <div className="overflow-x-auto mb-4">
                   <table className="w-full text-sm min-w-[520px]">
                     <thead>
@@ -84,11 +83,11 @@ export default function MatchHistory({ matches, players, onDelete }: Props) {
                             <td className="text-center px-2 text-green-400 font-semibold">{s.kills}</td>
                             <td className="text-center px-2 text-red-400">{s.attackErrors}</td>
                             <td className="text-center px-2 text-gray-300">{s.attackAttempts}</td>
-                            <td className="text-center px-2 text-blue-300">{killPct(s)}</td>
+                            <td className="text-center px-2 text-pb-400">{killPct(s)}</td>
                             <td className="text-center px-2 text-yellow-400">{s.aces}</td>
                             <td className="text-center px-2 text-cyan-400">{s.digs}</td>
-                            <td className="text-center px-2 text-purple-400">{s.soloBlocks}</td>
-                            <td className="text-center px-2 text-purple-300">{s.blockAssists}</td>
+                            <td className="text-center px-2 text-vr-400">{s.soloBlocks}</td>
+                            <td className="text-center px-2 text-vr-300">{s.blockAssists}</td>
                             <td className="text-center px-2 text-orange-400">{s.settingAssists}</td>
                             <td className="text-center px-2 text-gray-300">{passAvg(s)}</td>
                           </tr>
@@ -98,9 +97,8 @@ export default function MatchHistory({ matches, players, onDelete }: Props) {
                   </table>
                 </div>
 
-                {/* Per-set breakdown toggle */}
                 <details className="mb-4">
-                  <summary className="text-blue-400 text-sm cursor-pointer mb-2">View per-set breakdown</summary>
+                  <summary className="text-pb-400 text-sm cursor-pointer mb-2">View per-set breakdown</summary>
                   {match.sets.map((setStats, i) => (
                     <div key={i} className="mb-3">
                       <p className="text-gray-400 text-xs font-bold mb-1">Set {i + 1}</p>
@@ -129,7 +127,7 @@ export default function MatchHistory({ matches, players, onDelete }: Props) {
                                   <td className="text-center px-1 text-red-400">{s.attackErrors}</td>
                                   <td className="text-center px-1 text-yellow-400">{s.aces}</td>
                                   <td className="text-center px-1 text-cyan-400">{s.digs}</td>
-                                  <td className="text-center px-1 text-purple-400">{s.soloBlocks}</td>
+                                  <td className="text-center px-1 text-vr-400">{s.soloBlocks}</td>
                                   <td className="text-center px-1 text-orange-400">{s.settingAssists}</td>
                                   <td className="text-center px-1 text-gray-300">{passAvg(s)}</td>
                                 </tr>
@@ -145,7 +143,7 @@ export default function MatchHistory({ matches, players, onDelete }: Props) {
                 <div className="flex gap-3">
                   <button
                     onClick={() => setAiMatch(match)}
-                    className="tap-btn flex-1 bg-blue-700 text-white font-semibold py-3 rounded-xl text-sm"
+                    className="tap-btn flex-1 bg-vr-700 text-white font-semibold py-3 rounded-xl text-sm"
                   >
                     AI Practice Suggestions
                   </button>

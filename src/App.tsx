@@ -35,8 +35,16 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen bg-navy-900 overflow-hidden">
       {/* Header */}
-      <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0">
-        <h1 className="text-white font-bold text-xl tracking-tight">VB Stats</h1>
+      <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0 flex items-center gap-3">
+        {/* Viking helmet SVG icon */}
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="16" cy="16" r="16" fill="#4a1d8a" />
+          <text x="16" y="22" textAnchor="middle" fontSize="18" fill="#87cde3">⚔</text>
+        </svg>
+        <div>
+          <h1 className="text-white font-bold text-lg leading-tight tracking-tight">Viking Roots</h1>
+          <p className="text-pb-400 text-xs font-medium leading-none">Volleyball Stats</p>
+        </div>
       </div>
 
       {/* Content */}
@@ -48,17 +56,20 @@ export default function App() {
       </div>
 
       {/* Bottom nav */}
-      <nav className="bg-navy-800 border-t border-white/10 flex shrink-0 safe-area-bottom">
+      <nav className="bg-navy-800 border-t border-white/10 flex shrink-0">
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`tap-btn flex-1 flex flex-col items-center gap-1 py-3 transition-colors ${
-              tab === t.id ? 'text-blue-400' : 'text-gray-500'
+              tab === t.id ? 'text-pb-400' : 'text-gray-500'
             }`}
           >
             <span className="text-xl">{t.icon}</span>
             <span className="text-xs font-medium">{t.label}</span>
+            {tab === t.id && (
+              <span className="w-4 h-0.5 rounded-full bg-vr-500 mt-0.5" />
+            )}
           </button>
         ))}
       </nav>

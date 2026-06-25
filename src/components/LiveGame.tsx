@@ -12,13 +12,13 @@ interface StatDef {
 const STAT_DEFS: StatDef[] = [
   { key: 'kills',          label: 'Kills',       short: 'K',   color: 'text-green-400' },
   { key: 'attackErrors',   label: 'Atk Err',     short: 'E',   color: 'text-red-400' },
-  { key: 'attackAttempts', label: 'Atk Att',     short: 'TA',  color: 'text-blue-300' },
+  { key: 'attackAttempts', label: 'Atk Att',     short: 'TA',  color: 'text-pb-400' },
   { key: 'aces',           label: 'Aces',        short: 'A',   color: 'text-yellow-400' },
   { key: 'serveErrors',    label: 'Srv Err',     short: 'SE',  color: 'text-red-400' },
-  { key: 'serveAttempts',  label: 'Srv Att',     short: 'SA',  color: 'text-blue-300' },
+  { key: 'serveAttempts',  label: 'Srv Att',     short: 'SA',  color: 'text-pb-400' },
   { key: 'digs',           label: 'Digs',        short: 'D',   color: 'text-cyan-400' },
-  { key: 'soloBlocks',     label: 'Solo Blk',    short: 'BS',  color: 'text-purple-400' },
-  { key: 'blockAssists',   label: 'Blk Ast',     short: 'BA',  color: 'text-purple-300' },
+  { key: 'soloBlocks',     label: 'Solo Blk',    short: 'BS',  color: 'text-vr-400' },
+  { key: 'blockAssists',   label: 'Blk Ast',     short: 'BA',  color: 'text-vr-300' },
   { key: 'settingAssists', label: 'Assists',     short: 'AST', color: 'text-orange-400' },
   { key: 'settingErrors',  label: 'Set Err',     short: 'SE2', color: 'text-red-400' },
 ]
@@ -120,14 +120,17 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
   if (!gameStarted) {
     return (
       <div className="p-6 max-w-md mx-auto flex flex-col gap-6 mt-8">
-        <h2 className="text-2xl font-bold text-white text-center">New Match</h2>
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-white">New Match</h2>
+          <p className="text-pb-400 text-sm mt-1">Viking Roots Volleyball</p>
+        </div>
         {players.length === 0 && (
           <p className="text-yellow-400 text-center text-sm">Add players to your roster first.</p>
         )}
         <div>
           <label className="block text-gray-300 text-sm mb-1">Opponent</label>
           <input
-            className="w-full bg-navy-700 border border-white/20 rounded-xl px-4 py-4 text-white text-xl outline-none focus:border-blue-500"
+            className="w-full bg-navy-700 border border-white/20 rounded-xl px-4 py-4 text-white text-xl outline-none focus:border-pb-500"
             placeholder="e.g. Lincoln 14U"
             value={opponent}
             onChange={e => setOpponent(e.target.value)}
@@ -136,7 +139,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
         <button
           disabled={!opponent.trim() || players.length === 0}
           onClick={startGame}
-          className="tap-btn w-full bg-blue-600 disabled:opacity-40 text-white font-bold py-5 rounded-2xl text-xl"
+          className="tap-btn w-full bg-vr-600 disabled:opacity-40 text-white font-bold py-5 rounded-2xl text-xl"
         >
           Start Match
         </button>
@@ -150,7 +153,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
+      {/* Match header */}
       <div className="bg-navy-800 border-b border-white/10 px-4 py-3 flex items-center gap-3">
         <div className="flex-1">
           <p className="text-gray-400 text-xs">vs</p>
@@ -162,7 +165,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
               key={i}
               onClick={() => { setCurrentSet(i); setSelectedPlayer(null) }}
               className={`tap-btn w-10 h-10 rounded-xl font-bold text-sm ${
-                i === currentSet ? 'bg-blue-600 text-white' : 'bg-navy-600 text-gray-400'
+                i === currentSet ? 'bg-vr-600 text-white' : 'bg-navy-600 text-gray-400'
               }`}
             >
               S{i + 1}
@@ -192,7 +195,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
                     className="tap-btn bg-navy-700 border border-white/10 rounded-2xl p-4 text-left"
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-white font-bold text-lg">#{p.number}</span>
+                      <span className="text-pb-400 font-bold text-lg">#{p.number}</span>
                       <span className={`text-xs font-bold px-2 py-0.5 rounded-full text-white ${POSITION_COLORS[p.position]}`}>
                         {POSITION_LABELS[p.position]}
                       </span>
@@ -218,11 +221,11 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
           </>
         ) : player && ps ? (
           <div>
-            <button onClick={() => setSelectedPlayer(null)} className="tap-btn text-blue-400 text-sm mb-3 flex items-center gap-1">
+            <button onClick={() => setSelectedPlayer(null)} className="tap-btn text-pb-400 text-sm mb-3 flex items-center gap-1">
               ← All Players
             </button>
             <div className="flex items-center gap-3 mb-4">
-              <span className="text-white font-bold text-2xl">#{player.number}</span>
+              <span className="text-pb-400 font-bold text-2xl">#{player.number}</span>
               <span className={`text-sm font-bold px-2 py-1 rounded-full text-white ${POSITION_COLORS[player.position]}`}>
                 {POSITION_LABELS[player.position]}
               </span>
@@ -245,7 +248,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
                     </button>
                     <button
                       onClick={() => adjust(player.id, def.key, 1)}
-                      className="tap-btn w-12 h-12 rounded-xl bg-blue-700 text-white text-2xl font-bold flex items-center justify-center"
+                      className="tap-btn w-12 h-12 rounded-xl bg-vr-700 text-white text-2xl font-bold flex items-center justify-center"
                     >
                       +
                     </button>
@@ -257,7 +260,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
               <div className="bg-navy-700 border border-white/10 rounded-2xl px-4 py-3">
                 <div className="flex items-center gap-3 mb-3">
                   <span className="text-gray-400 text-sm w-20 shrink-0">Pass Avg</span>
-                  <span className="font-bold text-xl text-cyan-400">
+                  <span className="font-bold text-xl text-pb-400">
                     {ps.passAttempts > 0 ? (ps.passRatingTotal / ps.passAttempts).toFixed(2) : '—'}
                   </span>
                   <span className="text-gray-500 text-sm ml-1">({ps.passAttempts})</span>
@@ -293,14 +296,14 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
       {/* Save dialog */}
       {showSaveDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-navy-800 border border-white/10 rounded-2xl p-6 w-full max-w-sm">
-            <h3 className="text-xl font-bold text-white mb-4">End Match</h3>
-            <p className="text-gray-400 text-sm mb-4">Final score vs {opponent}</p>
+          <div className="bg-navy-800 border border-vr-700/50 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-xl font-bold text-white mb-1">End Match</h3>
+            <p className="text-pb-400 text-xs mb-4">Viking Roots vs {opponent}</p>
             <div className="flex gap-3 mb-6">
               <div className="flex-1">
                 <label className="text-gray-400 text-xs block mb-1">Our Score</label>
                 <input
-                  className="w-full bg-navy-600 border border-white/20 rounded-xl px-3 py-3 text-white text-xl text-center outline-none focus:border-blue-500"
+                  className="w-full bg-navy-600 border border-white/20 rounded-xl px-3 py-3 text-white text-xl text-center outline-none focus:border-pb-500"
                   value={ourScore}
                   onChange={e => setOurScore(e.target.value)}
                   placeholder="0"
@@ -310,7 +313,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
               <div className="flex-1">
                 <label className="text-gray-400 text-xs block mb-1">Their Score</label>
                 <input
-                  className="w-full bg-navy-600 border border-white/20 rounded-xl px-3 py-3 text-white text-xl text-center outline-none focus:border-blue-500"
+                  className="w-full bg-navy-600 border border-white/20 rounded-xl px-3 py-3 text-white text-xl text-center outline-none focus:border-pb-500"
                   value={theirScore}
                   onChange={e => setTheirScore(e.target.value)}
                   placeholder="0"
