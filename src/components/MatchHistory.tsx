@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Match, Player } from '../types'
-import { killPct, servePct, passAvg, mergeStats } from '../utils/statsHelpers'
+import { killPct, passAvg, mergeStats } from '../utils/statsHelpers'
 import { EMPTY_STATS } from '../types'
 import PracticeSuggestions from './PracticeSuggestions'
 
@@ -15,10 +15,6 @@ export default function MatchHistory({ matches, players, onDelete }: Props) {
   const [aiMatch, setAiMatch] = useState<Match | null>(null)
 
   const sorted = [...matches].sort((a, b) => b.date.localeCompare(a.date))
-
-  function playerName(id: string) {
-    return players.find(p => p.id === id)?.name ?? 'Unknown'
-  }
 
   function totalStats(match: Match, playerId: string) {
     return match.sets.reduce((acc, s) => mergeStats(acc, s[playerId] ?? EMPTY_STATS()), EMPTY_STATS())
