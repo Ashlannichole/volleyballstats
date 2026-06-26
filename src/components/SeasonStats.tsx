@@ -394,7 +394,7 @@ export default function SeasonStats({ matches, players }: Props) {
                     <h3 className="text-white font-bold text-lg">{award.title}</h3>
                   </div>
                   <div className="divide-y divide-white/5">
-                    {[[gold,'🥇','text-yellow-400'],[silver,'🥈','text-gray-400'],[bronze,'🥉','text-orange-400']].map(([entry, medal, medalColor], idx) => {
+                    {[[gold,'🥇'],[silver,'🥈'],[bronze,'🥉']].map(([entry, medal], idx) => {
                       if (!entry) return null
                       const x = entry as typeof stats[0]
                       return (
