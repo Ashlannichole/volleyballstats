@@ -110,13 +110,13 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     }
   }
 
-  function adjustPass(playerId: string, rating: number) {
+  function adjustPass(playerId: string, rating: number, autoScore = true) {
     setSets(prev => prev.map((s, i) => {
       if (i !== currentSet) return s
       const ps = { ...s[playerId] }
       return { ...s, [playerId]: { ...ps, passRatingTotal: ps.passRatingTotal + rating, passAttempts: ps.passAttempts + 1 } }
     }))
-    if (rating === 0) setTheirScore(s => s + 1)
+    if (rating === 0 && autoScore) setTheirScore(s => s + 1)
   }
 
   // Called from error picker modal: records main error + sub-type in one shot
@@ -131,8 +131,10 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
   }
 
   // Called from error picker modal for pass 0
+  // Overpass is a 0 pass but doesn't guarantee a point for the opponent
   function commitPassZero(playerId: string, subKey: keyof PlayerStats) {
-    adjustPass(playerId, 0)
+    const isOverpass = subKey === 'passZeroOverpass'
+    adjustPass(playerId, 0, !isOverpass)
     setSets(prev => prev.map((s, i) => {
       if (i !== currentSet) return s
       const ps = { ...s[playerId] }
