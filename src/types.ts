@@ -42,6 +42,7 @@ export type SetStats = Record<string, PlayerStats>
 export interface Match {
   id: string
   date: string
+  tournament: string
   opponent: string
   ourScore: string
   theirScore: string

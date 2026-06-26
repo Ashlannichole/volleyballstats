@@ -237,33 +237,39 @@ const m6s3 = setStats({
 
 export const SEED_MATCHES: Match[] = [
   {
-    id: 'seed-m1', date: '2025-03-15', opponent: 'Summit 14U',
-    ourScore: '2', theirScore: '0', notes: 'Strong serving game. Good block coverage.',
+    id: 'seed-m1', date: '2025-03-15', tournament: 'Spring Kickoff Classic',
+    opponent: 'Summit 14U', ourScore: '2', theirScore: '0',
+    notes: 'Strong serving game. Good block coverage.',
     sets: [m1s1, m1s2],
   },
   {
-    id: 'seed-m2', date: '2025-03-15', opponent: 'Eastside Elite 14U',
-    ourScore: '0', theirScore: '2', notes: 'Struggled against their strong middle. Too many attack errors.',
+    id: 'seed-m2', date: '2025-03-15', tournament: 'Spring Kickoff Classic',
+    opponent: 'Eastside Elite 14U', ourScore: '0', theirScore: '2',
+    notes: 'Struggled against their strong middle. Too many attack errors.',
     sets: [m2s1, m2s2],
   },
   {
-    id: 'seed-m3', date: '2025-03-15', opponent: 'Metro Crush 14U',
-    ourScore: '2', theirScore: '1', notes: 'Good bounce back after morning loss. Clutch third set.',
+    id: 'seed-m3', date: '2025-03-15', tournament: 'Spring Kickoff Classic',
+    opponent: 'Metro Crush 14U', ourScore: '2', theirScore: '1',
+    notes: 'Good bounce back after morning loss. Clutch third set.',
     sets: [m3s1, m3s2, m3s3],
   },
   {
-    id: 'seed-m4', date: '2025-03-16', opponent: 'Lakeside 14U',
-    ourScore: '2', theirScore: '0', notes: 'Best passing game of the weekend. Great communication.',
+    id: 'seed-m4', date: '2025-03-16', tournament: 'Spring Kickoff Classic',
+    opponent: 'Lakeside 14U', ourScore: '2', theirScore: '0',
+    notes: 'Best passing game of the weekend. Great communication.',
     sets: [m4s1, m4s2],
   },
   {
-    id: 'seed-m5', date: '2025-03-16', opponent: 'Summit 14U (Rematch)',
-    ourScore: '2', theirScore: '1', notes: 'Revenge match! Came back strong in set 3.',
+    id: 'seed-m5', date: '2025-03-16', tournament: 'Spring Kickoff Classic',
+    opponent: 'Summit 14U (Rematch)', ourScore: '2', theirScore: '1',
+    notes: 'Revenge match! Came back strong in set 3.',
     sets: [m5s1, m5s2, m5s3],
   },
   {
-    id: 'seed-m6', date: '2025-03-16', opponent: 'Premier VBC 14U',
-    ourScore: '1', theirScore: '2', notes: 'Championship match. Went the distance — proud of the fight.',
+    id: 'seed-m6', date: '2025-03-16', tournament: 'Spring Kickoff Classic',
+    opponent: 'Premier VBC 14U', ourScore: '1', theirScore: '2',
+    notes: 'Championship match. Went the distance — proud of the fight.',
     sets: [m6s1, m6s2, m6s3],
   },
 ]

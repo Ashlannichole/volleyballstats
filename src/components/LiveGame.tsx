@@ -74,6 +74,7 @@ interface Snapshot {
 
 export default function LiveGame({ players, onSaveMatch }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
+  const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
   const [ourScore, setOurScore]             = useState(0)
   const [theirScore, setTheirScore]         = useState(0)
@@ -315,6 +316,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     const match: Match = {
       id: crypto.randomUUID(),
       date: new Date().toISOString().split('T')[0],
+      tournament: tournament.trim(),
       opponent: opponent.trim(),
       ourScore: String(ourScore),
       theirScore: String(theirScore),
@@ -323,6 +325,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     }
     onSaveMatch(match)
     setGameStarted(false)
+    setTournament('')
     setOpponent('')
     setOurScore(0); setTheirScore(0)
     setOurTimeouts(0); setTheirTimeouts(0)
@@ -358,6 +361,17 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
             Add players to your roster first.
           </p>
         )}
+
+        {/* Tournament */}
+        <div>
+          <label className="block text-gray-300 text-sm mb-1">Tournament <span className="text-gray-500">(optional)</span></label>
+          <input
+            className="w-full bg-navy-700 border border-white/20 rounded-xl px-4 py-3 text-white text-base outline-none focus:border-pb-500"
+            placeholder="e.g. Spring Kickoff Classic"
+            value={tournament}
+            onChange={e => setTournament(e.target.value)}
+          />
+        </div>
 
         {/* Opponent */}
         <div>
