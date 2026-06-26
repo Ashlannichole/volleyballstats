@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import type { Player, PlayerStats, SetStats, Match } from '../types'
+import type { Player, PlayerStats, SetStats, Match, SavedLineup } from '../types'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
+import { loadLineups, saveLineups } from '../utils/storage'
 
 interface Props {
   players: Player[]
@@ -89,6 +90,13 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
   const [pendingError, setPendingError]     = useState<PendingError | null>(null)
   const [history, setHistory]               = useState<Snapshot[]>([])
   const [rotationToast, setRotationToast]   = useState(false)
+
+  // Lineup builder (pre-match)
+  const [preLineup, setPreLineup]           = useState<(string | null)[]>([null,null,null,null,null,null])
+  const [pickingSlot, setPickingSlot]       = useState<number | null>(null)
+  const [savedLineups, setSavedLineups]     = useState<SavedLineup[]>(loadLineups)
+  const [saveLineupName, setSaveLineupName] = useState('')
+  const [showSaveForm, setShowSaveForm]     = useState(false)
 
   function buildSetStats(ps: Player[]): SetStats {
     const s: SetStats = {}
@@ -202,12 +210,47 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
 
   function startGame() {
     if (!opponent.trim() || players.length === 0 || weAreServing === null) return
-    const initial: (string | null)[] = [...players.slice(0, 6).map(p => p.id)]
-    while (initial.length < 6) initial.push(null)
-    setRotation(initial)
+    setRotation([...preLineup])
     setSets([buildSetStats(players)])
     setHistory([])
     setGameStarted(true)
+  }
+
+  function applyLineup(lineup: SavedLineup) {
+    setPreLineup([...lineup.slots])
+  }
+
+  function saveCurrentLineup() {
+    if (!saveLineupName.trim()) return
+    const lineup: SavedLineup = {
+      id: crypto.randomUUID(),
+      name: saveLineupName.trim(),
+      slots: [...preLineup],
+    }
+    const updated = [...savedLineups, lineup]
+    setSavedLineups(updated)
+    saveLineups(updated)
+    setSaveLineupName('')
+    setShowSaveForm(false)
+  }
+
+  function deleteLineup(id: string) {
+    const updated = savedLineups.filter(l => l.id !== id)
+    setSavedLineups(updated)
+    saveLineups(updated)
+  }
+
+  function assignPreSlot(slot: number, playerId: string | null) {
+    setPreLineup(prev => {
+      const next = [...prev]
+      if (playerId) {
+        const existing = next.indexOf(playerId)
+        if (existing !== -1) next[existing] = next[slot]
+      }
+      next[slot] = playerId
+      return next
+    })
+    setPickingSlot(null)
   }
 
   function assignPlayerToSlot(slot: number, playerId: string | null) {
@@ -242,6 +285,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     setCurrentSet(0)
     setSets([buildSetStats(players)])
     setRotation([null,null,null,null,null,null])
+    setPreLineup([null,null,null,null,null,null])
     setHistory([])
     setShowEndDialog(false)
   }
@@ -251,10 +295,13 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
   const benchPlayers = players.filter(p => !onCourtIds.has(p.id))
 
   // ── Pre-match screen ──────────────────────────────────────────────────────
+  const preOnCourtIds = new Set(preLineup.filter(Boolean) as string[])
+  const preOnCourtCount = preOnCourtIds.size
+
   if (!gameStarted) {
     return (
-      <div className="p-6 max-w-md mx-auto flex flex-col gap-5 mt-6">
-        <div className="text-center">
+      <div className="overflow-y-auto p-4 max-w-lg mx-auto flex flex-col gap-5 pb-8">
+        <div className="text-center mt-3">
           <p className="text-vr-400 text-xs font-bold uppercase tracking-widest mb-1">Viking Roots Volleyball</p>
           <h2 className="text-3xl font-bold text-white">New Match</h2>
         </div>
@@ -265,6 +312,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
           </p>
         )}
 
+        {/* Opponent */}
         <div>
           <label className="block text-gray-300 text-sm mb-1">Opponent</label>
           <input
@@ -279,29 +327,151 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
         <div>
           <label className="block text-gray-300 text-sm mb-2">Who serves first?</label>
           <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setWeAreServing(true)}
+            <button onClick={() => setWeAreServing(true)}
               className={`tap-btn py-4 rounded-2xl font-bold text-base border-2 flex flex-col items-center gap-1 transition-colors ${
-                weAreServing === true
-                  ? 'bg-vr-700 border-vr-400 text-white'
-                  : 'bg-navy-700 border-white/10 text-gray-400'
-              }`}
-            >
+                weAreServing === true ? 'bg-vr-700 border-vr-400 text-white' : 'bg-navy-700 border-white/10 text-gray-400'
+              }`}>
               <span className="text-2xl">🏐</span>
               <span>We Serve</span>
             </button>
-            <button
-              onClick={() => setWeAreServing(false)}
+            <button onClick={() => setWeAreServing(false)}
               className={`tap-btn py-4 rounded-2xl font-bold text-base border-2 flex flex-col items-center gap-1 transition-colors ${
-                weAreServing === false
-                  ? 'bg-navy-600 border-gray-400 text-white'
-                  : 'bg-navy-700 border-white/10 text-gray-400'
-              }`}
-            >
+                weAreServing === false ? 'bg-navy-600 border-gray-400 text-white' : 'bg-navy-700 border-white/10 text-gray-400'
+              }`}>
               <span className="text-2xl">🏐</span>
               <span>They Serve</span>
             </button>
           </div>
+        </div>
+
+        {/* ── LINEUP BUILDER ─────────────────────────────────────────────── */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-gray-300 text-sm font-medium">
+              Starting Lineup <span className="text-gray-500 text-xs">({preOnCourtCount}/6 set)</span>
+            </label>
+            <button onClick={() => setPreLineup([null,null,null,null,null,null])}
+              className="tap-btn text-gray-500 text-xs border border-white/10 px-2 py-1 rounded-lg">
+              Clear
+            </button>
+          </div>
+
+          {/* Saved lineups row */}
+          {savedLineups.length > 0 && (
+            <div className="mb-3">
+              <p className="text-gray-500 text-xs mb-1.5">Saved lineups — tap to load</p>
+              <div className="flex flex-wrap gap-2">
+                {savedLineups.map(l => (
+                  <div key={l.id} className="flex items-center gap-1">
+                    <button onClick={() => applyLineup(l)}
+                      className="tap-btn bg-navy-700 border border-vr-600/40 text-vr-300 text-xs font-semibold px-3 py-1.5 rounded-xl">
+                      {l.name}
+                    </button>
+                    <button onClick={() => deleteLineup(l.id)}
+                      className="tap-btn text-gray-600 text-xs w-5 h-5 flex items-center justify-center rounded-full hover:text-red-400">
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Court diagram — 2 rows × 3 cols mirroring actual layout */}
+          <div className="bg-navy-800 border border-white/10 rounded-2xl p-3">
+            {/* Net */}
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex-1 h-px bg-pb-600/40" />
+              <span className="text-pb-500/60 text-[10px] font-bold uppercase tracking-widest">Net</span>
+              <div className="flex-1 h-px bg-pb-600/40" />
+            </div>
+
+            {/* Front row: P4 P3 P2 */}
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              {[3, 2, 1].map(slotIdx => {
+                const pid = preLineup[slotIdx]
+                const p = players.find(pl => pl.id === pid)
+                const isServer = slotIdx === 0 && weAreServing === true
+                return (
+                  <button key={slotIdx} onClick={() => setPickingSlot(slotIdx)}
+                    className={`tap-btn rounded-xl p-2 min-h-[72px] flex flex-col items-center justify-center border-2 transition-colors ${
+                      p ? 'bg-navy-700 border-vr-500/50' : 'bg-navy-900/60 border-dashed border-white/10'
+                    } ${isServer ? 'border-yellow-400/70' : ''}`}>
+                    <span className="text-white/20 text-[10px] mb-1">P{slotIdx + 1}</span>
+                    {p ? (
+                      <>
+                        <span className="text-pb-400 font-black text-sm">#{p.number}</span>
+                        <span className="text-white text-xs font-medium truncate w-full text-center leading-tight mt-0.5">{p.name.split(' ')[0]}</span>
+                        <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full text-white mt-0.5 ${POSITION_COLORS[p.position]}`}>
+                          {POSITION_LABELS[p.position]}
+                        </span>
+                        {isServer && <span className="text-yellow-400 text-[10px] mt-0.5">server</span>}
+                      </>
+                    ) : (
+                      <span className="text-white/20 text-lg">+</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Back row: P5 P6 P1 */}
+            <div className="grid grid-cols-3 gap-2">
+              {[4, 5, 0].map(slotIdx => {
+                const pid = preLineup[slotIdx]
+                const p = players.find(pl => pl.id === pid)
+                const isServer = slotIdx === 0 && weAreServing === true
+                return (
+                  <button key={slotIdx} onClick={() => setPickingSlot(slotIdx)}
+                    className={`tap-btn rounded-xl p-2 min-h-[72px] flex flex-col items-center justify-center border-2 transition-colors ${
+                      p ? 'bg-navy-700 border-vr-500/50' : 'bg-navy-900/60 border-dashed border-white/10'
+                    } ${isServer ? 'border-yellow-400/70' : ''}`}>
+                    <span className="text-white/20 text-[10px] mb-1">P{slotIdx + 1}</span>
+                    {p ? (
+                      <>
+                        <span className="text-pb-400 font-black text-sm">#{p.number}</span>
+                        <span className="text-white text-xs font-medium truncate w-full text-center leading-tight mt-0.5">{p.name.split(' ')[0]}</span>
+                        <span className={`text-[9px] font-bold px-1 py-0.5 rounded-full text-white mt-0.5 ${POSITION_COLORS[p.position]}`}>
+                          {POSITION_LABELS[p.position]}
+                        </span>
+                        {isServer && <span className="text-yellow-400 text-[10px] mt-0.5">server</span>}
+                      </>
+                    ) : (
+                      <span className="text-white/20 text-lg">+</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            <p className="text-center text-gray-600 text-[10px] mt-2">Tap any slot to assign a player · P1 = server</p>
+          </div>
+
+          {/* Save lineup controls */}
+          {!showSaveForm ? (
+            <button onClick={() => setShowSaveForm(true)}
+              className="tap-btn mt-2 w-full border border-white/10 text-gray-400 text-sm py-2 rounded-xl">
+              + Save this lineup for later
+            </button>
+          ) : (
+            <div className="mt-2 flex gap-2">
+              <input
+                className="flex-1 bg-navy-700 border border-white/20 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-pb-500"
+                placeholder="Lineup name (e.g. Base Rotation)"
+                value={saveLineupName}
+                onChange={e => setSaveLineupName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveCurrentLineup()}
+              />
+              <button onClick={saveCurrentLineup}
+                className="tap-btn bg-vr-600 text-white text-sm font-bold px-4 rounded-xl">
+                Save
+              </button>
+              <button onClick={() => setShowSaveForm(false)}
+                className="tap-btn text-gray-500 text-sm px-2">
+                ✕
+              </button>
+            </div>
+          )}
         </div>
 
         <button
@@ -311,6 +481,42 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
         >
           Start Match
         </button>
+
+        {/* ── PLAYER PICKER SHEET ──────────────────────────────────────────── */}
+        {pickingSlot !== null && (
+          <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setPickingSlot(null)}>
+            <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-white font-bold text-lg">Assign to P{pickingSlot + 1}</h3>
+                <button onClick={() => setPickingSlot(null)} className="text-gray-400 text-2xl tap-btn">×</button>
+              </div>
+              <button onClick={() => assignPreSlot(pickingSlot, null)}
+                className="tap-btn w-full bg-navy-700 border border-red-500/20 rounded-xl p-3 text-left text-red-400 text-sm mb-2">
+                Remove / leave empty
+              </button>
+              {players.map(p => {
+                const isInLineup = preOnCourtIds.has(p.id) && preLineup[pickingSlot] !== p.id
+                return (
+                  <button key={p.id} onClick={() => assignPreSlot(pickingSlot, p.id)}
+                    className={`tap-btn w-full border rounded-xl p-3 flex items-center gap-3 mb-1.5 ${
+                      preLineup[pickingSlot] === p.id ? 'bg-vr-800 border-vr-500' : 'bg-navy-700 border-white/10'
+                    }`}>
+                    <span className="text-pb-400 font-bold text-base">#{p.number}</span>
+                    <span className="text-white font-medium flex-1">{p.name}</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full text-white ${POSITION_COLORS[p.position]}`}>
+                      {POSITION_LABELS[p.position]}
+                    </span>
+                    {isInLineup && (
+                      <span className="text-yellow-500 text-xs">
+                        P{preLineup.indexOf(p.id) + 1}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     )
   }

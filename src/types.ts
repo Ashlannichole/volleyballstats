@@ -76,6 +76,13 @@ export const EMPTY_STATS = (): PlayerStats => ({
   passZeroOverpass: 0,
 })
 
+export interface SavedLineup {
+  id: string
+  name: string
+  // 6 player IDs indexed 0–5 (P1–P6), null = empty slot
+  slots: (string | null)[]
+}
+
 export const POSITION_LABELS: Record<Position, string> = {
   setter: 'S',
   outside: 'OH',
