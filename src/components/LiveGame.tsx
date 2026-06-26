@@ -116,10 +116,10 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     })
   }
 
-  // Rotate forward: P6 → P1 (standard volleyball side-out rotation)
+  // Clockwise: P2→P1, P3→P2, P4→P3, P5→P4, P6→P5, P1→P6
   function doRotate(currentRotation: (string | null)[]) {
     const n = [...currentRotation]
-    n.unshift(n.pop()!)
+    n.push(n.shift()!)
     return n
   }
 
