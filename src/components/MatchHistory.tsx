@@ -70,10 +70,21 @@ export default function MatchHistory({ matches, players, onDelete, onLoadDemo, o
                 <p className="text-white font-bold text-lg">{match.opponent}</p>
                 <p className="text-gray-400 text-sm">{match.date} · {match.sets.length} set{match.sets.length !== 1 ? 's' : ''}</p>
               </div>
-              <div className="text-right">
+              <div className="text-right flex items-center gap-2">
                 <p className="text-white font-bold text-xl">
                   {match.ourScore || '?'} – {match.theirScore || '?'}
                 </p>
+                {match.ourScore && match.theirScore && (
+                  <span className={`text-sm font-black w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                    Number(match.ourScore) > Number(match.theirScore)
+                      ? 'bg-green-800 text-green-300'
+                      : Number(match.ourScore) < Number(match.theirScore)
+                        ? 'bg-red-900 text-red-300'
+                        : 'bg-gray-700 text-gray-400'
+                  }`}>
+                    {Number(match.ourScore) > Number(match.theirScore) ? 'W' : Number(match.ourScore) < Number(match.theirScore) ? 'L' : 'T'}
+                  </span>
+                )}
               </div>
               <span className="text-gray-500 text-lg">{expanded === match.id ? '▲' : '▼'}</span>
             </button>
