@@ -1,11 +1,14 @@
 import { useState } from 'react'
-import type { Player, PlayerStats, SetStats, Match, SavedLineup } from '../types'
+import type { Player, PlayerStats, SetStats, Match, SavedLineup, PracticeSession } from '../types'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { loadLineups, saveLineups } from '../utils/storage'
 
 interface Props {
   players: Player[]
   onSaveMatch: (match: Match) => void
+  // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
+  practiceMode?: boolean
+  onSavePractice?: (session: PracticeSession) => void
 }
 
 const COURT_LAYOUT = [
@@ -72,10 +75,14 @@ interface Snapshot {
   rotation: (string | null)[]
 }
 
-export default function LiveGame({ players, onSaveMatch }: Props) {
+export default function LiveGame({ players, onSaveMatch, practiceMode = false, onSavePractice }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
+  // Practice-mode fields
+  const [practiceName, setPracticeName]     = useState('')
+  const [teamLabel, setTeamLabel]           = useState('')
+  const [practiceNotes, setPracticeNotes]   = useState('')
   const [ourScore, setOurScore]             = useState(0)
   const [theirScore, setTheirScore]         = useState(0)
   const [ourTimeouts, setOurTimeouts]       = useState(0)
@@ -255,7 +262,11 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
   }
 
   function startGame() {
-    if (!opponent.trim() || players.length === 0 || weAreServing === null) return
+    if (practiceMode) {
+      if (!practiceName.trim() || players.length === 0) return
+    } else {
+      if (!opponent.trim() || players.length === 0 || weAreServing === null) return
+    }
     setRotation([...preLineup])
     setSets([buildSetStats(players)])
     setHistory([])
@@ -313,20 +324,33 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
   }
 
   function confirmEnd() {
-    const match: Match = {
-      id: crypto.randomUUID(),
-      date: new Date().toISOString().split('T')[0],
-      tournament: tournament.trim(),
-      opponent: opponent.trim(),
-      ourScore: String(ourScore),
-      theirScore: String(theirScore),
-      sets,
-      notes: '',
+    if (practiceMode && onSavePractice) {
+      onSavePractice({
+        id: crypto.randomUUID(),
+        date: new Date().toISOString().split('T')[0],
+        name: practiceName.trim(),
+        teamLabel: teamLabel.trim(),
+        notes: practiceNotes.trim(),
+        scrimmages: sets,
+      })
+    } else {
+      onSaveMatch({
+        id: crypto.randomUUID(),
+        date: new Date().toISOString().split('T')[0],
+        tournament: tournament.trim(),
+        opponent: opponent.trim(),
+        ourScore: String(ourScore),
+        theirScore: String(theirScore),
+        sets,
+        notes: '',
+      })
     }
-    onSaveMatch(match)
     setGameStarted(false)
     setTournament('')
     setOpponent('')
+    setPracticeName('')
+    setTeamLabel('')
+    setPracticeNotes('')
     setOurScore(0); setTheirScore(0)
     setOurTimeouts(0); setTheirTimeouts(0)
     setWeAreServing(null)
@@ -353,7 +377,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
       <div className="overflow-y-auto p-4 max-w-lg mx-auto flex flex-col gap-5 pb-8">
         <div className="text-center mt-3">
           <p className="text-vr-400 text-xs font-bold uppercase tracking-widest mb-1">Viking Roots Volleyball</p>
-          <h2 className="text-3xl font-bold text-white">New Match</h2>
+          <h2 className="text-3xl font-bold text-white">{practiceMode ? 'New Scrimmage' : 'New Match'}</h2>
         </div>
 
         {players.length === 0 && (
@@ -362,48 +386,98 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
           </p>
         )}
 
-        {/* Tournament */}
-        <div>
-          <label className="block text-gray-300 text-sm mb-1">Tournament <span className="text-gray-500">(optional)</span></label>
-          <input
-            className="w-full bg-navy-700 border border-white/20 rounded-xl px-4 py-3 text-white text-base outline-none focus:border-pb-500"
-            placeholder="e.g. Spring Kickoff Classic"
-            value={tournament}
-            onChange={e => setTournament(e.target.value)}
-          />
-        </div>
+        {practiceMode ? (
+          <>
+            {/* Practice name */}
+            <div>
+              <label className="block text-gray-300 text-sm mb-1">Session Name</label>
+              <input
+                className="w-full bg-navy-700 border border-white/20 rounded-xl px-4 py-4 text-white text-xl outline-none focus:border-pb-500"
+                placeholder="e.g. Pre-tournament scrimmage"
+                value={practiceName}
+                onChange={e => setPracticeName(e.target.value)}
+              />
+            </div>
 
-        {/* Opponent */}
-        <div>
-          <label className="block text-gray-300 text-sm mb-1">Opponent</label>
-          <input
-            className="w-full bg-navy-700 border border-white/20 rounded-xl px-4 py-4 text-white text-xl outline-none focus:border-pb-500"
-            placeholder="e.g. Lincoln 14U"
-            value={opponent}
-            onChange={e => setOpponent(e.target.value)}
-          />
-        </div>
+            {/* Team label for two-coach tracking */}
+            <div>
+              <label className="block text-gray-300 text-sm mb-1">
+                Team Side <span className="text-gray-500 text-xs">(optional — for two-coach tracking)</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {['', 'Black', 'White'].map(side => (
+                  <button key={side} onClick={() => setTeamLabel(side)}
+                    className={`tap-btn py-3 rounded-xl font-bold text-sm border-2 transition-colors ${
+                      teamLabel === side ? 'bg-vr-700 border-vr-400 text-white' : 'bg-navy-700 border-white/10 text-gray-400'
+                    }`}>
+                    {side === '' ? 'All Players' : `Team ${side}`}
+                  </button>
+                ))}
+              </div>
+              {teamLabel && (
+                <p className="text-gray-500 text-xs mt-2">
+                  📱 Two coaches can each track one team — select the same session name on both iPads.
+                </p>
+              )}
+            </div>
 
-        {/* Who serves first? */}
-        <div>
-          <label className="block text-gray-300 text-sm mb-2">Who serves first?</label>
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => setWeAreServing(true)}
-              className={`tap-btn py-4 rounded-2xl font-bold text-base border-2 flex flex-col items-center gap-1 transition-colors ${
-                weAreServing === true ? 'bg-vr-700 border-vr-400 text-white' : 'bg-navy-700 border-white/10 text-gray-400'
-              }`}>
-              <span className="text-2xl">🏐</span>
-              <span>We Serve</span>
-            </button>
-            <button onClick={() => setWeAreServing(false)}
-              className={`tap-btn py-4 rounded-2xl font-bold text-base border-2 flex flex-col items-center gap-1 transition-colors ${
-                weAreServing === false ? 'bg-navy-600 border-gray-400 text-white' : 'bg-navy-700 border-white/10 text-gray-400'
-              }`}>
-              <span className="text-2xl">🏐</span>
-              <span>They Serve</span>
-            </button>
-          </div>
-        </div>
+            {/* Notes */}
+            <div>
+              <label className="block text-gray-300 text-sm mb-1">Notes <span className="text-gray-500">(optional)</span></label>
+              <input
+                className="w-full bg-navy-700 border border-white/20 rounded-xl px-4 py-2 text-white text-sm outline-none focus:border-pb-500"
+                placeholder="e.g. Working on serve receive"
+                value={practiceNotes}
+                onChange={e => setPracticeNotes(e.target.value)}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Tournament */}
+            <div>
+              <label className="block text-gray-300 text-sm mb-1">Tournament <span className="text-gray-500">(optional)</span></label>
+              <input
+                className="w-full bg-navy-700 border border-white/20 rounded-xl px-4 py-3 text-white text-base outline-none focus:border-pb-500"
+                placeholder="e.g. Spring Kickoff Classic"
+                value={tournament}
+                onChange={e => setTournament(e.target.value)}
+              />
+            </div>
+
+            {/* Opponent */}
+            <div>
+              <label className="block text-gray-300 text-sm mb-1">Opponent</label>
+              <input
+                className="w-full bg-navy-700 border border-white/20 rounded-xl px-4 py-4 text-white text-xl outline-none focus:border-pb-500"
+                placeholder="e.g. Lincoln 14U"
+                value={opponent}
+                onChange={e => setOpponent(e.target.value)}
+              />
+            </div>
+
+            {/* Who serves first? */}
+            <div>
+              <label className="block text-gray-300 text-sm mb-2">Who serves first?</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => setWeAreServing(true)}
+                  className={`tap-btn py-4 rounded-2xl font-bold text-base border-2 flex flex-col items-center gap-1 transition-colors ${
+                    weAreServing === true ? 'bg-vr-700 border-vr-400 text-white' : 'bg-navy-700 border-white/10 text-gray-400'
+                  }`}>
+                  <span className="text-2xl">🏐</span>
+                  <span>We Serve</span>
+                </button>
+                <button onClick={() => setWeAreServing(false)}
+                  className={`tap-btn py-4 rounded-2xl font-bold text-base border-2 flex flex-col items-center gap-1 transition-colors ${
+                    weAreServing === false ? 'bg-navy-600 border-gray-400 text-white' : 'bg-navy-700 border-white/10 text-gray-400'
+                  }`}>
+                  <span className="text-2xl">🏐</span>
+                  <span>They Serve</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* ── LINEUP BUILDER ─────────────────────────────────────────────── */}
         <div>
@@ -536,11 +610,13 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
         </div>
 
         <button
-          disabled={!opponent.trim() || players.length === 0 || weAreServing === null}
+          disabled={practiceMode
+            ? (!practiceName.trim() || players.length === 0)
+            : (!opponent.trim() || players.length === 0 || weAreServing === null)}
           onClick={startGame}
           className="tap-btn w-full bg-vr-600 disabled:opacity-40 text-white font-bold py-5 rounded-2xl text-xl"
         >
-          Start Match
+          {practiceMode ? 'Start Scrimmage' : 'Start Match'}
         </button>
 
         {/* ── PLAYER PICKER SHEET ──────────────────────────────────────────── */}

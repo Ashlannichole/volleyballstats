@@ -80,9 +80,9 @@ export const EMPTY_STATS = (): PlayerStats => ({
 export interface PracticeSession {
   id: string
   date: string
-  name: string          // e.g. "Pre-tournament scrimmage"
+  name: string          // e.g. "Tuesday scrimmage"
+  teamLabel: string     // e.g. "Black" or "White" for two-coach tracking
   notes: string
-  // Each "scrimmage" is one SetStats block; a practice can have multiple
   scrimmages: SetStats[]
 }
 
