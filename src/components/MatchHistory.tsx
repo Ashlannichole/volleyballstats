@@ -4,13 +4,18 @@ import { killPct, passAvg, mergeStats } from '../utils/statsHelpers'
 import { EMPTY_STATS } from '../types'
 import PracticeSuggestions from './PracticeSuggestions'
 
+import { SEED_MATCHES } from '../utils/seedData'
+
 interface Props {
   matches: Match[]
   players: Player[]
   onDelete: (id: string) => void
+  onLoadDemo: () => void
+  onClearDemo: () => void
 }
 
-export default function MatchHistory({ matches, players, onDelete }: Props) {
+export default function MatchHistory({ matches, players, onDelete, onLoadDemo, onClearDemo }: Props) {
+  const hasDemoData = matches.some(m => SEED_MATCHES.some(s => s.id === m.id))
   const [expanded, setExpanded] = useState<string | null>(null)
   const [aiMatch, setAiMatch] = useState<Match | null>(null)
 
@@ -28,14 +33,32 @@ export default function MatchHistory({ matches, players, onDelete }: Props) {
     return (
       <div className="p-6 text-center mt-12">
         <p className="text-gray-400 text-lg">No matches saved yet.</p>
-        <p className="text-gray-600 text-sm mt-2">Complete a match in Live Game to see history here.</p>
+        <p className="text-gray-600 text-sm mt-2 mb-8">Complete a match in Live Game to see history here.</p>
+        <button onClick={onLoadDemo}
+          className="tap-btn bg-vr-700 border border-vr-500/50 text-white font-bold px-6 py-4 rounded-2xl text-base">
+          Load Demo Tournament Weekend
+        </button>
+        <p className="text-gray-600 text-xs mt-3">6 fake matches · 12 players · safely removable</p>
       </div>
     )
   }
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h2 className="text-2xl font-bold text-white mb-6">Match History</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-white">Match History</h2>
+        {!hasDemoData ? (
+          <button onClick={onLoadDemo}
+            className="tap-btn text-xs text-vr-400 border border-vr-600/30 px-3 py-1.5 rounded-xl">
+            Load Demo
+          </button>
+        ) : (
+          <button onClick={onClearDemo}
+            className="tap-btn text-xs text-gray-500 border border-white/10 px-3 py-1.5 rounded-xl">
+            Clear Demo
+          </button>
+        )}
+      </div>
       <div className="space-y-3">
         {sorted.map(match => (
           <div key={match.id} className="bg-navy-700 border border-white/10 rounded-2xl overflow-hidden">

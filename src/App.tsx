@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { Player, Match } from './types'
 import { loadPlayers, savePlayers, loadMatches, saveMatches } from './utils/storage'
+import { SEED_PLAYERS, SEED_MATCHES } from './utils/seedData'
 import Roster from './components/Roster'
 import LiveGame from './components/LiveGame'
 import MatchHistory from './components/MatchHistory'
@@ -32,6 +33,26 @@ export default function App() {
     setMatches(prev => prev.filter(m => m.id !== id))
   }
 
+  function handleLoadDemo() {
+    setPlayers(prev => {
+      const existingIds = new Set(prev.map(p => p.id))
+      const newPlayers = SEED_PLAYERS.filter(p => !existingIds.has(p.id))
+      return [...prev, ...newPlayers]
+    })
+    setMatches(prev => {
+      const existingIds = new Set(prev.map(m => m.id))
+      const newMatches = SEED_MATCHES.filter(m => !existingIds.has(m.id))
+      return [...prev, ...newMatches]
+    })
+  }
+
+  function handleClearDemo() {
+    const seedPlayerIds = new Set(SEED_PLAYERS.map(p => p.id))
+    const seedMatchIds  = new Set(SEED_MATCHES.map(m => m.id))
+    setPlayers(prev => prev.filter(p => !seedPlayerIds.has(p.id)))
+    setMatches(prev => prev.filter(m => !seedMatchIds.has(m.id)))
+  }
+
   return (
     <div className="flex flex-col h-screen bg-navy-900 overflow-hidden">
       {/* Header */}
@@ -52,7 +73,7 @@ export default function App() {
         <div className={tab === 'live'    ? 'h-full flex flex-col' : 'hidden'}>
           <LiveGame players={players} onSaveMatch={handleSaveMatch} />
         </div>
-        <div className={tab === 'history' ? '' : 'hidden'}><MatchHistory matches={matches} players={players} onDelete={handleDeleteMatch} /></div>
+        <div className={tab === 'history' ? '' : 'hidden'}><MatchHistory matches={matches} players={players} onDelete={handleDeleteMatch} onLoadDemo={handleLoadDemo} onClearDemo={handleClearDemo} /></div>
         <div className={tab === 'season'  ? '' : 'hidden'}><SeasonStats matches={matches} players={players} /></div>
       </div>
 
