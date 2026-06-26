@@ -14,16 +14,30 @@ export interface PlayerStats {
   aces: number
   serveErrors: number
   serveAttempts: number
-  passRatingTotal: number  // sum of all pass ratings given
-  passAttempts: number     // number of passes rated
+  passRatingTotal: number
+  passAttempts: number
   digs: number
   soloBlocks: number
   blockAssists: number
   settingAssists: number
   settingErrors: number
+  // Attack error breakdown
+  atkErrMissed: number     // whiff / missed hit
+  atkErrBlocked: number    // blocked by opponent
+  atkErrOut: number        // hit out of bounds
+  atkErrNet: number        // hit into net
+  // Serve error breakdown
+  srvErrMissed: number     // missed / whiff
+  srvErrNet: number        // into net
+  srvErrOut: number        // long or wide
+  srvErrFoot: number       // foot fault
+  // Pass 0 breakdown
+  passZeroShank: number    // shanked off platform
+  passZeroAce: number      // server aced (couldn't reach)
+  passZeroOverpass: number // overpass over net
 }
 
-export type SetStats = Record<string, PlayerStats>  // playerId -> stats
+export type SetStats = Record<string, PlayerStats>
 
 export interface Match {
   id: string
@@ -31,7 +45,7 @@ export interface Match {
   opponent: string
   ourScore: string
   theirScore: string
-  sets: SetStats[]   // index 0 = set 1, etc.
+  sets: SetStats[]
   notes: string
 }
 
@@ -49,6 +63,17 @@ export const EMPTY_STATS = (): PlayerStats => ({
   blockAssists: 0,
   settingAssists: 0,
   settingErrors: 0,
+  atkErrMissed: 0,
+  atkErrBlocked: 0,
+  atkErrOut: 0,
+  atkErrNet: 0,
+  srvErrMissed: 0,
+  srvErrNet: 0,
+  srvErrOut: 0,
+  srvErrFoot: 0,
+  passZeroShank: 0,
+  passZeroAce: 0,
+  passZeroOverpass: 0,
 })
 
 export const POSITION_LABELS: Record<Position, string> = {
