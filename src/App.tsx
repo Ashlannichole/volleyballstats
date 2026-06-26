@@ -36,7 +36,6 @@ export default function App() {
     <div className="flex flex-col h-screen bg-navy-900 overflow-hidden">
       {/* Header */}
       <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0 flex items-center gap-3">
-        {/* Viking helmet SVG icon */}
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
           <circle cx="16" cy="16" r="16" fill="#4a1d8a" />
           <text x="16" y="22" textAnchor="middle" fontSize="18" fill="#87cde3">⚔</text>
@@ -47,12 +46,14 @@ export default function App() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        {tab === 'roster'  && <Roster players={players} onChange={setPlayers} />}
-        {tab === 'live'    && <LiveGame players={players} onSaveMatch={handleSaveMatch} />}
-        {tab === 'history' && <MatchHistory matches={matches} players={players} onDelete={handleDeleteMatch} />}
-        {tab === 'season'  && <SeasonStats matches={matches} players={players} />}
+      {/* Content — all tabs stay mounted; hidden hides inactive ones so Live game state persists */}
+      <div className="flex-1 overflow-y-auto relative">
+        <div className={tab === 'roster'  ? '' : 'hidden'}><Roster players={players} onChange={setPlayers} /></div>
+        <div className={tab === 'live'    ? 'h-full flex flex-col' : 'hidden'}>
+          <LiveGame players={players} onSaveMatch={handleSaveMatch} />
+        </div>
+        <div className={tab === 'history' ? '' : 'hidden'}><MatchHistory matches={matches} players={players} onDelete={handleDeleteMatch} /></div>
+        <div className={tab === 'season'  ? '' : 'hidden'}><SeasonStats matches={matches} players={players} /></div>
       </div>
 
       {/* Bottom nav */}
@@ -67,9 +68,7 @@ export default function App() {
           >
             <span className="text-xl">{t.icon}</span>
             <span className="text-xs font-medium">{t.label}</span>
-            {tab === t.id && (
-              <span className="w-4 h-0.5 rounded-full bg-vr-500 mt-0.5" />
-            )}
+            {tab === t.id && <span className="w-4 h-0.5 rounded-full bg-vr-500 mt-0.5" />}
           </button>
         ))}
       </nav>

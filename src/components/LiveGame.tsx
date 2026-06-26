@@ -36,9 +36,7 @@ const CHIP_ROWS: StatChipDef[][] = [
   ],
 ]
 
-// Keys that score a point for us on +1
-const SCORES_OUR_POINT = new Set<keyof PlayerStats>(['kills', 'aces', 'soloBlocks', 'blockAssists'])
-// Keys that score a point for opponent on +1
+const SCORES_OUR_POINT   = new Set<keyof PlayerStats>(['kills', 'aces', 'soloBlocks', 'blockAssists'])
 const SCORES_THEIR_POINT = new Set<keyof PlayerStats>(['attackErrors', 'serveErrors'])
 
 interface PendingError {
@@ -46,45 +44,51 @@ interface PendingError {
   type: 'attack' | 'serve' | 'pass'
 }
 
-const ATTACK_ERROR_TYPES: { label: string; key: keyof PlayerStats; emoji: string }[] = [
-  { label: 'Missed Hit',    key: 'atkErrMissed',   emoji: '💨' },
-  { label: 'Blocked',       key: 'atkErrBlocked',  emoji: '🤚' },
-  { label: 'Hit Out',       key: 'atkErrOut',      emoji: '↗️' },
-  { label: 'Into Net',      key: 'atkErrNet',      emoji: '🔀' },
+const ATTACK_ERROR_TYPES = [
+  { label: 'Missed Hit',  key: 'atkErrMissed'   as keyof PlayerStats, emoji: '💨' },
+  { label: 'Blocked',     key: 'atkErrBlocked'  as keyof PlayerStats, emoji: '🤚' },
+  { label: 'Hit Out',     key: 'atkErrOut'      as keyof PlayerStats, emoji: '↗️' },
+  { label: 'Into Net',    key: 'atkErrNet'      as keyof PlayerStats, emoji: '🔀' },
+]
+const SERVE_ERROR_TYPES = [
+  { label: 'Missed Serve', key: 'srvErrMissed'  as keyof PlayerStats, emoji: '💨' },
+  { label: 'Into Net',     key: 'srvErrNet'     as keyof PlayerStats, emoji: '🔀' },
+  { label: 'Long / Out',   key: 'srvErrOut'     as keyof PlayerStats, emoji: '↗️' },
+  { label: 'Foot Fault',   key: 'srvErrFoot'    as keyof PlayerStats, emoji: '👟' },
+]
+const PASS_ZERO_TYPES = [
+  { label: 'Shank',       key: 'passZeroShank'    as keyof PlayerStats, emoji: '🙈' },
+  { label: 'Server Aced', key: 'passZeroAce'      as keyof PlayerStats, emoji: '🔥' },
+  { label: 'Overpass',    key: 'passZeroOverpass' as keyof PlayerStats, emoji: '🔄' },
 ]
 
-const SERVE_ERROR_TYPES: { label: string; key: keyof PlayerStats; emoji: string }[] = [
-  { label: 'Missed Serve',  key: 'srvErrMissed',   emoji: '💨' },
-  { label: 'Into Net',      key: 'srvErrNet',      emoji: '🔀' },
-  { label: 'Long / Out',    key: 'srvErrOut',      emoji: '↗️' },
-  { label: 'Foot Fault',    key: 'srvErrFoot',     emoji: '👟' },
-]
-
-const PASS_ZERO_TYPES: { label: string; key: keyof PlayerStats; emoji: string }[] = [
-  { label: 'Shank',         key: 'passZeroShank',     emoji: '🙈' },
-  { label: 'Server Aced',   key: 'passZeroAce',       emoji: '🔥' },
-  { label: 'Overpass',      key: 'passZeroOverpass',  emoji: '🔄' },
-]
+// Snapshot for undo history
+interface Snapshot {
+  sets: SetStats[]
+  ourScore: number
+  theirScore: number
+  weAreServing: boolean | null
+  rotation: (string | null)[]
+}
 
 export default function LiveGame({ players, onSaveMatch }: Props) {
-  const [gameStarted, setGameStarted] = useState(false)
-  const [opponent, setOpponent] = useState('')
-
-  const [ourScore, setOurScore] = useState(0)
-  const [theirScore, setTheirScore] = useState(0)
-  const [ourTimeouts, setOurTimeouts] = useState(0)
-  const [theirTimeouts, setTheirTimeouts] = useState(0)
-
-  const [rotation, setRotation] = useState<(string | null)[]>([null, null, null, null, null, null])
+  const [gameStarted, setGameStarted]       = useState(false)
+  const [opponent, setOpponent]             = useState('')
+  const [ourScore, setOurScore]             = useState(0)
+  const [theirScore, setTheirScore]         = useState(0)
+  const [ourTimeouts, setOurTimeouts]       = useState(0)
+  const [theirTimeouts, setTheirTimeouts]   = useState(0)
+  const [weAreServing, setWeAreServing]     = useState<boolean | null>(null)
+  const [rotation, setRotation]             = useState<(string | null)[]>([null,null,null,null,null,null])
   const [showRotationEditor, setShowRotationEditor] = useState(false)
-  const [assigningSlot, setAssigningSlot] = useState<number | null>(null)
-
-  const [currentSet, setCurrentSet] = useState(0)
-  const [sets, setSets] = useState<SetStats[]>([buildSetStats(players)])
-
+  const [assigningSlot, setAssigningSlot]   = useState<number | null>(null)
+  const [currentSet, setCurrentSet]         = useState(0)
+  const [sets, setSets]                     = useState<SetStats[]>([buildSetStats(players)])
   const [expandedPlayer, setExpandedPlayer] = useState<string | null>(null)
-  const [showEndDialog, setShowEndDialog] = useState(false)
-  const [pendingError, setPendingError] = useState<PendingError | null>(null)
+  const [showEndDialog, setShowEndDialog]   = useState(false)
+  const [pendingError, setPendingError]     = useState<PendingError | null>(null)
+  const [history, setHistory]               = useState<Snapshot[]>([])
+  const [rotationToast, setRotationToast]   = useState(false)
 
   function buildSetStats(ps: Player[]): SetStats {
     const s: SetStats = {}
@@ -92,8 +96,40 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     return s
   }
 
-  // Core stat adjustment — also auto-scores for point-scoring actions
+  // Save current state before any mutation so we can undo it
+  function snapshot() {
+    setHistory(prev => [...prev.slice(-19), {
+      sets, ourScore, theirScore, weAreServing, rotation
+    }])
+  }
+
+  function undo() {
+    setHistory(prev => {
+      if (prev.length === 0) return prev
+      const snap = prev[prev.length - 1]
+      setSets(snap.sets)
+      setOurScore(snap.ourScore)
+      setTheirScore(snap.theirScore)
+      setWeAreServing(snap.weAreServing)
+      setRotation(snap.rotation)
+      return prev.slice(0, -1)
+    })
+  }
+
+  // Rotate forward: P6 → P1 (standard volleyball side-out rotation)
+  function doRotate(currentRotation: (string | null)[]) {
+    const n = [...currentRotation]
+    n.unshift(n.pop()!)
+    return n
+  }
+
+  function showRotationToastBriefly() {
+    setRotationToast(true)
+    setTimeout(() => setRotationToast(false), 2000)
+  }
+
   function adjust(playerId: string, key: keyof PlayerStats, delta: number) {
+    snapshot()
     setSets(prev => prev.map((s, i) => {
       if (i !== currentSet) return s
       const ps = { ...s[playerId] }
@@ -102,25 +138,41 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     }))
 
     if (delta > 0) {
-      if (SCORES_OUR_POINT.has(key))   setOurScore(s => s + 1)
-      if (SCORES_THEIR_POINT.has(key)) setTheirScore(s => s + 1)
+      if (SCORES_OUR_POINT.has(key)) {
+        setOurScore(s => s + 1)
+        // Side-out: we scored while receiving → rotate + take serve
+        if (weAreServing === false) {
+          setRotation(prev => doRotate(prev))
+          setWeAreServing(true)
+          showRotationToastBriefly()
+        }
+      }
+      if (SCORES_THEIR_POINT.has(key)) {
+        setTheirScore(s => s + 1)
+        if (weAreServing === true) setWeAreServing(false)
+      }
     } else if (delta < 0) {
+      // Undo score on minus (corrections)
       if (SCORES_OUR_POINT.has(key))   setOurScore(s => Math.max(0, s - 1))
       if (SCORES_THEIR_POINT.has(key)) setTheirScore(s => Math.max(0, s - 1))
     }
   }
 
   function adjustPass(playerId: string, rating: number, autoScore = true) {
+    snapshot()
     setSets(prev => prev.map((s, i) => {
       if (i !== currentSet) return s
       const ps = { ...s[playerId] }
       return { ...s, [playerId]: { ...ps, passRatingTotal: ps.passRatingTotal + rating, passAttempts: ps.passAttempts + 1 } }
     }))
-    if (rating === 0 && autoScore) setTheirScore(s => s + 1)
+    if (rating === 0 && autoScore) {
+      setTheirScore(s => s + 1)
+      if (weAreServing === true) setWeAreServing(false)
+    }
   }
 
-  // Called from error picker modal: records main error + sub-type in one shot
   function commitError(playerId: string, mainKey: keyof PlayerStats, subKey: keyof PlayerStats) {
+    // snapshot is called inside adjust()
     adjust(playerId, mainKey, 1)
     setSets(prev => prev.map((s, i) => {
       if (i !== currentSet) return s
@@ -130,8 +182,6 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     setPendingError(null)
   }
 
-  // Called from error picker modal for pass 0
-  // Overpass is a 0 pass but doesn't guarantee a point for the opponent
   function commitPassZero(playerId: string, subKey: keyof PlayerStats) {
     const isOverpass = subKey === 'passZeroOverpass'
     adjustPass(playerId, 0, !isOverpass)
@@ -151,20 +201,13 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
   }
 
   function startGame() {
-    if (!opponent.trim() || players.length === 0) return
+    if (!opponent.trim() || players.length === 0 || weAreServing === null) return
     const initial: (string | null)[] = [...players.slice(0, 6).map(p => p.id)]
     while (initial.length < 6) initial.push(null)
     setRotation(initial)
     setSets([buildSetStats(players)])
+    setHistory([])
     setGameStarted(true)
-  }
-
-  function rotateForward() {
-    setRotation(prev => { const n = [...prev]; n.unshift(n.pop()!); return n })
-  }
-
-  function rotateBack() {
-    setRotation(prev => { const n = [...prev]; n.push(n.shift()!); return n })
   }
 
   function assignPlayerToSlot(slot: number, playerId: string | null) {
@@ -195,9 +238,11 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     setOpponent('')
     setOurScore(0); setTheirScore(0)
     setOurTimeouts(0); setTheirTimeouts(0)
+    setWeAreServing(null)
     setCurrentSet(0)
     setSets([buildSetStats(players)])
-    setRotation([null, null, null, null, null, null])
+    setRotation([null,null,null,null,null,null])
+    setHistory([])
     setShowEndDialog(false)
   }
 
@@ -213,11 +258,13 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
           <p className="text-vr-400 text-xs font-bold uppercase tracking-widest mb-1">Viking Roots Volleyball</p>
           <h2 className="text-3xl font-bold text-white">New Match</h2>
         </div>
+
         {players.length === 0 && (
           <p className="text-yellow-400 text-center text-sm bg-yellow-900/20 rounded-xl p-3">
             Add players to your roster first.
           </p>
         )}
+
         <div>
           <label className="block text-gray-300 text-sm mb-1">Opponent</label>
           <input
@@ -227,8 +274,38 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
             onChange={e => setOpponent(e.target.value)}
           />
         </div>
+
+        {/* Who serves first? */}
+        <div>
+          <label className="block text-gray-300 text-sm mb-2">Who serves first?</label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setWeAreServing(true)}
+              className={`tap-btn py-4 rounded-2xl font-bold text-base border-2 flex flex-col items-center gap-1 transition-colors ${
+                weAreServing === true
+                  ? 'bg-vr-700 border-vr-400 text-white'
+                  : 'bg-navy-700 border-white/10 text-gray-400'
+              }`}
+            >
+              <span className="text-2xl">🏐</span>
+              <span>We Serve</span>
+            </button>
+            <button
+              onClick={() => setWeAreServing(false)}
+              className={`tap-btn py-4 rounded-2xl font-bold text-base border-2 flex flex-col items-center gap-1 transition-colors ${
+                weAreServing === false
+                  ? 'bg-navy-600 border-gray-400 text-white'
+                  : 'bg-navy-700 border-white/10 text-gray-400'
+              }`}
+            >
+              <span className="text-2xl">🏐</span>
+              <span>They Serve</span>
+            </button>
+          </div>
+        </div>
+
         <button
-          disabled={!opponent.trim() || players.length === 0}
+          disabled={!opponent.trim() || players.length === 0 || weAreServing === null}
           onClick={startGame}
           className="tap-btn w-full bg-vr-600 disabled:opacity-40 text-white font-bold py-5 rounded-2xl text-xl"
         >
@@ -242,17 +319,29 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
   return (
     <div className="flex flex-col h-full bg-navy-900 select-none">
 
+      {/* ── ROTATION TOAST ───────────────────────────────────────────────── */}
+      {rotationToast && (
+        <div className="absolute top-28 left-1/2 -translate-x-1/2 z-50 bg-vr-600 text-white font-bold px-5 py-2 rounded-full text-sm shadow-lg animate-bounce pointer-events-none">
+          ⟳ Rotation! New server in P1
+        </div>
+      )}
+
       {/* ── SCOREBOARD ───────────────────────────────────────────────────── */}
       <div className="bg-navy-800 border-b border-white/10 px-3 py-2 shrink-0">
         <div className="flex items-center gap-2">
 
           {/* Viking Roots */}
           <div className="flex-1 flex flex-col items-center">
-            <p className="text-pb-400 text-xs font-bold tracking-wide">VIKING ROOTS</p>
+            <div className="flex items-center gap-1">
+              {weAreServing && <span className="text-sm animate-pulse">🏐</span>}
+              <p className={`text-xs font-bold tracking-wide ${weAreServing ? 'text-pb-300' : 'text-pb-400/60'}`}>
+                VIKING ROOTS
+              </p>
+            </div>
             <div className="flex items-center gap-2 mt-0.5">
               <div className="flex gap-1">
                 {[0,1,2].map(i => (
-                  <button key={i} onClick={() => setOurTimeouts(t => t === i + 1 ? i : i + 1)}
+                  <button key={i} onClick={() => setOurTimeouts(t => t === i+1 ? i : i+1)}
                     className={`tap-btn w-3 h-3 rounded-full border ${i < ourTimeouts ? 'bg-vr-500 border-vr-400' : 'bg-transparent border-white/30'}`} />
                 ))}
               </div>
@@ -276,12 +365,17 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
               ))}
               <button onClick={nextSet} className="tap-btn w-7 h-7 rounded-lg text-xs font-bold bg-navy-600 text-gray-400 border border-white/10">+</button>
             </div>
-            <span className="text-gray-500 text-lg font-bold leading-none">VS</span>
+            <span className="text-gray-500 text-base font-bold leading-none">VS</span>
           </div>
 
           {/* Opponent */}
           <div className="flex-1 flex flex-col items-center">
-            <p className="text-gray-400 text-xs font-bold tracking-wide truncate">{opponent.toUpperCase()}</p>
+            <div className="flex items-center gap-1">
+              <p className={`text-xs font-bold tracking-wide truncate ${!weAreServing ? 'text-gray-300' : 'text-gray-500'}`}>
+                {opponent.toUpperCase()}
+              </p>
+              {weAreServing === false && <span className="text-sm animate-pulse">🏐</span>}
+            </div>
             <div className="flex items-center gap-2 mt-0.5">
               <button onClick={() => setTheirScore(s => Math.max(0, s - 1))}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
@@ -291,7 +385,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
               </button>
               <div className="flex gap-1">
                 {[0,1,2].map(i => (
-                  <button key={i} onClick={() => setTheirTimeouts(t => t === i + 1 ? i : i + 1)}
+                  <button key={i} onClick={() => setTheirTimeouts(t => t === i+1 ? i : i+1)}
                     className={`tap-btn w-3 h-3 rounded-full border ${i < theirTimeouts ? 'bg-gray-400 border-gray-300' : 'bg-transparent border-white/30'}`} />
                 ))}
               </div>
@@ -305,28 +399,49 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
         </div>
       </div>
 
-      {/* ── AUTO-SCORE LEGEND ─────────────────────────────────────────────── */}
-      <div className="bg-navy-900 border-b border-white/5 px-3 py-1 flex items-center gap-3 text-[10px] shrink-0">
-        <span className="text-gray-600">Auto-score:</span>
-        <span className="text-green-400">KILL/ACE/BS →  +1 us</span>
-        <span className="text-red-400">ERR/SE/Pass 0 → +1 them</span>
-      </div>
-
-      {/* ── ROTATION CONTROLS ─────────────────────────────────────────────── */}
+      {/* ── SERVE TOGGLE + UNDO + ROTATION ────────────────────────────────── */}
       <div className="bg-navy-800/60 border-b border-white/5 px-3 py-1.5 flex items-center gap-2 shrink-0">
-        <button onClick={rotateBack}
-          className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold">
-          ← Rotate
+        {/* Serve toggle */}
+        <button
+          onClick={() => setWeAreServing(s => !s)}
+          className={`tap-btn px-3 py-1 rounded-lg text-xs font-bold border ${
+            weAreServing ? 'bg-vr-700 border-vr-500 text-white' : 'bg-navy-600 border-white/10 text-gray-400'
+          }`}
+        >
+          {weAreServing ? '🏐 Our Serve' : '🏐 Their Serve'}
         </button>
-        <button onClick={rotateForward}
+
+        <button onClick={() => { setRotation(prev => doRotate(prev)) }}
           className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold">
-          Rotate →
+          ⟳ Rotate
         </button>
+
         <button onClick={() => setShowRotationEditor(r => !r)}
           className={`tap-btn px-3 py-1 rounded-lg text-xs font-bold border ${showRotationEditor ? 'bg-vr-700 border-vr-500 text-white' : 'bg-navy-600 border-white/10 text-gray-300'}`}>
-          Sub / Edit
+          Sub
         </button>
-        <span className="ml-auto text-gray-600 text-xs">Set {currentSet + 1}</span>
+
+        {/* Undo */}
+        <button
+          onClick={undo}
+          disabled={history.length === 0}
+          className="tap-btn ml-auto bg-navy-600 border border-white/10 disabled:opacity-30 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold flex items-center gap-1"
+        >
+          ↩ Undo
+          {history.length > 0 && (
+            <span className="bg-vr-600 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+              {history.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* ── AUTO-SCORE LEGEND ─────────────────────────────────────────────── */}
+      <div className="bg-navy-900 border-b border-white/5 px-3 py-1 flex items-center gap-3 text-[10px] shrink-0">
+        <span className="text-gray-600">Auto:</span>
+        <span className="text-green-400">KILL/ACE/BS → +1 us</span>
+        <span className="text-red-400">ERR/SE/Pass 0 → +1 them</span>
+        <span className="text-vr-400 ml-auto">Side-out → auto rotate</span>
       </div>
 
       {/* ── COURT GRID ────────────────────────────────────────────────────── */}
@@ -339,6 +454,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
                 const player = players.find(p => p.id === playerId)
                 const ps = playerId ? setStats[playerId] : null
                 const posLabel = POSITION_NUMS[slotIdx]
+                const isServer = slotIdx === 0 && weAreServing === true
                 const isExpanded = expandedPlayer === playerId
 
                 if (!playerId || !player || !ps) {
@@ -354,15 +470,24 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
 
                 return (
                   <div key={slotIdx}
-                    className={`bg-navy-700 border rounded-2xl overflow-hidden flex flex-col ${isExpanded ? 'border-vr-500/60' : 'border-white/10'}`}>
+                    className={`border rounded-2xl overflow-hidden flex flex-col ${
+                      isServer
+                        ? 'bg-vr-900/60 border-vr-500/60'
+                        : isExpanded
+                          ? 'bg-navy-700 border-vr-500/40'
+                          : 'bg-navy-700 border-white/10'
+                    }`}>
 
                     {/* Card header */}
-                    <div className="flex items-center gap-2 px-2.5 pt-2 pb-1.5 border-b border-white/5">
-                      <div className="w-8 h-8 rounded-full bg-vr-800 border border-vr-500/40 flex items-center justify-center shrink-0">
+                    <div className={`flex items-center gap-2 px-2.5 pt-2 pb-1.5 border-b border-white/5 ${isServer ? 'bg-vr-800/40' : ''}`}>
+                      <div className={`w-8 h-8 rounded-full border flex items-center justify-center shrink-0 ${isServer ? 'bg-vr-600 border-vr-400' : 'bg-vr-800 border-vr-500/40'}`}>
                         <span className="text-pb-400 font-black text-sm">#{player.number}</span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-white font-bold text-sm leading-tight truncate">{player.name}</p>
+                        <div className="flex items-center gap-1">
+                          {isServer && <span className="text-xs">🏐</span>}
+                          <p className="text-white font-bold text-sm leading-tight truncate">{player.name}</p>
+                        </div>
                         <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full text-white ${POSITION_COLORS[player.position]}`}>
                           {POSITION_LABELS[player.position]}
                         </span>
@@ -384,19 +509,14 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
                             <button key={chip.key}
                               onClick={() => {
                                 if (chip.isErrorTrigger) {
-                                  setPendingError({
-                                    playerId,
-                                    type: chip.key === 'attackErrors' ? 'attack' : 'serve',
-                                  })
+                                  setPendingError({ playerId, type: chip.key === 'attackErrors' ? 'attack' : 'serve' })
                                 } else {
                                   adjust(playerId, chip.key, 1)
                                 }
                               }}
                               onContextMenu={e => { e.preventDefault(); adjust(playerId, chip.key, -1) }}
-                              className={`tap-btn border rounded-lg py-1 px-0.5 text-center ${chip.bg} ${chip.isErrorTrigger ? 'ring-1 ring-red-500/20' : ''}`}>
-                              <p className={`text-xs font-bold leading-none ${chip.color}`}>
-                                {ps[chip.key] as number}
-                              </p>
+                              className={`tap-btn border rounded-lg py-1 px-0.5 text-center ${chip.bg}`}>
+                              <p className={`text-xs font-bold leading-none ${chip.color}`}>{ps[chip.key] as number}</p>
                               <p className="text-white/30 text-[9px] leading-none mt-0.5">{chip.label}</p>
                             </button>
                           ))}
@@ -414,21 +534,13 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
                         <div className="flex gap-1 flex-1">
                           {[0,1,2,3].map(r => (
                             <button key={r}
-                              onClick={() => {
-                                if (r === 0) {
-                                  setPendingError({ playerId, type: 'pass' })
-                                } else {
-                                  adjustPass(playerId, r)
-                                }
-                              }}
+                              onClick={() => r === 0 ? setPendingError({ playerId, type: 'pass' }) : adjustPass(playerId, r)}
                               className={`tap-btn flex-1 rounded text-xs font-bold py-1 border ${
-                                r === 0 ? 'border-red-600/60 bg-red-900/30 text-red-300 ring-1 ring-red-500/20' :
+                                r === 0 ? 'border-red-600/60 bg-red-900/30 text-red-300' :
                                 r === 1 ? 'border-orange-700/50 bg-orange-900/20 text-orange-300' :
                                 r === 2 ? 'border-yellow-700/50 bg-yellow-900/20 text-yellow-300' :
                                 'border-green-700/50 bg-green-900/20 text-green-300'
-                              }`}>
-                              {r}
-                            </button>
+                              }`}>{r}</button>
                           ))}
                         </div>
                       </div>
@@ -438,12 +550,12 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
                     {isExpanded && (
                       <div className="border-t border-white/10 px-2 py-2 bg-navy-800/60">
                         <div className="grid grid-cols-2 gap-1 text-xs mb-2">
-                          {[
+                          {([
                             { label: 'Atk Att', key: 'attackAttempts' as keyof PlayerStats },
                             { label: 'Srv Att', key: 'serveAttempts'  as keyof PlayerStats },
                             { label: 'Blk Ast', key: 'blockAssists'   as keyof PlayerStats },
                             { label: 'Set Err', key: 'settingErrors'  as keyof PlayerStats },
-                          ].map(({ label, key }) => (
+                          ]).map(({ label, key }) => (
                             <div key={key} className="flex items-center justify-between bg-navy-700 rounded-lg px-2 py-1">
                               <span className="text-gray-500">{label}</span>
                               <div className="flex items-center gap-1.5">
@@ -455,41 +567,30 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
                           ))}
                         </div>
 
-                        {/* Error breakdown summary */}
-                        {(ps.attackErrors > 0 || ps.serveErrors > 0) && (
+                        {/* Error breakdown */}
+                        {(ps.attackErrors > 0 || ps.serveErrors > 0 || (ps.passZeroShank + ps.passZeroAce + ps.passZeroOverpass) > 0) && (
                           <div className="bg-navy-900/50 rounded-lg p-2 mb-2">
                             <p className="text-gray-600 text-[10px] font-bold uppercase mb-1">Error Breakdown</p>
                             {ps.attackErrors > 0 && (
                               <div className="flex flex-wrap gap-1 mb-1">
-                                {([
-                                  ['Missed', ps.atkErrMissed],
-                                  ['Blocked', ps.atkErrBlocked],
-                                  ['Out', ps.atkErrOut],
-                                  ['Net', ps.atkErrNet],
-                                ] as [string, number][]).filter(([,v]) => v > 0).map(([l, v]) => (
+                                {([['Missed', ps.atkErrMissed], ['Blocked', ps.atkErrBlocked], ['Out', ps.atkErrOut], ['Net', ps.atkErrNet]] as [string,number][])
+                                  .filter(([,v]) => v > 0).map(([l,v]) => (
                                   <span key={l} className="text-[10px] bg-red-900/40 text-red-300 px-1.5 py-0.5 rounded">{l}: {v}</span>
                                 ))}
                               </div>
                             )}
                             {ps.serveErrors > 0 && (
                               <div className="flex flex-wrap gap-1 mb-1">
-                                {([
-                                  ['Missed', ps.srvErrMissed],
-                                  ['Net', ps.srvErrNet],
-                                  ['Out', ps.srvErrOut],
-                                  ['Foot', ps.srvErrFoot],
-                                ] as [string, number][]).filter(([,v]) => v > 0).map(([l, v]) => (
+                                {([['Missed', ps.srvErrMissed], ['Net', ps.srvErrNet], ['Out', ps.srvErrOut], ['Foot', ps.srvErrFoot]] as [string,number][])
+                                  .filter(([,v]) => v > 0).map(([l,v]) => (
                                   <span key={l} className="text-[10px] bg-red-900/30 text-red-400 px-1.5 py-0.5 rounded">{l}: {v}</span>
                                 ))}
                               </div>
                             )}
-                            {ps.passAttempts > 0 && (ps.passZeroShank + ps.passZeroAce + ps.passZeroOverpass) > 0 && (
+                            {(ps.passZeroShank + ps.passZeroAce + ps.passZeroOverpass) > 0 && (
                               <div className="flex flex-wrap gap-1">
-                                {([
-                                  ['Shank', ps.passZeroShank],
-                                  ['Aced', ps.passZeroAce],
-                                  ['Overpass', ps.passZeroOverpass],
-                                ] as [string, number][]).filter(([,v]) => v > 0).map(([l, v]) => (
+                                {([['Shank', ps.passZeroShank], ['Aced', ps.passZeroAce], ['Overpass', ps.passZeroOverpass]] as [string,number][])
+                                  .filter(([,v]) => v > 0).map(([l,v]) => (
                                   <span key={l} className="text-[10px] bg-orange-900/30 text-orange-300 px-1.5 py-0.5 rounded">{l}: {v}</span>
                                 ))}
                               </div>
@@ -553,51 +654,37 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
         )}
       </div>
 
-      {/* ── ERROR TYPE PICKER MODAL ───────────────────────────────────────── */}
+      {/* ── ERROR TYPE PICKER ─────────────────────────────────────────────── */}
       {pendingError && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/70"
-          onClick={() => setPendingError(null)}>
-          <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-5"
-            onClick={e => e.stopPropagation()}>
-
+        <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setPendingError(null)}>
+          <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-white font-bold text-lg">
-                {pendingError.type === 'attack' ? '⚡ Attack Error' :
-                 pendingError.type === 'serve'  ? '🏐 Serve Error' :
-                                                  '0 Pass — What happened?'}
+                {pendingError.type === 'attack' ? '⚡ Attack Error' : pendingError.type === 'serve' ? '🏐 Serve Error' : '0 Pass — What happened?'}
               </h3>
               <button onClick={() => setPendingError(null)} className="text-gray-500 text-2xl tap-btn">×</button>
             </div>
-            <p className="text-gray-500 text-xs mb-4">
-              Tap the error type — it'll record the stat and +1 {pendingError.type === 'pass' ? 'them' : 'opponent'} automatically.
-            </p>
-
+            <p className="text-gray-500 text-xs mb-4">Select the error type to record the stat + auto-score.</p>
             <div className="grid grid-cols-2 gap-3">
-              {(pendingError.type === 'attack' ? ATTACK_ERROR_TYPES :
-                pendingError.type === 'serve'  ? SERVE_ERROR_TYPES :
-                                                 PASS_ZERO_TYPES
-              ).map(opt => (
-                <button key={opt.key}
+              {(pendingError.type === 'attack' ? ATTACK_ERROR_TYPES : pendingError.type === 'serve' ? SERVE_ERROR_TYPES : PASS_ZERO_TYPES).map(opt => (
+                <button key={String(opt.key)}
                   onClick={() => {
                     if (pendingError.type === 'pass') {
                       commitPassZero(pendingError.playerId, opt.key)
                     } else {
-                      commitError(
-                        pendingError.playerId,
-                        pendingError.type === 'attack' ? 'attackErrors' : 'serveErrors',
-                        opt.key
-                      )
+                      commitError(pendingError.playerId, pendingError.type === 'attack' ? 'attackErrors' : 'serveErrors', opt.key)
                     }
                   }}
                   className="tap-btn bg-navy-700 border border-red-500/20 hover:border-red-500/50 rounded-2xl p-4 flex flex-col items-center gap-2">
                   <span className="text-3xl">{opt.emoji}</span>
                   <span className="text-white font-semibold text-sm">{opt.label}</span>
+                  {opt.key === 'passZeroOverpass' && (
+                    <span className="text-gray-500 text-[10px]">no auto-point</span>
+                  )}
                 </button>
               ))}
             </div>
-
-            <button onClick={() => setPendingError(null)}
-              className="tap-btn w-full mt-4 py-3 rounded-xl border border-white/10 text-gray-500 text-sm">
+            <button onClick={() => setPendingError(null)} className="tap-btn w-full mt-4 py-3 rounded-xl border border-white/10 text-gray-500 text-sm">
               Cancel (don't record)
             </button>
           </div>
@@ -606,18 +693,14 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
 
       {/* ── ROTATION EDITOR ──────────────────────────────────────────────── */}
       {showRotationEditor && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/70"
-          onClick={() => { setShowRotationEditor(false); setAssigningSlot(null) }}>
-          <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4 max-h-[60vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => { setShowRotationEditor(false); setAssigningSlot(null) }}>
+          <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4 max-h-[60vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-white font-bold text-lg">
                 {assigningSlot !== null ? `Assign player to ${POSITION_NUMS[assigningSlot]}` : 'Rotation / Subs'}
               </h3>
-              <button onClick={() => { setShowRotationEditor(false); setAssigningSlot(null) }}
-                className="text-gray-400 text-2xl tap-btn">×</button>
+              <button onClick={() => { setShowRotationEditor(false); setAssigningSlot(null) }} className="text-gray-400 text-2xl tap-btn">×</button>
             </div>
-
             {assigningSlot === null && (
               <div className="grid grid-cols-3 gap-2 mb-4">
                 {COURT_LAYOUT.flat().map(slotIdx => {
@@ -625,22 +708,22 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
                   const p = players.find(pl => pl.id === pid)
                   return (
                     <button key={slotIdx} onClick={() => setAssigningSlot(slotIdx)}
-                      className="tap-btn bg-navy-700 border border-white/10 rounded-xl p-3 text-left">
-                      <p className="text-white/30 text-xs mb-1">{POSITION_NUMS[slotIdx]}</p>
+                      className={`tap-btn bg-navy-700 border rounded-xl p-3 text-left ${slotIdx === 0 && weAreServing ? 'border-vr-500/60' : 'border-white/10'}`}>
+                      <div className="flex items-center gap-1 mb-1">
+                        <p className="text-white/30 text-xs">{POSITION_NUMS[slotIdx]}</p>
+                        {slotIdx === 0 && weAreServing && <span className="text-xs">🏐</span>}
+                      </div>
                       {p ? (
                         <>
                           <p className="text-white font-semibold text-sm truncate">{p.name}</p>
                           <p className="text-pb-400 text-xs">#{p.number}</p>
                         </>
-                      ) : (
-                        <p className="text-white/20 text-sm">— empty —</p>
-                      )}
+                      ) : <p className="text-white/20 text-sm">— empty —</p>}
                     </button>
                   )
                 })}
               </div>
             )}
-
             {assigningSlot !== null && (
               <div className="space-y-2">
                 <button onClick={() => assignPlayerToSlot(assigningSlot, null)}
@@ -672,18 +755,12 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
           <div className="bg-navy-800 border border-vr-700/50 rounded-2xl p-6 w-full max-w-sm">
             <h3 className="text-xl font-bold text-white mb-1">End Match?</h3>
             <p className="text-pb-400 text-sm mb-4">Viking Roots {ourScore} – {theirScore} {opponent}</p>
-            <p className="text-gray-400 text-sm mb-5">
-              {sets.length} set{sets.length !== 1 ? 's' : ''} tracked. Stats will be saved to match history.
-            </p>
+            <p className="text-gray-400 text-sm mb-5">{sets.length} set{sets.length !== 1 ? 's' : ''} tracked.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowEndDialog(false)}
-                className="tap-btn flex-1 py-3 rounded-xl border border-white/20 text-gray-300 font-semibold">
-                Keep Playing
-              </button>
+                className="tap-btn flex-1 py-3 rounded-xl border border-white/20 text-gray-300 font-semibold">Keep Playing</button>
               <button onClick={confirmEnd}
-                className="tap-btn flex-1 py-3 rounded-xl bg-green-700 text-white font-bold">
-                Save & End
-              </button>
+                className="tap-btn flex-1 py-3 rounded-xl bg-green-700 text-white font-bold">Save & End</button>
             </div>
           </div>
         </div>
