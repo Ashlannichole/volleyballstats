@@ -93,6 +93,9 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
   const [subCount, setSubCount]             = useState(0)
   const [showSubAlert, setShowSubAlert]     = useState(false)
   const [subbingOutSlot, setSubbingOutSlot] = useState<number | null>(null)
+  // liberoId = who is on court, partnerId = who they replaced (sitting on bench)
+  const [liberoPair, setLiberoPair]         = useState<{ liberoId: string; partnerId: string } | null>(null)
+  const [liberoToast, setLiberoToast]       = useState(false)
 
   // Lineup builder (pre-match)
   const [preLineup, setPreLineup]           = useState<(string | null)[]>([null,null,null,null,null,null])
@@ -134,6 +137,19 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     return n
   }
 
+  // After any rotation, if libero lands in P4 (slot 3, front row) swap them out automatically
+  function checkLiberoRotation(rot: (string | null)[], pair: typeof liberoPair): (string | null)[] {
+    if (!pair) return rot
+    if (rot[3] === pair.liberoId) {
+      const next = [...rot]
+      next[3] = pair.partnerId
+      setLiberoToast(true)
+      setTimeout(() => setLiberoToast(false), 2500)
+      return next
+    }
+    return rot
+  }
+
   function showRotationToastBriefly() {
     setRotationToast(true)
     setTimeout(() => setRotationToast(false), 2000)
@@ -153,7 +169,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
         setOurScore(s => s + 1)
         // Side-out: we scored while receiving → rotate + take serve
         if (weAreServing === false) {
-          setRotation(prev => doRotate(prev))
+          setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair))
           setWeAreServing(true)
           showRotationToastBriefly()
         }
@@ -210,15 +226,25 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     setOurTimeouts(0)
     setTheirTimeouts(0)
     setSubCount(0)
+    setLiberoPair(null)
   }
 
   function doSub(outSlot: number, inPlayerId: string) {
     const outPlayerId = rotation[outSlot]
     const outPlayer = players.find(p => p.id === outPlayerId)
     const inPlayer  = players.find(p => p.id === inPlayerId)
-    // Libero subs (either player is libero/ds) don't count toward the limit
     const isLiberoSub = outPlayer?.position === 'libero' || inPlayer?.position === 'libero'
+
     assignPlayerToSlot(outSlot, inPlayerId)
+
+    // Track libero pair so we can auto-swap them out when they reach P4
+    if (inPlayer?.position === 'libero' && outPlayerId) {
+      setLiberoPair({ liberoId: inPlayerId, partnerId: outPlayerId })
+    } else if (outPlayer?.position === 'libero') {
+      // Libero manually sent back to bench — clear the pair
+      setLiberoPair(null)
+    }
+
     if (!isLiberoSub) {
       const next = subCount + 1
       setSubCount(next)
@@ -307,6 +333,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     setPreLineup([null,null,null,null,null,null])
     setHistory([])
     setSubCount(0)
+    setLiberoPair(null)
     setShowEndDialog(false)
   }
 
@@ -551,6 +578,11 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
           ⟳ Rotation! New server in P1
         </div>
       )}
+      {liberoToast && (
+        <div className="absolute top-40 left-1/2 -translate-x-1/2 z-50 bg-pb-600 text-white font-bold px-5 py-2 rounded-full text-sm shadow-lg animate-bounce pointer-events-none">
+          ↕ Libero out — partner back in P4
+        </div>
+      )}
 
       {/* ── SCOREBOARD ───────────────────────────────────────────────────── */}
       <div className="bg-navy-800 border-b border-white/10 px-3 py-2 shrink-0">
@@ -637,7 +669,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
           {weAreServing ? '🏐 Our Serve' : '🏐 Their Serve'}
         </button>
 
-        <button onClick={() => { setRotation(prev => doRotate(prev)) }}
+        <button onClick={() => { setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair)) }}
           className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold">
           ⟳ Rotate
         </button>
