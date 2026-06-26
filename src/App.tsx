@@ -1,28 +1,33 @@
 import { useState, useEffect } from 'react'
 import type { Player, Match } from './types'
-import { loadPlayers, savePlayers, loadMatches, saveMatches } from './utils/storage'
+import { loadPlayers, savePlayers, loadMatches, saveMatches, loadPractices, savePractices } from './utils/storage'
 import { SEED_PLAYERS, SEED_MATCHES } from './utils/seedData'
 import Roster from './components/Roster'
 import LiveGame from './components/LiveGame'
 import MatchHistory from './components/MatchHistory'
 import SeasonStats from './components/SeasonStats'
+import Practice from './components/Practice'
+import type { PracticeSession } from './types'
 
-type Tab = 'roster' | 'live' | 'history' | 'season'
+type Tab = 'roster' | 'live' | 'history' | 'season' | 'practice'
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'roster',  label: 'Roster',  icon: '👥' },
-  { id: 'live',    label: 'Live',    icon: '🏐' },
-  { id: 'history', label: 'History', icon: '📋' },
-  { id: 'season',  label: 'Season',  icon: '📊' },
+  { id: 'roster',   label: 'Roster',    icon: '👥' },
+  { id: 'live',     label: 'Live',      icon: '🏐' },
+  { id: 'history',  label: 'History',   icon: '📋' },
+  { id: 'season',   label: 'Season',    icon: '📊' },
+  { id: 'practice', label: 'Practice',  icon: '🎽' },
 ]
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('live')
   const [players, setPlayers] = useState<Player[]>(loadPlayers)
   const [matches, setMatches] = useState<Match[]>(loadMatches)
+  const [practices, setPractices] = useState<PracticeSession[]>(loadPractices)
 
   useEffect(() => { savePlayers(players) }, [players])
   useEffect(() => { saveMatches(matches) }, [matches])
+  useEffect(() => { savePractices(practices) }, [practices])
 
   function handleSaveMatch(match: Match) {
     setMatches(prev => [...prev, match])
@@ -74,7 +79,15 @@ export default function App() {
           <LiveGame players={players} onSaveMatch={handleSaveMatch} />
         </div>
         <div className={tab === 'history' ? '' : 'hidden'}><MatchHistory matches={matches} players={players} onDelete={handleDeleteMatch} onLoadDemo={handleLoadDemo} onClearDemo={handleClearDemo} /></div>
-        <div className={tab === 'season'  ? '' : 'hidden'}><SeasonStats matches={matches} players={players} /></div>
+        <div className={tab === 'season'   ? '' : 'hidden'}><SeasonStats matches={matches} players={players} /></div>
+        <div className={tab === 'practice' ? 'h-full flex flex-col' : 'hidden'}>
+          <Practice
+            players={players}
+            sessions={practices}
+            onSave={s => setPractices(prev => [...prev, s])}
+            onDelete={id => setPractices(prev => prev.filter(p => p.id !== id))}
+          />
+        </div>
       </div>
 
       {/* Bottom nav */}

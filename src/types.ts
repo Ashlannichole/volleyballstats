@@ -77,6 +77,15 @@ export const EMPTY_STATS = (): PlayerStats => ({
   passZeroOverpass: 0,
 })
 
+export interface PracticeSession {
+  id: string
+  date: string
+  name: string          // e.g. "Pre-tournament scrimmage"
+  notes: string
+  // Each "scrimmage" is one SetStats block; a practice can have multiple
+  scrimmages: SetStats[]
+}
+
 export interface SavedLineup {
   id: string
   name: string

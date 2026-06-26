@@ -1,8 +1,9 @@
-import type { Player, Match, SavedLineup } from '../types'
+import type { Player, Match, SavedLineup, PracticeSession } from '../types'
 
-const PLAYERS_KEY  = 'vb_players'
-const MATCHES_KEY  = 'vb_matches'
-const LINEUPS_KEY  = 'vb_lineups'
+const PLAYERS_KEY   = 'vb_players'
+const MATCHES_KEY   = 'vb_matches'
+const LINEUPS_KEY   = 'vb_lineups'
+const PRACTICE_KEY  = 'vb_practice'
 
 export function loadPlayers(): Player[] {
   try {
@@ -38,4 +39,16 @@ export function loadLineups(): SavedLineup[] {
 
 export function saveLineups(lineups: SavedLineup[]): void {
   localStorage.setItem(LINEUPS_KEY, JSON.stringify(lineups))
+}
+
+export function loadPractices(): PracticeSession[] {
+  try {
+    return JSON.parse(localStorage.getItem(PRACTICE_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+export function savePractices(sessions: PracticeSession[]): void {
+  localStorage.setItem(PRACTICE_KEY, JSON.stringify(sessions))
 }
