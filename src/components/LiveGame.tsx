@@ -301,7 +301,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
                 const isExpanded = expandedPlayer === playerId
 
                 // Empty slot
-                if (!player || !ps) {
+                if (!playerId || !player || !ps) {
                   return (
                     <button key={slotIdx}
                       onClick={() => { setAssigningSlot(slotIdx); setShowRotationEditor(true) }}
