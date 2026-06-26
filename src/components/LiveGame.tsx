@@ -222,7 +222,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     if (!isLiberoSub) {
       const next = subCount + 1
       setSubCount(next)
-      if (next >= 12) setShowSubAlert(true)
+      if (next >= 10) setShowSubAlert(true)
     }
     setSubbingOutSlot(null)
   }
@@ -647,7 +647,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
           ✎ Edit
         </button>
 
-        <div className={`px-3 py-1 rounded-lg text-xs font-bold border ${subCount >= 11 ? 'bg-red-900/40 border-red-500/60 text-red-300' : 'bg-navy-600 border-white/10 text-gray-400'}`}>
+        <div className={`px-3 py-1 rounded-lg text-xs font-bold border ${subCount >= 10 ? 'bg-red-900/40 border-red-500/60 text-red-300' : 'bg-navy-600 border-white/10 text-gray-400'}`}>
           Subs {subCount}/12
         </div>
 
@@ -1047,10 +1047,10 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
           <div className="bg-navy-800 border-2 border-red-500/60 rounded-2xl p-6 w-full max-w-sm text-center">
             <div className="text-5xl mb-3">⚠️</div>
             <h3 className="text-xl font-bold text-white mb-2">Substitution Limit Reached</h3>
-            <p className="text-red-300 font-semibold text-lg mb-1">12 subs used this set</p>
+            <p className="text-red-300 font-semibold text-lg mb-1">10 subs used — 2 remaining</p>
             <p className="text-gray-400 text-sm mb-5">
-              You've reached the maximum substitutions for this set.
-              Only libero / DS swaps are still allowed.
+              You have 2 substitutions left this set (12 max).
+              Libero swaps are still free and unlimited.
             </p>
             <button onClick={() => setShowSubAlert(false)}
               className="tap-btn w-full bg-red-700 text-white font-bold py-3 rounded-xl">
