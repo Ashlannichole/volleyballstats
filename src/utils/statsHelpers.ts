@@ -35,6 +35,17 @@ export function mergeStats(a: PlayerStats, b: PlayerStats): PlayerStats {
     blockAssists: a.blockAssists + b.blockAssists,
     settingAssists: a.settingAssists + b.settingAssists,
     settingErrors: a.settingErrors + b.settingErrors,
+    atkErrMissed: a.atkErrMissed + b.atkErrMissed,
+    atkErrBlocked: a.atkErrBlocked + b.atkErrBlocked,
+    atkErrOut: a.atkErrOut + b.atkErrOut,
+    atkErrNet: a.atkErrNet + b.atkErrNet,
+    srvErrMissed: a.srvErrMissed + b.srvErrMissed,
+    srvErrNet: a.srvErrNet + b.srvErrNet,
+    srvErrOut: a.srvErrOut + b.srvErrOut,
+    srvErrFoot: a.srvErrFoot + b.srvErrFoot,
+    passZeroShank: a.passZeroShank + b.passZeroShank,
+    passZeroAce: a.passZeroAce + b.passZeroAce,
+    passZeroOverpass: a.passZeroOverpass + b.passZeroOverpass,
   }
 }
 
@@ -45,6 +56,9 @@ export function aggregatePlayerStats(playerId: string, matches: Match[]): Player
     passRatingTotal: 0, passAttempts: 0,
     digs: 0, soloBlocks: 0, blockAssists: 0,
     settingAssists: 0, settingErrors: 0,
+    atkErrMissed: 0, atkErrBlocked: 0, atkErrOut: 0, atkErrNet: 0,
+    srvErrMissed: 0, srvErrNet: 0, srvErrOut: 0, srvErrFoot: 0,
+    passZeroShank: 0, passZeroAce: 0, passZeroOverpass: 0,
   }
   for (const match of matches) {
     for (const setStats of match.sets) {
