@@ -217,8 +217,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     const outPlayer = players.find(p => p.id === outPlayerId)
     const inPlayer  = players.find(p => p.id === inPlayerId)
     // Libero subs (either player is libero/ds) don't count toward the limit
-    const isLiberoSub = outPlayer?.position === 'libero' || outPlayer?.position === 'ds'
-                     || inPlayer?.position  === 'libero' || inPlayer?.position  === 'ds'
+    const isLiberoSub = outPlayer?.position === 'libero' || inPlayer?.position === 'libero'
     assignPlayerToSlot(outSlot, inPlayerId)
     if (!isLiberoSub) {
       const next = subCount + 1
