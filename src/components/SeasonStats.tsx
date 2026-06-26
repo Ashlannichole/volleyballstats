@@ -298,6 +298,49 @@ export default function SeasonStats({ matches, players }: Props) {
                     </div>
                   ))}
                 </div>
+
+                {/* Tournament mini-awards */}
+                {(() => {
+                  const tStats = players.map(p => ({
+                    player: p,
+                    s: t.matches.reduce((acc, m) =>
+                      m.sets.reduce((a, set) => set[p.id] ? mergeStats(a, set[p.id]) : a, acc),
+                      EMPTY_STATS()
+                    ),
+                  })).filter(x => x.s.kills + x.s.digs + x.s.aces + x.s.settingAssists + x.s.passAttempts > 0)
+
+                  const best = (key: keyof PlayerStats) =>
+                    tStats.sort((a, b) => (b.s[key] as number) - (a.s[key] as number))[0]
+                  const bestPasser = tStats.filter(x => x.s.passAttempts >= 5)
+                    .sort((a, b) => (b.s.passRatingTotal / b.s.passAttempts) - (a.s.passRatingTotal / a.s.passAttempts))[0]
+
+                  const miniAwards = [
+                    { emoji: '⚡', label: 'Kills',   entry: best('kills'),          val: (x: typeof tStats[0]) => `${x.s.kills}` },
+                    { emoji: '🎯', label: 'Aces',    entry: best('aces'),           val: (x: typeof tStats[0]) => `${x.s.aces}` },
+                    { emoji: '🛡️', label: 'Digs',    entry: best('digs'),           val: (x: typeof tStats[0]) => `${x.s.digs}` },
+                    { emoji: '🤝', label: 'Assists', entry: best('settingAssists'), val: (x: typeof tStats[0]) => `${x.s.settingAssists}` },
+                    { emoji: '🧱', label: 'Blocks',  entry: best('soloBlocks'),     val: (x: typeof tStats[0]) => `${x.s.soloBlocks + x.s.blockAssists}` },
+                    { emoji: '📊', label: 'Passing', entry: bestPasser,             val: (x: typeof tStats[0]) => x.s.passAttempts > 0 ? (x.s.passRatingTotal / x.s.passAttempts).toFixed(2) : '—' },
+                  ].filter(a => a.entry && (Number(a.val(a.entry)) > 0 || a.label === 'Passing'))
+
+                  if (miniAwards.length === 0) return null
+                  return (
+                    <div className="border-t border-vr-700/30 bg-vr-900/20 px-4 py-3">
+                      <p className="text-vr-400 text-[10px] font-bold uppercase tracking-widest mb-2">🏆 Tournament Stars</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {miniAwards.map(a => (
+                          <div key={a.label} className="bg-navy-800/60 rounded-xl px-2 py-2 flex items-center gap-2">
+                            <span className="text-base shrink-0">{a.emoji}</span>
+                            <div className="min-w-0">
+                              <p className="text-white text-xs font-semibold truncate">{a.entry!.player.name.split(' ')[0]}</p>
+                              <p className="text-gray-500 text-[10px]">{a.label}: <span className="text-vr-300 font-bold">{a.val(a.entry!)}</span></p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )
           })}
