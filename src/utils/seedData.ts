@@ -1,4 +1,4 @@
-import type { Player, Match, SetStats, PlayerStats } from '../types'
+import type { Player, Match, SetStats, PlayerStats, PracticeSession } from '../types'
 import { EMPTY_STATS } from '../types'
 
 // Fixed IDs so stats reference the same players across all matches
@@ -234,6 +234,120 @@ const m6s3 = setStats({
   [IDS.grace]:   { digs: 4,  passRatingTotal: 9,  passAttempts: 5  },
   [IDS.natalie]: { kills: 2, attackErrors: 1, attackAttempts: 5,  digs: 2 },
 })
+
+// ── Practice seed data ────────────────────────────────────────────────────────
+
+function practiceSet(data: Record<string, Partial<PlayerStats>>): SetStats {
+  const out: SetStats = {}
+  for (const id of Object.values(IDS)) out[id] = EMPTY_STATS()
+  for (const [id, vals] of Object.entries(data)) out[id] = ps(vals)
+  return out
+}
+
+// Pre-tournament scrimmage (Mar 14 — day before Spring Kickoff)
+// Team Black vs Team White, two coaches tracking
+const pr1_black_s1 = practiceSet({
+  [IDS.emma]:    { settingAssists: 18, settingErrors: 3, digs: 3, serveAttempts: 5 },
+  [IDS.alyssa]:  { kills: 6, attackErrors: 4, attackAttempts: 14, serveErrors: 2, serveAttempts: 6, digs: 2, atkErrBlocked: 2, atkErrMissed: 2 },
+  [IDS.kai]:     { kills: 5, attackErrors: 2, attackAttempts: 12, serveAttempts: 5, digs: 3 },
+  [IDS.jordan]:  { kills: 3, attackErrors: 2, attackAttempts: 7,  soloBlocks: 1, serveAttempts: 4 },
+  [IDS.riley]:   { kills: 2, attackErrors: 2, attackAttempts: 6,  blockAssists: 1, serveAttempts: 3 },
+  [IDS.maya]:    { digs: 11, passRatingTotal: 28, passAttempts: 13, serveAttempts: 5 },
+})
+const pr1_black_s2 = practiceSet({
+  [IDS.emma]:    { settingAssists: 21, settingErrors: 2, digs: 4, serveAttempts: 6 },
+  [IDS.alyssa]:  { kills: 8, attackErrors: 3, attackAttempts: 16, aces: 1, serveAttempts: 7, digs: 3, atkErrNet: 1, atkErrBlocked: 2 },
+  [IDS.kai]:     { kills: 7, attackErrors: 2, attackAttempts: 14, aces: 1, serveAttempts: 5, digs: 4 },
+  [IDS.jordan]:  { kills: 4, attackErrors: 1, attackAttempts: 9,  soloBlocks: 2, serveAttempts: 4 },
+  [IDS.riley]:   { kills: 3, attackErrors: 1, attackAttempts: 7,  blockAssists: 2, serveAttempts: 3 },
+  [IDS.maya]:    { digs: 13, passRatingTotal: 35, passAttempts: 14, serveAttempts: 5 },
+})
+const pr1_black_s3 = practiceSet({
+  [IDS.emma]:    { settingAssists: 16, settingErrors: 1, digs: 3, serveAttempts: 4 },
+  [IDS.alyssa]:  { kills: 7, attackErrors: 2, attackAttempts: 13, aces: 2, serveAttempts: 6, digs: 2 },
+  [IDS.kai]:     { kills: 6, attackErrors: 1, attackAttempts: 11, serveAttempts: 5, digs: 3 },
+  [IDS.jordan]:  { kills: 4, attackErrors: 0, attackAttempts: 7,  soloBlocks: 2, serveAttempts: 3 },
+  [IDS.riley]:   { kills: 3, attackErrors: 1, attackAttempts: 6,  soloBlocks: 1, serveAttempts: 3 },
+  [IDS.maya]:    { digs: 10, passRatingTotal: 27, passAttempts: 12, aces: 1, serveAttempts: 4 },
+})
+
+const pr1_white_s1 = practiceSet({
+  [IDS.sophia]:  { kills: 5, attackErrors: 3, attackAttempts: 13, serveAttempts: 5, digs: 2 },
+  [IDS.natalie]: { kills: 4, attackErrors: 3, attackAttempts: 11, serveErrors: 1, serveAttempts: 5, digs: 2 },
+  [IDS.chloe]:   { settingAssists: 15, settingErrors: 4, digs: 2, serveAttempts: 4 },
+  [IDS.zoe]:     { kills: 2, attackErrors: 2, attackAttempts: 6,  soloBlocks: 1, serveAttempts: 3 },
+  [IDS.olivia]:  { digs: 8, passRatingTotal: 18, passAttempts: 9, serveAttempts: 4 },
+  [IDS.grace]:   { digs: 7, passRatingTotal: 17, passAttempts: 8, serveAttempts: 3 },
+})
+const pr1_white_s2 = practiceSet({
+  [IDS.sophia]:  { kills: 7, attackErrors: 2, attackAttempts: 14, aces: 1, serveAttempts: 6, digs: 3 },
+  [IDS.natalie]: { kills: 5, attackErrors: 2, attackAttempts: 12, serveAttempts: 5, digs: 3 },
+  [IDS.chloe]:   { settingAssists: 19, settingErrors: 2, digs: 3, serveAttempts: 5 },
+  [IDS.zoe]:     { kills: 3, attackErrors: 1, attackAttempts: 7,  soloBlocks: 2, serveAttempts: 3 },
+  [IDS.olivia]:  { digs: 9, passRatingTotal: 22, passAttempts: 10, serveAttempts: 4 },
+  [IDS.grace]:   { digs: 8, passRatingTotal: 20, passAttempts: 9,  aces: 1, serveAttempts: 4 },
+})
+const pr1_white_s3 = practiceSet({
+  [IDS.sophia]:  { kills: 6, attackErrors: 1, attackAttempts: 12, aces: 2, serveAttempts: 5, digs: 2 },
+  [IDS.natalie]: { kills: 5, attackErrors: 1, attackAttempts: 10, aces: 1, serveAttempts: 5, digs: 3 },
+  [IDS.chloe]:   { settingAssists: 17, settingErrors: 1, digs: 3, serveAttempts: 4 },
+  [IDS.zoe]:     { kills: 3, attackErrors: 0, attackAttempts: 6,  soloBlocks: 1, serveAttempts: 3 },
+  [IDS.olivia]:  { digs: 8, passRatingTotal: 20, passAttempts: 9,  serveAttempts: 4 },
+  [IDS.grace]:   { digs: 7, passRatingTotal: 19, passAttempts: 8,  serveAttempts: 3 },
+})
+
+// Mid-week serve-receive focus practice (Mar 19)
+const pr2_s1 = practiceSet({
+  [IDS.emma]:    { settingAssists: 20, settingErrors: 2, digs: 3, serveAttempts: 5 },
+  [IDS.alyssa]:  { kills: 5, attackErrors: 3, attackAttempts: 12, aces: 3, serveAttempts: 8, digs: 2 },
+  [IDS.kai]:     { kills: 4, attackErrors: 2, attackAttempts: 10, aces: 2, serveAttempts: 7, digs: 3 },
+  [IDS.jordan]:  { kills: 3, attackErrors: 1, attackAttempts: 6,  soloBlocks: 1, serveAttempts: 4 },
+  [IDS.riley]:   { kills: 2, attackErrors: 1, attackAttempts: 5,  serveAttempts: 3 },
+  [IDS.sophia]:  { kills: 4, attackErrors: 1, attackAttempts: 9,  aces: 2, serveAttempts: 6, digs: 2 },
+  [IDS.maya]:    { digs: 16, passRatingTotal: 44, passAttempts: 16, aces: 1, serveAttempts: 5 },
+  [IDS.olivia]:  { digs: 9,  passRatingTotal: 24, passAttempts: 10, serveAttempts: 4 },
+  [IDS.grace]:   { digs: 8,  passRatingTotal: 22, passAttempts: 9,  serveAttempts: 3 },
+  [IDS.natalie]: { kills: 3, attackErrors: 1, attackAttempts: 7,  aces: 1, serveAttempts: 5, digs: 2 },
+})
+const pr2_s2 = practiceSet({
+  [IDS.emma]:    { settingAssists: 22, settingErrors: 1, digs: 4, serveAttempts: 5 },
+  [IDS.alyssa]:  { kills: 7, attackErrors: 2, attackAttempts: 14, aces: 2, serveAttempts: 7, digs: 3 },
+  [IDS.kai]:     { kills: 6, attackErrors: 1, attackAttempts: 12, aces: 3, serveAttempts: 8, digs: 3 },
+  [IDS.jordan]:  { kills: 4, attackErrors: 0, attackAttempts: 7,  soloBlocks: 2, serveAttempts: 4 },
+  [IDS.riley]:   { kills: 3, attackErrors: 1, attackAttempts: 6,  soloBlocks: 1, serveAttempts: 3 },
+  [IDS.sophia]:  { kills: 5, attackErrors: 1, attackAttempts: 10, aces: 3, serveAttempts: 7, digs: 2 },
+  [IDS.maya]:    { digs: 18, passRatingTotal: 50, passAttempts: 18, aces: 2, serveAttempts: 6 },
+  [IDS.olivia]:  { digs: 10, passRatingTotal: 27, passAttempts: 11, serveAttempts: 4 },
+  [IDS.grace]:   { digs: 9,  passRatingTotal: 25, passAttempts: 10, aces: 1, serveAttempts: 4 },
+  [IDS.natalie]: { kills: 4, attackErrors: 1, attackAttempts: 8,  aces: 2, serveAttempts: 6, digs: 2 },
+})
+
+export const SEED_PRACTICES: PracticeSession[] = [
+  {
+    id: 'seed-pr1-black',
+    date: '2025-03-14',
+    name: 'Pre-tournament scrimmage',
+    teamLabel: 'Black',
+    notes: 'Shaking off rust before Spring Kickoff. Focus on first-ball sideout.',
+    scrimmages: [pr1_black_s1, pr1_black_s2, pr1_black_s3],
+  },
+  {
+    id: 'seed-pr1-white',
+    date: '2025-03-14',
+    name: 'Pre-tournament scrimmage',
+    teamLabel: 'White',
+    notes: 'Coach Kim tracking the white side.',
+    scrimmages: [pr1_white_s1, pr1_white_s2, pr1_white_s3],
+  },
+  {
+    id: 'seed-pr2',
+    date: '2025-03-19',
+    name: 'Serve-receive focus',
+    teamLabel: '',
+    notes: 'Post-tournament cleanup. Really emphasized jump serving and pass quality.',
+    scrimmages: [pr2_s1, pr2_s2],
+  },
+]
 
 export const SEED_MATCHES: Match[] = [
   {

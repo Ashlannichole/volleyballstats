@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { Player, Match } from './types'
 import { loadPlayers, savePlayers, loadMatches, saveMatches, loadPractices, savePractices } from './utils/storage'
-import { SEED_PLAYERS, SEED_MATCHES } from './utils/seedData'
+import { SEED_PLAYERS, SEED_MATCHES, SEED_PRACTICES } from './utils/seedData'
 import Roster from './components/Roster'
 import LiveGame from './components/LiveGame'
 import MatchHistory from './components/MatchHistory'
@@ -49,13 +49,20 @@ export default function App() {
       const newMatches = SEED_MATCHES.filter(m => !existingIds.has(m.id))
       return [...prev, ...newMatches]
     })
+    setPractices(prev => {
+      const existingIds = new Set(prev.map(p => p.id))
+      const newPractices = SEED_PRACTICES.filter(p => !existingIds.has(p.id))
+      return [...prev, ...newPractices]
+    })
   }
 
   function handleClearDemo() {
-    const seedPlayerIds = new Set(SEED_PLAYERS.map(p => p.id))
-    const seedMatchIds  = new Set(SEED_MATCHES.map(m => m.id))
+    const seedPlayerIds   = new Set(SEED_PLAYERS.map(p => p.id))
+    const seedMatchIds    = new Set(SEED_MATCHES.map(m => m.id))
+    const seedPracticeIds = new Set(SEED_PRACTICES.map(p => p.id))
     setPlayers(prev => prev.filter(p => !seedPlayerIds.has(p.id)))
     setMatches(prev => prev.filter(m => !seedMatchIds.has(m.id)))
+    setPractices(prev => prev.filter(p => !seedPracticeIds.has(p.id)))
   }
 
   return (
