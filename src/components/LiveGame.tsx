@@ -222,7 +222,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     if (!isLiberoSub) {
       const next = subCount + 1
       setSubCount(next)
-      if (next >= 10) setShowSubAlert(true)
+      if (next >= 12) setShowSubAlert(true)
     }
     setSubbingOutSlot(null)
   }
@@ -647,8 +647,8 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
           ✎ Edit
         </button>
 
-        <div className={`px-3 py-1 rounded-lg text-xs font-bold border ${subCount >= 9 ? 'bg-red-900/40 border-red-500/60 text-red-300' : 'bg-navy-600 border-white/10 text-gray-400'}`}>
-          Subs {subCount}/10
+        <div className={`px-3 py-1 rounded-lg text-xs font-bold border ${subCount >= 11 ? 'bg-red-900/40 border-red-500/60 text-red-300' : 'bg-navy-600 border-white/10 text-gray-400'}`}>
+          Subs {subCount}/12
         </div>
 
         {/* Undo */}
@@ -1009,7 +1009,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
               <div className="flex items-center justify-between mb-2">
                 <p className="text-gray-500 text-xs">Select player coming IN from bench:</p>
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${subCount >= 9 ? 'bg-red-900/50 text-red-300' : 'bg-navy-600 text-gray-400'}`}>
-                  {subCount}/10 subs used
+                  {subCount}/12 subs used
                 </span>
               </div>
 
@@ -1047,7 +1047,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
           <div className="bg-navy-800 border-2 border-red-500/60 rounded-2xl p-6 w-full max-w-sm text-center">
             <div className="text-5xl mb-3">⚠️</div>
             <h3 className="text-xl font-bold text-white mb-2">Substitution Limit Reached</h3>
-            <p className="text-red-300 font-semibold text-lg mb-1">10 subs used this set</p>
+            <p className="text-red-300 font-semibold text-lg mb-1">12 subs used this set</p>
             <p className="text-gray-400 text-sm mb-5">
               You've reached the maximum substitutions for this set.
               Only libero / DS swaps are still allowed.
