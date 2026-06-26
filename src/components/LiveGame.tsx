@@ -90,6 +90,9 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
   const [pendingError, setPendingError]     = useState<PendingError | null>(null)
   const [history, setHistory]               = useState<Snapshot[]>([])
   const [rotationToast, setRotationToast]   = useState(false)
+  const [subCount, setSubCount]             = useState(0)
+  const [showSubAlert, setShowSubAlert]     = useState(false)
+  const [subbingOutSlot, setSubbingOutSlot] = useState<number | null>(null)
 
   // Lineup builder (pre-match)
   const [preLineup, setPreLineup]           = useState<(string | null)[]>([null,null,null,null,null,null])
@@ -206,6 +209,23 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     setCurrentSet(c => c + 1)
     setOurTimeouts(0)
     setTheirTimeouts(0)
+    setSubCount(0)
+  }
+
+  function doSub(outSlot: number, inPlayerId: string) {
+    const outPlayerId = rotation[outSlot]
+    const outPlayer = players.find(p => p.id === outPlayerId)
+    const inPlayer  = players.find(p => p.id === inPlayerId)
+    // Libero subs (either player is libero/ds) don't count toward the limit
+    const isLiberoSub = outPlayer?.position === 'libero' || outPlayer?.position === 'ds'
+                     || inPlayer?.position  === 'libero' || inPlayer?.position  === 'ds'
+    assignPlayerToSlot(outSlot, inPlayerId)
+    if (!isLiberoSub) {
+      const next = subCount + 1
+      setSubCount(next)
+      if (next >= 10) setShowSubAlert(true)
+    }
+    setSubbingOutSlot(null)
   }
 
   function startGame() {
@@ -287,6 +307,7 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
     setRotation([null,null,null,null,null,null])
     setPreLineup([null,null,null,null,null,null])
     setHistory([])
+    setSubCount(0)
     setShowEndDialog(false)
   }
 
@@ -624,8 +645,12 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
 
         <button onClick={() => setShowRotationEditor(r => !r)}
           className={`tap-btn px-3 py-1 rounded-lg text-xs font-bold border ${showRotationEditor ? 'bg-vr-700 border-vr-500 text-white' : 'bg-navy-600 border-white/10 text-gray-300'}`}>
-          Sub
+          ✎ Edit
         </button>
+
+        <div className={`px-3 py-1 rounded-lg text-xs font-bold border ${subCount >= 9 ? 'bg-red-900/40 border-red-500/60 text-red-300' : 'bg-navy-600 border-white/10 text-gray-400'}`}>
+          Subs {subCount}/10
+        </div>
 
         {/* Undo */}
         <button
@@ -698,10 +723,15 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
                           {POSITION_LABELS[player.position]}
                         </span>
                       </div>
-                      <div className="flex flex-col items-center shrink-0">
-                        <span className="text-white/20 text-xs">{posLabel}</span>
+                      <div className="flex flex-col items-center gap-1 shrink-0">
+                        <span className="text-white/20 text-[10px]">{posLabel}</span>
+                        <button
+                          onClick={() => setSubbingOutSlot(slotIdx)}
+                          className="tap-btn bg-pb-700/50 border border-pb-500/40 text-pb-300 text-[10px] font-bold px-2 py-0.5 rounded-lg leading-tight">
+                          SUB
+                        </button>
                         <button onClick={() => setExpandedPlayer(isExpanded ? null : playerId)}
-                          className={`tap-btn text-xs mt-0.5 ${isExpanded ? 'text-vr-400' : 'text-gray-600'}`}>
+                          className={`tap-btn text-[10px] ${isExpanded ? 'text-vr-400' : 'text-gray-600'}`}>
                           {isExpanded ? '▲' : '▼'}
                         </button>
                       </div>
@@ -951,6 +981,82 @@ export default function LiveGame({ players, onSaveMatch }: Props) {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── SUB PICKER ───────────────────────────────────────────────────── */}
+      {subbingOutSlot !== null && (() => {
+        const outPlayer = players.find(p => p.id === rotation[subbingOutSlot])
+        const eligible  = players.filter(p => !onCourtIds.has(p.id))
+        return (
+          <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setSubbingOutSlot(null)}>
+            <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4 max-h-[65vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-white font-bold text-lg">Sub In For</h3>
+                <button onClick={() => setSubbingOutSlot(null)} className="text-gray-400 text-2xl tap-btn">×</button>
+              </div>
+              {outPlayer && (
+                <div className="flex items-center gap-2 bg-navy-700 rounded-xl px-3 py-2 mb-3">
+                  <span className="text-red-400 text-xs font-bold">OUT</span>
+                  <span className="text-pb-400 font-bold">#{outPlayer.number}</span>
+                  <span className="text-white font-medium">{outPlayer.name}</span>
+                  <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full text-white ${POSITION_COLORS[outPlayer.position]}`}>
+                    {POSITION_LABELS[outPlayer.position]}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-gray-500 text-xs">Select player coming IN from bench:</p>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${subCount >= 9 ? 'bg-red-900/50 text-red-300' : 'bg-navy-600 text-gray-400'}`}>
+                  {subCount}/10 subs used
+                </span>
+              </div>
+
+              {eligible.length === 0 ? (
+                <p className="text-gray-500 text-sm text-center py-4">No bench players available.</p>
+              ) : (
+                <div className="space-y-2">
+                  {eligible.map(p => {
+                    const isLibero = p.position === 'libero' || p.position === 'ds'
+                    return (
+                      <button key={p.id} onClick={() => doSub(subbingOutSlot, p.id)}
+                        className="tap-btn w-full bg-navy-700 border border-white/10 hover:border-green-500/50 rounded-xl p-3 flex items-center gap-3">
+                        <span className="text-green-400 text-xs font-bold">IN</span>
+                        <span className="text-pb-400 font-bold">#{p.number}</span>
+                        <span className="text-white font-medium flex-1 text-left">{p.name}</span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full text-white ${POSITION_COLORS[p.position]}`}>
+                          {POSITION_LABELS[p.position]}
+                        </span>
+                        {isLibero && (
+                          <span className="text-vr-300 text-[10px] font-bold">FREE</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── SUB LIMIT ALERT ──────────────────────────────────────────────── */}
+      {showSubAlert && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4">
+          <div className="bg-navy-800 border-2 border-red-500/60 rounded-2xl p-6 w-full max-w-sm text-center">
+            <div className="text-5xl mb-3">⚠️</div>
+            <h3 className="text-xl font-bold text-white mb-2">Substitution Limit Reached</h3>
+            <p className="text-red-300 font-semibold text-lg mb-1">10 subs used this set</p>
+            <p className="text-gray-400 text-sm mb-5">
+              You've reached the maximum substitutions for this set.
+              Only libero / DS swaps are still allowed.
+            </p>
+            <button onClick={() => setShowSubAlert(false)}
+              className="tap-btn w-full bg-red-700 text-white font-bold py-3 rounded-xl">
+              Got it
+            </button>
           </div>
         </div>
       )}
