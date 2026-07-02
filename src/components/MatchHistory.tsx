@@ -12,9 +12,11 @@ interface Props {
   onDelete: (id: string) => void
   onLoadDemo: () => void
   onClearDemo: () => void
+  isPro?: boolean
+  onUpgrade?: () => void
 }
 
-export default function MatchHistory({ matches, players, onDelete, onLoadDemo, onClearDemo }: Props) {
+export default function MatchHistory({ matches, players, onDelete, onLoadDemo, onClearDemo, isPro = false, onUpgrade }: Props) {
   const hasDemoData = matches.some(m => SEED_MATCHES.some(s => s.id === m.id))
   const [expanded, setExpanded] = useState<string | null>(null)
   const [aiMatch, setAiMatch] = useState<Match | null>(null)
@@ -176,10 +178,12 @@ export default function MatchHistory({ matches, players, onDelete, onLoadDemo, o
 
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setAiMatch(match)}
-                    className="tap-btn flex-1 bg-vr-700 text-white font-semibold py-3 rounded-xl text-sm"
+                    onClick={() => isPro ? setAiMatch(match) : onUpgrade?.()}
+                    className={`tap-btn flex-1 font-semibold py-3 rounded-xl text-sm ${
+                      isPro ? 'bg-vr-700 text-white' : 'bg-navy-700 border border-vr-600/40 text-vr-400'
+                    }`}
                   >
-                    AI Practice Suggestions
+                    {isPro ? 'AI Practice Suggestions' : '🔒 AI Suggestions (Pro)'}
                   </button>
                   <button
                     onClick={() => { if (confirm('Delete this match?')) onDelete(match.id) }}

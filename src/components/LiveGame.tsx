@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { Player, PlayerStats, SetStats, Match, SavedLineup, PracticeSession } from '../types'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { loadLineups, saveLineups } from '../utils/storage'
@@ -7,6 +7,7 @@ interface Props {
   players: Player[]
   onSaveMatch: (match: Match) => void
   onGameStartedChange?: (started: boolean) => void
+  isPro?: boolean
   // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
   practiceMode?: boolean
   onSavePractice?: (session: PracticeSession) => void
@@ -76,7 +77,7 @@ interface Snapshot {
   rotation: (string | null)[]
 }
 
-export default function LiveGame({ players, onSaveMatch, onGameStartedChange, practiceMode = false, onSavePractice }: Props) {
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, practiceMode = false, onSavePractice }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -106,12 +107,49 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, pr
   const [liberoPair, setLiberoPair]         = useState<{ liberoId: string; partnerId: string } | null>(null)
   const [liberoToast, setLiberoToast]       = useState(false)
 
+  // Spectator link (Pro only, match mode only)
+  const [spectatorCode, setSpectatorCode]   = useState<string | null>(null)
+  const [showShareModal, setShowShareModal] = useState(false)
+
   // Lineup builder (pre-match)
   const [preLineup, setPreLineup]           = useState<(string | null)[]>([null,null,null,null,null,null])
   const [pickingSlot, setPickingSlot]       = useState<number | null>(null)
   const [savedLineups, setSavedLineups]     = useState<SavedLineup[]>(loadLineups)
   const [saveLineupName, setSaveLineupName] = useState('')
   const [showSaveForm, setShowSaveForm]     = useState(false)
+
+  // Push state to spectator endpoint whenever score/rotation changes
+  const pushSpectatorState = useCallback((code: string, ended = false) => {
+    const playerById = Object.fromEntries(players.map(p => [p.id, p]))
+    const namedRotation = rotation.map(id => id && playerById[id] ? playerById[id].name : null)
+    fetch('/api/spectator-push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code,
+        opponent,
+        ourScore,
+        theirScore,
+        setNumber: currentSet + 1,
+        rotation: namedRotation,
+        weAreServing: weAreServing ?? false,
+        updatedAt: Date.now(),
+        ended,
+      }),
+    }).catch(() => {})
+  }, [players, rotation, opponent, ourScore, theirScore, currentSet, weAreServing])
+
+  useEffect(() => {
+    if (spectatorCode && gameStarted && !practiceMode) {
+      pushSpectatorState(spectatorCode)
+    }
+  }, [ourScore, theirScore, rotation, weAreServing, currentSet])
+
+  function startSpectatorShare() {
+    const code = Math.random().toString(36).slice(2, 8).toUpperCase()
+    setSpectatorCode(code)
+    setShowShareModal(true)
+  }
 
   function buildSetStats(ps: Player[]): SetStats {
     const s: SetStats = {}
@@ -326,6 +364,8 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, pr
   }
 
   function confirmEnd() {
+    if (spectatorCode && !practiceMode) pushSpectatorState(spectatorCode, true)
+    setSpectatorCode(null)
     if (practiceMode && onSavePractice) {
       onSavePractice({
         id: crypto.randomUUID(),
@@ -743,10 +783,20 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, pr
             </div>
           </div>
 
-          <button onClick={() => setShowEndDialog(true)}
-            className="tap-btn bg-green-800 text-white text-xs font-bold px-2 py-2 rounded-lg shrink-0">
-            END
-          </button>
+          <div className="flex flex-col gap-1 shrink-0">
+            {isPro && !practiceMode && (
+              <button onClick={() => spectatorCode ? setShowShareModal(true) : startSpectatorShare()}
+                className={`tap-btn text-xs font-bold px-2 py-1 rounded-lg ${
+                  spectatorCode ? 'bg-pb-700 text-white' : 'bg-navy-600 border border-white/10 text-gray-400'
+                }`}>
+                {spectatorCode ? '📡 Live' : '📡'}
+              </button>
+            )}
+            <button onClick={() => setShowEndDialog(true)}
+              className="tap-btn bg-green-800 text-white text-xs font-bold px-2 py-2 rounded-lg">
+              END
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1180,6 +1230,48 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, pr
             <button onClick={() => setShowSubAlert(false)}
               className="tap-btn w-full bg-red-700 text-white font-bold py-3 rounded-xl">
               Got it
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── SPECTATOR SHARE MODAL ────────────────────────────────────────── */}
+      {showShareModal && spectatorCode && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setShowShareModal(false)}>
+          <div className="w-full max-w-lg mx-auto bg-navy-800 rounded-t-3xl p-6 pb-10" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
+            <p className="text-pb-400 text-xs font-bold uppercase tracking-widest text-center mb-1">📡 Live Spectator Link</p>
+            <p className="text-white font-bold text-lg text-center mb-4">Share with parents & fans</p>
+
+            <div className="bg-navy-700 border border-white/10 rounded-xl p-4 mb-4">
+              <p className="text-gray-500 text-xs mb-1">Share this link:</p>
+              <p className="text-pb-300 font-mono text-sm break-all">
+                {window.location.origin}/spectator?code={spectatorCode}
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                navigator.clipboard?.writeText(`${window.location.origin}/spectator?code=${spectatorCode}`)
+                  .catch(() => {})
+              }}
+              className="tap-btn w-full bg-vr-600 text-white font-bold py-4 rounded-xl mb-3"
+            >
+              Copy Link
+            </button>
+
+            <div className="bg-navy-700/50 rounded-xl p-3 mb-4">
+              <p className="text-gray-400 text-xs text-center">
+                Spectators see: score, rotation, opponent name only.<br />
+                No player stats are visible. Updates every 5 seconds.
+              </p>
+            </div>
+
+            <button
+              onClick={() => { setSpectatorCode(null); setShowShareModal(false) }}
+              className="tap-btn w-full text-red-400 border border-red-500/20 py-3 rounded-xl text-sm"
+            >
+              Stop Sharing
             </button>
           </div>
         </div>

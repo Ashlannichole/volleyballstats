@@ -113,6 +113,7 @@ export default function App() {
             players={players}
             onSaveMatch={handleSaveMatch}
             onGameStartedChange={setLiveGameStarted}
+            isPro={isPro}
           />
         </div>
         <div className={tab === 'history' ? '' : 'hidden'}>
@@ -122,6 +123,8 @@ export default function App() {
             onDelete={handleDeleteMatch}
             onLoadDemo={handleLoadDemo}
             onClearDemo={handleClearDemo}
+            isPro={isPro}
+            onUpgrade={openModal}
           />
         </div>
         <div className={tab === 'season' ? '' : 'hidden'}>
