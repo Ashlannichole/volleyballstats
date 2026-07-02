@@ -149,6 +149,8 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     const code = Math.random().toString(36).slice(2, 8).toUpperCase()
     setSpectatorCode(code)
     setShowShareModal(true)
+    // Push immediately so parents see the score right away, not just on next point
+    pushSpectatorState(code)
   }
 
   function buildSetStats(ps: Player[]): SetStats {
