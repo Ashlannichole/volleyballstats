@@ -1195,7 +1195,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               ) : (
                 <div className="space-y-2">
                   {eligible.map(p => {
-                    const isLibero = p.position === 'libero' || p.position === 'ds'
+                    const isLibero = p.position === 'libero'
                     return (
                       <button key={p.id} onClick={() => doSub(subbingOutSlot, p.id)}
                         className="tap-btn w-full bg-navy-700 border border-white/10 hover:border-green-500/50 rounded-xl p-3 flex items-center gap-3">
