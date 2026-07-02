@@ -8,18 +8,18 @@ interface MatchState {
   setNumber: number
   rotation: (string | null)[]
   weAreServing: boolean
+  previousSets: { our: number; their: number }[]
   updatedAt: number
   ended?: boolean
 }
 
 const COURT_LAYOUT = [
-  [3, 2, 1], // front: P4 P3 P2
-  [4, 5, 0], // back:  P5 P6 P1
+  [3, 2, 1], // front row (near net): P4 P3 P2
+  [4, 5, 0], // back row:             P5 P6 P1
 ]
 
 function getCode() {
-  const params = new URLSearchParams(window.location.search)
-  return params.get('code') ?? ''
+  return new URLSearchParams(window.location.search).get('code') ?? ''
 }
 
 export default function SpectatorView() {
@@ -71,6 +71,7 @@ export default function SpectatorView() {
   }
 
   const secondsSince = lastUpdate ? Math.floor((Date.now() - lastUpdate.getTime()) / 1000) : 0
+  const prev = state.previousSets ?? []
 
   return (
     <div className="min-h-screen bg-navy-900 flex flex-col">
@@ -95,9 +96,43 @@ export default function SpectatorView() {
         </div>
       </div>
 
+      {/* Previous sets */}
+      {prev.length > 0 && (
+        <div className="px-4 pt-4">
+          <p className="text-gray-600 text-[10px] uppercase tracking-widest text-center mb-2">Previous Sets</p>
+          <div className="flex gap-2 justify-center flex-wrap">
+            {prev.map((s, i) => {
+              const weWon = s.our > s.their
+              return (
+                <div key={i} className="bg-navy-800 border border-white/10 rounded-xl px-4 py-2 text-center min-w-[100px]">
+                  <p className="text-gray-500 text-[10px] font-bold uppercase mb-1">Set {i + 1}</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="text-center">
+                      <p className={`font-black text-lg leading-none ${weWon ? 'text-white' : 'text-gray-500'}`}>{s.our}</p>
+                      <p className="text-[9px] text-gray-600 mt-0.5 flex items-center gap-0.5">
+                        VR {weWon && <span className="text-vr-400">✓</span>}
+                      </p>
+                    </div>
+                    <span className="text-gray-600 text-sm">–</span>
+                    <div className="text-center">
+                      <p className={`font-black text-lg leading-none ${!weWon ? 'text-white' : 'text-gray-500'}`}>{s.their}</p>
+                      <p className="text-[9px] text-gray-600 mt-0.5 flex items-center gap-0.5">
+                        {!weWon && <span className="text-gray-400">✓</span>} {state.opponent.split(' ')[0]}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Scoreboard */}
-      <div className="px-4 pt-6 pb-4">
-        <p className="text-gray-500 text-xs text-center uppercase tracking-widest mb-3">Set {state.setNumber}</p>
+      <div className="px-4 pt-4 pb-4">
+        <p className="text-gray-500 text-xs text-center uppercase tracking-widest mb-3">
+          {state.ended ? 'Final Score' : `Set ${state.setNumber}`}
+        </p>
 
         <div className="flex items-center justify-center gap-6">
           {/* Us */}
@@ -127,40 +162,46 @@ export default function SpectatorView() {
       </div>
 
       {/* Court rotation */}
-      <div className="px-4 pt-2 pb-6 flex-1">
-        <p className="text-gray-500 text-xs text-center uppercase tracking-widest mb-3">Current Rotation</p>
+      {!state.ended && (
+        <div className="px-4 pb-6 flex-1">
+          <p className="text-gray-500 text-xs text-center uppercase tracking-widest mb-3">Current Rotation</p>
 
-        <div className="max-w-xs mx-auto bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
-          {/* Net */}
-          <div className="w-full h-1.5 bg-gradient-to-r from-vr-800 via-vr-500 to-vr-800" />
-
-          {COURT_LAYOUT.map((row, rowIdx) => (
-            <div key={rowIdx} className={`grid grid-cols-3 gap-2 p-3 ${rowIdx === 0 ? 'border-b border-white/10' : ''}`}>
-              {row.map(slotIdx => {
-                const name = state.rotation[slotIdx]
-                const isBackRow = rowIdx === 1
-                return (
-                  <div key={slotIdx}
-                    className={`rounded-xl py-3 px-2 text-center ${
-                      isBackRow ? 'bg-navy-700/60' : 'bg-vr-900/40 border border-vr-700/30'
-                    }`}>
-                    <p className="text-white font-semibold text-sm leading-tight truncate">
-                      {name ? name.split(' ')[0] : '—'}
-                    </p>
-                    <p className="text-gray-600 text-[9px] mt-0.5">
-                      P{slotIdx + 1}
-                    </p>
-                  </div>
-                )
-              })}
+          <div className="max-w-xs mx-auto bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
+            {/* Net indicator at top */}
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-navy-700/50">
+              <div className="flex-1 h-px bg-white/10" />
+              <p className="text-gray-600 text-[9px] font-bold uppercase tracking-widest shrink-0">↑ Net</p>
+              <div className="flex-1 h-px bg-white/10" />
             </div>
-          ))}
+            <div className="w-full h-1 bg-gradient-to-r from-vr-800 via-vr-500 to-vr-800" />
 
-          <div className="px-3 pb-2 text-center">
-            <p className="text-gray-700 text-[10px]">← Opponent side · Our side →</p>
+            {COURT_LAYOUT.map((row, rowIdx) => (
+              <div key={rowIdx} className={`grid grid-cols-3 gap-2 p-3 ${rowIdx === 0 ? 'border-b border-white/10' : ''}`}>
+                {row.map(slotIdx => {
+                  const name = state.rotation[slotIdx]
+                  const isFrontRow = rowIdx === 0
+                  return (
+                    <div key={slotIdx}
+                      className={`rounded-xl py-3 px-2 text-center ${
+                        isFrontRow ? 'bg-vr-900/40 border border-vr-700/30' : 'bg-navy-700/60'
+                      }`}>
+                      <p className="text-white font-semibold text-sm leading-tight truncate">
+                        {name ? name.split(' ')[0] : '—'}
+                      </p>
+                      <p className="text-gray-600 text-[9px] mt-0.5">P{slotIdx + 1}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+
+            {/* Back row label */}
+            <div className="px-3 pb-2 text-center">
+              <p className="text-gray-700 text-[10px]">↓ Back row · Serving from P1</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Footer */}
       <div className="py-3 text-center border-t border-white/5">

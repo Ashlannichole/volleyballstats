@@ -110,6 +110,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Spectator link (Pro only, match mode only)
   const [spectatorCode, setSpectatorCode]   = useState<string | null>(null)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [completedSetScores, setCompletedSetScores] = useState<{our: number; their: number}[]>([])
 
   // Lineup builder (pre-match)
   const [preLineup, setPreLineup]           = useState<(string | null)[]>([null,null,null,null,null,null])
@@ -133,11 +134,12 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         setNumber: currentSet + 1,
         rotation: namedRotation,
         weAreServing: weAreServing ?? false,
+        previousSets: completedSetScores,
         updatedAt: Date.now(),
         ended,
       }),
     }).catch(() => {})
-  }, [players, rotation, opponent, ourScore, theirScore, currentSet, weAreServing])
+  }, [players, rotation, opponent, ourScore, theirScore, currentSet, weAreServing, completedSetScores])
 
   useEffect(() => {
     if (spectatorCode && gameStarted && !practiceMode) {
@@ -270,6 +272,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   }
 
   function nextSet() {
+    setCompletedSetScores(prev => [...prev, { our: ourScore, their: theirScore }])
     setSets(prev => [...prev, buildSetStats(players)])
     setCurrentSet(c => c + 1)
     setOurTimeouts(0)

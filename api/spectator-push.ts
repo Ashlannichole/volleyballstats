@@ -9,6 +9,7 @@ export interface SpectatorState {
   setNumber: number
   rotation: (string | null)[]
   weAreServing: boolean
+  previousSets: { our: number; their: number }[]
   updatedAt: number
   ended?: boolean
 }
