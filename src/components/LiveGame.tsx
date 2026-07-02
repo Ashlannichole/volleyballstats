@@ -112,6 +112,12 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   const [showShareModal, setShowShareModal] = useState(false)
   const [completedSetScores, setCompletedSetScores] = useState<{our: number; their: number}[]>([])
 
+  // Live stats panel
+  const [showLiveStats, setShowLiveStats]   = useState(false)
+
+  // Auto set-end banner
+  const [setCompleteAlert, setSetCompleteAlert] = useState(false)
+
   // Lineup builder (pre-match)
   const [preLineup, setPreLineup]           = useState<(string | null)[]>([null,null,null,null,null,null])
   const [pickingSlot, setPickingSlot]       = useState<number | null>(null)
@@ -146,6 +152,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       pushSpectatorState(spectatorCode)
     }
   }, [ourScore, theirScore, rotation, weAreServing, currentSet])
+
+  // Auto set-end: trigger when a team reaches 25+ and leads by 2+
+  useEffect(() => {
+    if (!gameStarted) return
+    const hi = Math.max(ourScore, theirScore)
+    const lo = Math.min(ourScore, theirScore)
+    if (hi >= 25 && hi - lo >= 2) setSetCompleteAlert(true)
+  }, [ourScore, theirScore])
 
   function startSpectatorShare() {
     const code = Math.random().toString(36).slice(2, 8).toUpperCase()
@@ -736,7 +750,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <div className="flex gap-1">
-                {[0,1,2].map(i => (
+                {[0,1].map(i => (
                   <button key={i} onClick={() => setOurTimeouts(t => t === i+1 ? i : i+1)}
                     className={`tap-btn w-3 h-3 rounded-full border ${i < ourTimeouts ? 'bg-vr-500 border-vr-400' : 'bg-transparent border-white/30'}`} />
                 ))}
@@ -780,7 +794,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                 {String(theirScore).padStart(2, '0')}
               </button>
               <div className="flex gap-1">
-                {[0,1,2].map(i => (
+                {[0,1].map(i => (
                   <button key={i} onClick={() => setTheirTimeouts(t => t === i+1 ? i : i+1)}
                     className={`tap-btn w-3 h-3 rounded-full border ${i < theirTimeouts ? 'bg-gray-400 border-gray-300' : 'bg-transparent border-white/30'}`} />
                 ))}
@@ -830,6 +844,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         <div className={`px-3 py-1 rounded-lg text-xs font-bold border ${subCount >= 10 ? 'bg-red-900/40 border-red-500/60 text-red-300' : 'bg-navy-600 border-white/10 text-gray-400'}`}>
           Subs {subCount}/12
         </div>
+
+        <button
+          onClick={() => setShowLiveStats(true)}
+          className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold"
+        >
+          📊 Stats
+        </button>
 
         {/* Undo */}
         <button
@@ -1239,6 +1260,91 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           </div>
         </div>
       )}
+
+      {/* ── SET COMPLETE ALERT ───────────────────────────────────────────── */}
+      {setCompleteAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-navy-800 border border-vr-700/50 rounded-2xl p-6 w-full max-w-sm text-center">
+            <p className="text-4xl mb-3">{ourScore > theirScore ? '🏆' : '😤'}</p>
+            <h3 className="text-xl font-bold text-white mb-1">Set {currentSet + 1} Complete</h3>
+            <p className="text-pb-400 text-2xl font-black mb-1">{ourScore} – {theirScore}</p>
+            <p className="text-gray-400 text-sm mb-5">
+              {ourScore > theirScore ? 'Viking Roots win the set!' : `${opponent} wins the set.`}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setSetCompleteAlert(false)}
+                className="tap-btn flex-1 py-3 rounded-xl border border-white/20 text-gray-300 font-semibold text-sm">
+                Keep Playing
+              </button>
+              <button onClick={() => {
+                setSetCompleteAlert(false)
+                nextSet()
+              }}
+                className="tap-btn flex-1 py-3 rounded-xl bg-vr-600 text-white font-bold text-sm">
+                Start Set {currentSet + 2}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── LIVE STATS PANEL ─────────────────────────────────────────────── */}
+      {showLiveStats && (() => {
+        // Aggregate stats across all sets played so far
+        const totals = players.map(p => {
+          const s = sets.reduce((acc, set) => {
+            const ps = set[p.id]
+            if (!ps) return acc
+            return {
+              kills:          acc.kills          + ps.kills,
+              passRatingTotal: acc.passRatingTotal + ps.passRatingTotal,
+              passAttempts:   acc.passAttempts   + ps.passAttempts,
+              serveAttempts:  acc.serveAttempts  + ps.serveAttempts,
+              serveErrors:    acc.serveErrors    + ps.serveErrors,
+            }
+          }, { kills: 0, passRatingTotal: 0, passAttempts: 0, serveAttempts: 0, serveErrors: 0 })
+          const passAvg = s.passAttempts > 0 ? (s.passRatingTotal / s.passAttempts).toFixed(2) : '—'
+          const servePct = s.serveAttempts > 0
+            ? Math.round(((s.serveAttempts - s.serveErrors) / s.serveAttempts) * 100) + '%'
+            : '—'
+          const onCourt = rotation.includes(p.id)
+          return { p, kills: s.kills, passAvg, servePct, onCourt }
+        }).sort((a, b) => b.kills - a.kills)
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setShowLiveStats(false)}>
+            <div className="w-full max-w-lg mx-auto bg-navy-800 rounded-t-3xl pb-8 max-h-[80vh] flex flex-col"
+              onClick={e => e.stopPropagation()}>
+              <div className="px-4 pt-4 pb-2 flex items-center justify-between shrink-0">
+                <p className="text-white font-bold">Live Team Stats</p>
+                <p className="text-gray-500 text-xs">All sets combined</p>
+              </div>
+              {/* Header row */}
+              <div className="grid grid-cols-4 px-4 pb-1 shrink-0">
+                <p className="text-gray-600 text-xs col-span-1">Player</p>
+                <p className="text-gray-600 text-xs text-center">K</p>
+                <p className="text-gray-600 text-xs text-center">Pass</p>
+                <p className="text-gray-600 text-xs text-center">Srv%</p>
+              </div>
+              <div className="overflow-y-auto flex-1 px-4 space-y-1">
+                {totals.map(({ p, kills, passAvg, servePct, onCourt }) => (
+                  <div key={p.id} className={`grid grid-cols-4 items-center py-2 rounded-lg px-2 ${onCourt ? 'bg-vr-900/30 border border-vr-700/30' : 'bg-navy-700/40'}`}>
+                    <div className="col-span-1 flex items-center gap-1.5 min-w-0">
+                      <span className={`text-[9px] font-bold px-1 py-0.5 rounded shrink-0 ${onCourt ? 'bg-vr-600 text-white' : 'bg-navy-600 text-gray-500'}`}>
+                        {onCourt ? 'ON' : 'BN'}
+                      </span>
+                      <span className="text-white text-xs font-medium truncate">{p.name.split(' ')[0]}</span>
+                    </div>
+                    <p className="text-green-400 font-bold text-sm text-center">{kills}</p>
+                    <p className="text-cyan-400 text-sm text-center">{passAvg}</p>
+                    <p className="text-yellow-400 text-sm text-center">{servePct}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── SPECTATOR SHARE MODAL ────────────────────────────────────────── */}
       {showShareModal && spectatorCode && (

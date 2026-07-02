@@ -167,13 +167,8 @@ export default function SpectatorView() {
           <p className="text-gray-500 text-xs text-center uppercase tracking-widest mb-3">Current Rotation</p>
 
           <div className="max-w-xs mx-auto bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
-            {/* Net indicator at top */}
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-navy-700/50">
-              <div className="flex-1 h-px bg-white/10" />
-              <p className="text-gray-600 text-[9px] font-bold uppercase tracking-widest shrink-0">↑ Net</p>
-              <div className="flex-1 h-px bg-white/10" />
-            </div>
-            <div className="w-full h-1 bg-gradient-to-r from-vr-800 via-vr-500 to-vr-800" />
+            {/* Net bar */}
+            <div className="w-full h-1.5 bg-gradient-to-r from-vr-800 via-vr-500 to-vr-800" />
 
             {COURT_LAYOUT.map((row, rowIdx) => (
               <div key={rowIdx} className={`grid grid-cols-3 gap-2 p-3 ${rowIdx === 0 ? 'border-b border-white/10' : ''}`}>
@@ -195,10 +190,6 @@ export default function SpectatorView() {
               </div>
             ))}
 
-            {/* Back row label */}
-            <div className="px-3 pb-2 text-center">
-              <p className="text-gray-700 text-[10px]">↓ Back row · Serving from P1</p>
-            </div>
           </div>
         </div>
       )}
