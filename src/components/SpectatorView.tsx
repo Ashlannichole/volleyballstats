@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 
 interface MatchState {
   code: string
+  teamName?: string
   opponent: string
   ourScore: number
   theirScore: number
@@ -55,7 +56,7 @@ export default function SpectatorView() {
     return (
       <div className="min-h-screen bg-navy-900 flex flex-col items-center justify-center p-6 gap-4">
         <div className="text-5xl">🏐</div>
-        <p className="text-white font-bold text-lg text-center">Viking Roots Volleyball</p>
+        <p className="text-white font-bold text-lg text-center">Volleyball Stats</p>
         <p className="text-red-400 text-sm text-center">{error || 'No match code provided.'}</p>
       </div>
     )
@@ -70,6 +71,7 @@ export default function SpectatorView() {
     )
   }
 
+  const displayName = state.teamName ?? 'Home Team'
   const secondsSince = lastUpdate ? Math.floor((Date.now() - lastUpdate.getTime()) / 1000) : 0
   const prev = state.previousSets ?? []
 
@@ -78,11 +80,8 @@ export default function SpectatorView() {
       {/* Header */}
       <div className="bg-navy-800 border-b border-white/10 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-            <circle cx="16" cy="16" r="16" fill="#4a1d8a" />
-            <text x="16" y="22" textAnchor="middle" fontSize="18" fill="#87cde3">⚔</text>
-          </svg>
-          <span className="text-white font-bold text-sm">Viking Roots</span>
+          <div className="w-6 h-6 rounded-full bg-vr-700 flex items-center justify-center text-xs">🏐</div>
+          <span className="text-white font-bold text-sm">{displayName}</span>
         </div>
         <div className="flex items-center gap-1.5">
           {state.ended ? (
@@ -110,7 +109,7 @@ export default function SpectatorView() {
                     <div className="text-center">
                       <p className={`font-black text-lg leading-none ${weWon ? 'text-white' : 'text-gray-500'}`}>{s.our}</p>
                       <p className="text-[9px] text-gray-600 mt-0.5 flex items-center gap-0.5">
-                        VR {weWon && <span className="text-vr-400">✓</span>}
+                        {displayName.split(' ')[0]} {weWon && <span className="text-vr-400">✓</span>}
                       </p>
                     </div>
                     <span className="text-gray-600 text-sm">–</span>
@@ -137,7 +136,7 @@ export default function SpectatorView() {
         <div className="flex items-center justify-center gap-6">
           {/* Us */}
           <div className="flex-1 text-center">
-            <p className="text-gray-400 text-xs font-bold uppercase tracking-wide mb-1">Viking Roots</p>
+            <p className="text-gray-400 text-xs font-bold uppercase tracking-wide mb-1">{displayName}</p>
             <p className={`text-7xl font-black ${state.weAreServing ? 'text-white' : 'text-gray-500'}`}>
               {state.ourScore}
             </p>

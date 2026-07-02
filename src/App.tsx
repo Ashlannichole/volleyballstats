@@ -3,17 +3,20 @@ import type { Player, Match } from './types'
 import { loadPlayers, savePlayers, loadMatches, saveMatches, loadPractices, savePractices } from './utils/storage'
 import { loadTier } from './utils/tier'
 import type { Tier } from './utils/tier'
+import { loadSettings, applyColorVars } from './utils/settings'
+import type { TeamSettings } from './utils/settings'
 import { SEED_PLAYERS, SEED_MATCHES, SEED_PRACTICES } from './utils/seedData'
 import Roster from './components/Roster'
 import LiveGame from './components/LiveGame'
 import MatchHistory from './components/MatchHistory'
 import SeasonStats from './components/SeasonStats'
 import Practice from './components/Practice'
+import SettingsPage from './components/Settings'
 import AdBanner from './components/AdBanner'
 import { useUpgradeModal } from './components/UpgradePrompt'
 import type { PracticeSession } from './types'
 
-type Tab = 'roster' | 'live' | 'history' | 'season' | 'practice'
+type Tab = 'roster' | 'live' | 'history' | 'season' | 'practice' | 'settings'
 
 export default function App() {
   const [tab, setTab]           = useState<Tab>('live')
@@ -21,8 +24,14 @@ export default function App() {
   const [matches, setMatches]   = useState<Match[]>(loadMatches)
   const [practices, setPractices] = useState<PracticeSession[]>(loadPractices)
   const [tier, setTier]         = useState<Tier>(loadTier)
+  const [teamSettings, setTeamSettings] = useState<TeamSettings>(() => {
+    const s = loadSettings()
+    applyColorVars(s)
+    return s
+  })
 
   const isPro = tier === 'pro'
+  const teamName = isPro ? teamSettings.teamName : 'My Team'
 
   const { openModal, modal } = useUpgradeModal((t) => setTier(t))
 
@@ -76,6 +85,7 @@ export default function App() {
     { id: 'history',  label: 'History',  icon: '📋' },
     { id: 'season',   label: 'Season',   icon: '📊' },
     { id: 'practice', label: 'Practice', icon: '🎽', proOnly: true },
+    { id: 'settings', label: 'Settings', icon: '⚙️' },
   ]
 
   return (
@@ -83,11 +93,13 @@ export default function App() {
       {/* Header */}
       <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0 flex items-center gap-3">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="16" cy="16" r="16" fill="#4a1d8a" />
-          <text x="16" y="22" textAnchor="middle" fontSize="18" fill="#87cde3">⚔</text>
+          <circle cx="16" cy="16" r="16" fill={teamSettings.primaryColor} />
+          <text x="16" y="22" textAnchor="middle" fontSize="18" fill={teamSettings.secondaryColor}>
+            {isPro ? '⚔' : '🏐'}
+          </text>
         </svg>
         <div className="flex-1">
-          <h1 className="text-white font-bold text-lg leading-tight tracking-tight">Viking Roots</h1>
+          <h1 className="text-white font-bold text-lg leading-tight tracking-tight">{teamName}</h1>
           <p className="text-pb-400 text-xs font-medium leading-none">Volleyball Stats</p>
         </div>
         {/* Pro badge / upgrade button */}
@@ -114,6 +126,7 @@ export default function App() {
             onSaveMatch={handleSaveMatch}
             onGameStartedChange={setLiveGameStarted}
             isPro={isPro}
+            teamName={teamName}
           />
         </div>
         <div className={tab === 'history' ? '' : 'hidden'}>
@@ -138,6 +151,14 @@ export default function App() {
             onDelete={id => setPractices(prev => prev.filter(p => p.id !== id))}
           />
         </div>
+        <div className={tab === 'settings' ? '' : 'hidden'}>
+          <SettingsPage
+            settings={teamSettings}
+            onSettingsChange={setTeamSettings}
+            isPro={isPro}
+            onUpgrade={openModal}
+          />
+        </div>
       </div>
 
       {/* Ad banner — hidden during live tracking */}
@@ -156,7 +177,7 @@ export default function App() {
               }`}
             >
               <span className="text-xl">{t.icon}</span>
-              <span className="text-xs font-medium">{t.label}</span>
+              <span className="text-[10px] font-medium">{t.label}</span>
               {locked
                 ? <span className="text-[9px] text-vr-500 font-bold">PRO</span>
                 : tab === t.id && <span className="w-4 h-0.5 rounded-full bg-vr-500 mt-0.5" />

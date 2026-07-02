@@ -8,6 +8,7 @@ interface Props {
   onSaveMatch: (match: Match) => void
   onGameStartedChange?: (started: boolean) => void
   isPro?: boolean
+  teamName?: string
   // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
   practiceMode?: boolean
   onSavePractice?: (session: PracticeSession) => void
@@ -77,7 +78,7 @@ interface Snapshot {
   rotation: (string | null)[]
 }
 
-export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, practiceMode = false, onSavePractice }: Props) {
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', practiceMode = false, onSavePractice }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -138,6 +139,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         code,
+        teamName,
         opponent,
         ourScore,
         theirScore,
@@ -149,7 +151,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         ended,
       }),
     }).catch(() => {})
-  }, [players, rotation, opponent, ourScore, theirScore, currentSet, weAreServing, completedSetScores])
+  }, [players, rotation, opponent, teamName, ourScore, theirScore, currentSet, weAreServing, completedSetScores])
 
   useEffect(() => {
     if (spectatorCode && gameStarted && !practiceMode) {
@@ -457,7 +459,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     return (
       <div className="overflow-y-auto p-4 max-w-lg mx-auto flex flex-col gap-5 pb-8">
         <div className="text-center mt-3">
-          <p className="text-vr-400 text-xs font-bold uppercase tracking-widest mb-1">Viking Roots Volleyball</p>
+          <p className="text-vr-400 text-xs font-bold uppercase tracking-widest mb-1">{teamName} Volleyball</p>
           <h2 className="text-3xl font-bold text-white">{practiceMode ? 'New Scrimmage' : 'New Match'}</h2>
         </div>
 
@@ -764,7 +766,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
             <div className="flex items-center gap-1 flex-wrap justify-center">
               {weAreServing && <span className="text-sm animate-pulse">🏐</span>}
               <p className={`text-xs font-bold tracking-wide ${weAreServing ? 'text-pb-300' : 'text-pb-400/60'}`}>
-                VIKING ROOTS
+                {teamName.toUpperCase()}
               </p>
               {scoreRun?.team === 'us' && scoreRun.count >= 3 && (
                 <span className="text-[10px] font-black bg-pb-900/60 border border-pb-500/50 text-pb-300 px-1.5 py-0.5 rounded-full">
@@ -1298,7 +1300,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
             <h3 className="text-xl font-bold text-white mb-1">Set {currentSet + 1} Complete</h3>
             <p className="text-pb-400 text-2xl font-black mb-1">{ourScore} – {theirScore}</p>
             <p className="text-gray-400 text-sm mb-5">
-              {ourScore > theirScore ? 'Viking Roots win the set!' : `${opponent} wins the set.`}
+              {ourScore > theirScore ? `${teamName} win the set!` : `${opponent} wins the set.`}
             </p>
             <div className="flex gap-3">
               <button onClick={() => setSetCompleteAlert(false)}
@@ -1422,7 +1424,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="bg-navy-800 border border-vr-700/50 rounded-2xl p-6 w-full max-w-sm">
             <h3 className="text-xl font-bold text-white mb-1">End Match?</h3>
-            <p className="text-pb-400 text-sm mb-4">Viking Roots {ourScore} – {theirScore} {opponent}</p>
+            <p className="text-pb-400 text-sm mb-4">{teamName} {ourScore} – {theirScore} {opponent}</p>
             <p className="text-gray-400 text-sm mb-5">{sets.length} set{sets.length !== 1 ? 's' : ''} tracked.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowEndDialog(false)}
