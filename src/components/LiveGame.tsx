@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Player, PlayerStats, SetStats, Match, SavedLineup, PracticeSession } from '../types'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { loadLineups, saveLineups } from '../utils/storage'
@@ -118,6 +118,10 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Auto set-end banner
   const [setCompleteAlert, setSetCompleteAlert] = useState(false)
 
+  // Score run tracking
+  const [scoreRun, setScoreRun] = useState<{ team: 'us' | 'them'; count: number } | null>(null)
+  const prevScoresRef = useRef({ our: 0, their: 0 })
+
   // Lineup builder (pre-match)
   const [preLineup, setPreLineup]           = useState<(string | null)[]>([null,null,null,null,null,null])
   const [pickingSlot, setPickingSlot]       = useState<number | null>(null)
@@ -159,6 +163,18 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     const hi = Math.max(ourScore, theirScore)
     const lo = Math.min(ourScore, theirScore)
     if (hi >= 25 && hi - lo >= 2) setSetCompleteAlert(true)
+  }, [ourScore, theirScore])
+
+  // Score run tracking
+  useEffect(() => {
+    if (!gameStarted) return
+    const prev = prevScoresRef.current
+    if (ourScore > prev.our) {
+      setScoreRun(r => r?.team === 'us' ? { team: 'us', count: r.count + 1 } : { team: 'us', count: 1 })
+    } else if (theirScore > prev.their) {
+      setScoreRun(r => r?.team === 'them' ? { team: 'them', count: r.count + 1 } : { team: 'them', count: 1 })
+    }
+    prevScoresRef.current = { our: ourScore, their: theirScore }
   }, [ourScore, theirScore])
 
   function startSpectatorShare() {
@@ -289,10 +305,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setCompletedSetScores(prev => [...prev, { our: ourScore, their: theirScore }])
     setSets(prev => [...prev, buildSetStats(players)])
     setCurrentSet(c => c + 1)
+    setOurScore(0)
+    setTheirScore(0)
     setOurTimeouts(0)
     setTheirTimeouts(0)
     setSubCount(0)
     setLiberoPair(null)
+    setScoreRun(null)
   }
 
   function doSub(outSlot: number, inPlayerId: string) {
@@ -742,11 +761,16 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
           {/* Viking Roots */}
           <div className="flex-1 flex flex-col items-center">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-wrap justify-center">
               {weAreServing && <span className="text-sm animate-pulse">🏐</span>}
               <p className={`text-xs font-bold tracking-wide ${weAreServing ? 'text-pb-300' : 'text-pb-400/60'}`}>
                 VIKING ROOTS
               </p>
+              {scoreRun?.team === 'us' && scoreRun.count >= 3 && (
+                <span className="text-[10px] font-black bg-pb-900/60 border border-pb-500/50 text-pb-300 px-1.5 py-0.5 rounded-full">
+                  🔥{scoreRun.count}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <div className="flex gap-1">
@@ -780,11 +804,16 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
           {/* Opponent */}
           <div className="flex-1 flex flex-col items-center">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-wrap justify-center">
               <p className={`text-xs font-bold tracking-wide truncate ${!weAreServing ? 'text-gray-300' : 'text-gray-500'}`}>
                 {opponent.toUpperCase()}
               </p>
               {weAreServing === false && <span className="text-sm animate-pulse">🏐</span>}
+              {scoreRun?.team === 'them' && scoreRun.count >= 3 && (
+                <span className="text-[10px] font-black bg-red-900/60 border border-red-500/50 text-red-300 px-1.5 py-0.5 rounded-full">
+                  🔥{scoreRun.count}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
               <button onClick={() => setTheirScore(s => Math.max(0, s - 1))}
