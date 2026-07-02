@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { Player, Match } from './types'
 import { loadPlayers, savePlayers, loadMatches, saveMatches, loadPractices, savePractices } from './utils/storage'
 import { loadTier } from './utils/tier'
 import type { Tier } from './utils/tier'
 import { loadSettings, applyColorVars, loadCoachTeam, saveCoachTeam } from './utils/settings'
 import type { TeamSettings, CoachTeam } from './utils/settings'
+import { loadSession, saveSession, pushUserData, pullUserData } from './utils/auth'
+import type { Session } from './utils/auth'
 import { SEED_PLAYERS, SEED_MATCHES, SEED_PRACTICES } from './utils/seedData'
+import AuthScreen from './components/AuthScreen'
 import Roster from './components/Roster'
 import LiveGame from './components/LiveGame'
 import MatchHistory from './components/MatchHistory'
@@ -19,6 +22,10 @@ import type { PracticeSession } from './types'
 type Tab = 'roster' | 'live' | 'history' | 'season' | 'practice' | 'settings'
 
 export default function App() {
+  const [session, setSession]     = useState<Session | null>(loadSession)
+  const [syncing, setSyncing]     = useState(false)
+  const [syncError, setSyncError] = useState('')
+
   const [tab, setTab]             = useState<Tab>('live')
   const [players, setPlayers]     = useState<Player[]>(loadPlayers)
   const [matches, setMatches]     = useState<Match[]>(loadMatches)
@@ -36,19 +43,75 @@ export default function App() {
 
   const { openModal, modal } = useUpgradeModal((t) => setTier(t))
 
+  // On sign-in: pull server data, merge with local
+  async function handleSignIn(s: Session) {
+    setSession(s)
+    setSyncing(true)
+    setSyncError('')
+    try {
+      const remote = await pullUserData(s.token)
+      // Merge: server is source of truth for IDs that exist on server;
+      // local-only items (not on server yet) are kept and will be pushed up.
+      const serverMatchIds   = new Set((remote.matches as Match[]).map(m => m.id))
+      const serverPlayerIds  = new Set((remote.players as Player[]).map(p => p.id))
+      const serverPracticeIds = new Set((remote.practices as PracticeSession[]).map(p => p.id))
+
+      const localOnlyMatches   = matches.filter(m => !serverMatchIds.has(m.id))
+      const localOnlyPlayers   = players.filter(p => !serverPlayerIds.has(p.id))
+      const localOnlyPractices = practices.filter(p => !serverPracticeIds.has(p.id))
+
+      const mergedMatches   = [...(remote.matches   as Match[]),          ...localOnlyMatches]
+      const mergedPlayers   = [...(remote.players   as Player[]),         ...localOnlyPlayers]
+      const mergedPractices = [...(remote.practices as PracticeSession[]), ...localOnlyPractices]
+
+      setMatches(mergedMatches)
+      setPlayers(mergedPlayers)
+      setPractices(mergedPractices)
+
+      // Push merged state back so server has everything
+      await pushUserData(s.token, { matches: mergedMatches, players: mergedPlayers, practices: mergedPractices })
+    } catch (e) {
+      if (e instanceof Error && e.message === 'session_expired') {
+        saveSession(null)
+        setSession(null)
+      } else {
+        setSyncError('Couldn\'t sync from server — working offline.')
+      }
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  // Debounced push whenever data changes
+  const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function schedulePush(m: Match[], p: Player[], pr: PracticeSession[]) {
+    if (!session) return
+    if (pushTimer.current) clearTimeout(pushTimer.current)
+    pushTimer.current = setTimeout(() => {
+      pushUserData(session.token, { matches: m, players: p, practices: pr })
+    }, 1500)
+  }
+
   useEffect(() => { savePlayers(players) }, [players])
   useEffect(() => { saveMatches(matches) }, [matches])
   useEffect(() => { savePractices(practices) }, [practices])
 
-  // Auto-push to team store whenever matches change and a team is active
+  // Push to server on any data change (debounced)
   useEffect(() => {
-    if (!coachTeam || !isPro || matches.length === 0) return
-    fetch('/api/team?action=push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: coachTeam.code, matches }),
-    }).catch(() => {})
-  }, [matches])
+    if (session) schedulePush(matches, players, practices)
+  }, [matches, players, practices])
+
+  function handleSignOut() {
+    if (session) {
+      fetch('/api/auth?action=signout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: session.token }),
+      }).catch(() => {})
+    }
+    saveSession(null)
+    setSession(null)
+  }
 
   function handleCoachTeamChange(t: CoachTeam | null) {
     saveCoachTeam(t)
@@ -72,18 +135,15 @@ export default function App() {
   function handleLoadDemo() {
     setPlayers(prev => {
       const existingIds = new Set(prev.map(p => p.id))
-      const newPlayers = SEED_PLAYERS.filter(p => !existingIds.has(p.id))
-      return [...prev, ...newPlayers]
+      return [...prev, ...SEED_PLAYERS.filter(p => !existingIds.has(p.id))]
     })
     setMatches(prev => {
       const existingIds = new Set(prev.map(m => m.id))
-      const newMatches = SEED_MATCHES.filter(m => !existingIds.has(m.id))
-      return [...prev, ...newMatches]
+      return [...prev, ...SEED_MATCHES.filter(m => !existingIds.has(m.id))]
     })
     setPractices(prev => {
       const existingIds = new Set(prev.map(p => p.id))
-      const newPractices = SEED_PRACTICES.filter(p => !existingIds.has(p.id))
-      return [...prev, ...newPractices]
+      return [...prev, ...SEED_PRACTICES.filter(p => !existingIds.has(p.id))]
     })
   }
 
@@ -98,6 +158,19 @@ export default function App() {
 
   const [liveGameStarted, setLiveGameStarted] = useState(false)
   const showAd = !isPro && !(tab === 'live' && liveGameStarted)
+
+  // --- Auth gate ---
+  if (!session) return <AuthScreen onSignIn={handleSignIn} />
+
+  // --- Syncing splash ---
+  if (syncing) {
+    return (
+      <div className="min-h-screen bg-navy-900 flex flex-col items-center justify-center gap-4">
+        <div className="w-10 h-10 border-2 border-vr-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-gray-400 text-sm">Syncing your stats…</p>
+      </div>
+    )
+  }
 
   const TABS: { id: Tab; label: string; icon: string; proOnly?: boolean }[] = [
     { id: 'roster',   label: 'Roster',   icon: '👥' },
@@ -118,19 +191,19 @@ export default function App() {
             {isPro ? '⚔' : '🏐'}
           </text>
         </svg>
-        <div className="flex-1">
-          <h1 className="text-white font-bold text-lg leading-tight tracking-tight">{teamName}</h1>
-          <p className="text-pb-400 text-xs font-medium leading-none">
-            Volleyball Stats{coachTeam && isPro ? ' · 👥 Team' : ''}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-white font-bold text-lg leading-tight tracking-tight truncate">{teamName}</h1>
+          <p className="text-pb-400 text-xs font-medium leading-none truncate">
+            {syncError ? <span className="text-yellow-500">{syncError}</span> : coachTeam && isPro ? 'Volleyball Stats · 👥 Team' : 'Volleyball Stats'}
           </p>
         </div>
         {isPro ? (
-          <span className="text-xs font-bold px-2 py-1 rounded-full bg-vr-800 border border-vr-500/40 text-vr-300">
+          <span className="text-xs font-bold px-2 py-1 rounded-full bg-vr-800 border border-vr-500/40 text-vr-300 shrink-0">
             ⚡ Pro
           </span>
         ) : (
           <button onClick={openModal}
-            className="tap-btn text-xs font-bold px-3 py-1.5 rounded-full bg-vr-700 text-white border border-vr-500">
+            className="tap-btn text-xs font-bold px-3 py-1.5 rounded-full bg-vr-700 text-white border border-vr-500 shrink-0">
             Upgrade ⚡
           </button>
         )}
@@ -182,6 +255,8 @@ export default function App() {
             onCoachTeamChange={handleCoachTeamChange}
             matches={matches}
             onSyncMatches={handleSyncMatches}
+            session={session}
+            onSignOut={handleSignOut}
           />
         </div>
       </div>

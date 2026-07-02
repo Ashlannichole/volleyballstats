@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Match } from '../types'
 import type { TeamSettings, CoachTeam } from '../utils/settings'
 import { saveSettings, applyColorVars, saveCoachTeam } from '../utils/settings'
+import type { Session } from '../utils/auth'
 
 interface Props {
   settings: TeamSettings
@@ -10,6 +11,8 @@ interface Props {
   onUpgrade: () => void
   coachTeam: CoachTeam | null
   onCoachTeamChange: (t: CoachTeam | null) => void
+  session: Session | null
+  onSignOut: () => void
   matches: Match[]
   onSyncMatches: (matches: Match[]) => void
 }
@@ -26,6 +29,7 @@ const PRESET_COLORS = [
 export default function Settings({
   settings, onSettingsChange, isPro, onUpgrade,
   coachTeam, onCoachTeamChange, matches, onSyncMatches,
+  session, onSignOut,
 }: Props) {
   const [localName, setLocalName]           = useState(settings.teamName)
   const [localPrimary, setLocalPrimary]     = useState(settings.primaryColor)
@@ -380,25 +384,39 @@ export default function Settings({
         </button>
       )}
 
-      {/* General */}
+      {/* Account + General */}
       <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
         <div className="px-4 py-3 border-b border-white/10">
-          <p className="text-white font-bold text-sm">General</p>
+          <p className="text-white font-bold text-sm">Account</p>
         </div>
         <div className="divide-y divide-white/5">
-          <div className="px-4 py-3 flex items-center justify-between">
-            <p className="text-gray-300 text-sm">App Version</p>
-            <p className="text-gray-600 text-sm">1.0.0</p>
-          </div>
-          <div className="px-4 py-3 flex items-center justify-between">
-            <p className="text-gray-300 text-sm">Storage</p>
-            <p className="text-gray-600 text-sm">{coachTeam ? 'On-device + Team sync' : 'On-device'}</p>
-          </div>
+          {session && (
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="text-gray-400 text-xs uppercase tracking-wide font-semibold">Signed in as</p>
+                <p className="text-white text-sm font-medium mt-0.5 truncate max-w-[220px]">{session.email}</p>
+              </div>
+            </div>
+          )}
           <div className="px-4 py-3 flex items-center justify-between">
             <p className="text-gray-300 text-sm">Tier</p>
             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isPro ? 'bg-vr-800 border border-vr-500/40 text-vr-300' : 'bg-navy-700 border border-white/10 text-gray-400'}`}>
               {isPro ? '⚡ Pro' : 'Free'}
             </span>
+          </div>
+          <div className="px-4 py-3 flex items-center justify-between">
+            <p className="text-gray-300 text-sm">Storage</p>
+            <p className="text-gray-600 text-sm">Cloud · auto-synced</p>
+          </div>
+          <div className="px-4 py-3 flex items-center justify-between">
+            <p className="text-gray-300 text-sm">App Version</p>
+            <p className="text-gray-600 text-sm">1.0.0</p>
+          </div>
+          <div className="px-4 py-3">
+            <button onClick={onSignOut}
+              className="tap-btn w-full border border-red-900/40 rounded-xl py-2.5 text-red-500 text-sm font-semibold">
+              Sign Out
+            </button>
           </div>
         </div>
       </section>
