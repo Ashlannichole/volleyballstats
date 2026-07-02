@@ -1,12 +1,17 @@
 import { useState } from 'react'
-import type { TeamSettings } from '../utils/settings'
-import { saveSettings, applyColorVars } from '../utils/settings'
+import type { Match } from '../types'
+import type { TeamSettings, CoachTeam } from '../utils/settings'
+import { saveSettings, applyColorVars, saveCoachTeam } from '../utils/settings'
 
 interface Props {
   settings: TeamSettings
   onSettingsChange: (s: TeamSettings) => void
   isPro: boolean
   onUpgrade: () => void
+  coachTeam: CoachTeam | null
+  onCoachTeamChange: (t: CoachTeam | null) => void
+  matches: Match[]
+  onSyncMatches: (matches: Match[]) => void
 }
 
 const PRESET_COLORS = [
@@ -18,11 +23,21 @@ const PRESET_COLORS = [
   { label: 'Sunset',       primary: '#7c2d12', secondary: '#fb923c' },
 ]
 
-export default function Settings({ settings, onSettingsChange, isPro, onUpgrade }: Props) {
-  const [localName, setLocalName] = useState(settings.teamName)
-  const [localPrimary, setLocalPrimary] = useState(settings.primaryColor)
+export default function Settings({
+  settings, onSettingsChange, isPro, onUpgrade,
+  coachTeam, onCoachTeamChange, matches, onSyncMatches,
+}: Props) {
+  const [localName, setLocalName]           = useState(settings.teamName)
+  const [localPrimary, setLocalPrimary]     = useState(settings.primaryColor)
   const [localSecondary, setLocalSecondary] = useState(settings.secondaryColor)
-  const [saved, setSaved] = useState(false)
+  const [saved, setSaved]                   = useState(false)
+
+  // Coach team state
+  const [joinCode, setJoinCode]   = useState('')
+  const [teamBusy, setTeamBusy]   = useState(false)
+  const [teamMsg, setTeamMsg]     = useState<{ text: string; ok: boolean } | null>(null)
+  const [syncBusy, setSyncBusy]   = useState(false)
+  const [showCode, setShowCode]   = useState(false)
 
   function commit(patch: Partial<TeamSettings>) {
     const next = { ...settings, teamName: localName, primaryColor: localPrimary, secondaryColor: localSecondary, ...patch }
@@ -37,6 +52,85 @@ export default function Settings({ settings, onSettingsChange, isPro, onUpgrade 
     setLocalPrimary(p.primary)
     setLocalSecondary(p.secondary)
     commit({ primaryColor: p.primary, secondaryColor: p.secondary })
+  }
+
+  function flash(text: string, ok: boolean) {
+    setTeamMsg({ text, ok })
+    setTimeout(() => setTeamMsg(null), 3500)
+  }
+
+  async function handleCreate() {
+    setTeamBusy(true)
+    try {
+      const res = await fetch('/api/team?action=create', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { flash(data.error ?? 'Failed to create team', false); return }
+      const team: CoachTeam = { code: data.code, role: 'owner' }
+      saveCoachTeam(team)
+      onCoachTeamChange(team)
+      setShowCode(true)
+      flash(`Team created! Share code ${data.code} with up to 2 other coaches.`, true)
+    } catch {
+      flash('Network error. Try again.', false)
+    } finally {
+      setTeamBusy(false)
+    }
+  }
+
+  async function handleJoin() {
+    const code = joinCode.trim().toUpperCase()
+    if (code.length < 4) { flash('Enter a valid team code.', false); return }
+    setTeamBusy(true)
+    try {
+      const res = await fetch('/api/team?action=join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      const data = await res.json()
+      if (!res.ok) { flash(data.error ?? 'Could not join team', false); return }
+      const team: CoachTeam = { code, role: 'member' }
+      saveCoachTeam(team)
+      onCoachTeamChange(team)
+      setJoinCode('')
+      flash(`Joined! ${data.matchCount} match${data.matchCount !== 1 ? 'es' : ''} available — tap Sync to import.`, true)
+    } catch {
+      flash('Network error. Try again.', false)
+    } finally {
+      setTeamBusy(false)
+    }
+  }
+
+  async function handleSync() {
+    if (!coachTeam) return
+    setSyncBusy(true)
+    try {
+      const res = await fetch(`/api/team?action=pull&code=${encodeURIComponent(coachTeam.code)}`)
+      const data = await res.json()
+      if (!res.ok) { flash(data.error ?? 'Sync failed', false); return }
+      const pulled: Match[] = data.matches ?? []
+      // Merge: keep local matches not in pull, add any pulled matches we don't have
+      const localIds = new Set(matches.map((m: Match) => m.id))
+      const newOnes = pulled.filter(m => !localIds.has(m.id))
+      onSyncMatches(newOnes)
+      flash(newOnes.length > 0 ? `Synced ${newOnes.length} new match${newOnes.length !== 1 ? 'es' : ''} from team.` : 'Already up to date.', true)
+    } catch {
+      flash('Network error. Try again.', false)
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  function handleLeave() {
+    saveCoachTeam(null)
+    onCoachTeamChange(null)
+    setShowCode(false)
+    flash('Left the team. Your local data is unchanged.', true)
+  }
+
+  function copyCode() {
+    if (coachTeam) navigator.clipboard.writeText(coachTeam.code).catch(() => {})
+    flash('Code copied!', true)
   }
 
   return (
@@ -67,16 +161,14 @@ export default function Settings({ settings, onSettingsChange, isPro, onUpgrade 
               Team Name
             </label>
             {isPro ? (
-              <div className="flex gap-2">
-                <input
-                  value={localName}
-                  onChange={e => setLocalName(e.target.value)}
-                  onBlur={() => commit({})}
-                  maxLength={30}
-                  placeholder="e.g. Viking Roots"
-                  className="flex-1 bg-navy-700 border border-white/20 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-vr-500"
-                />
-              </div>
+              <input
+                value={localName}
+                onChange={e => setLocalName(e.target.value)}
+                onBlur={() => commit({})}
+                maxLength={30}
+                placeholder="e.g. Viking Roots"
+                className="w-full bg-navy-700 border border-white/20 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-vr-500"
+              />
             ) : (
               <button onClick={onUpgrade} className="tap-btn w-full text-left bg-navy-700/50 border border-white/10 rounded-xl px-3 py-2 text-gray-600 text-sm flex items-center justify-between">
                 <span>{settings.teamName}</span>
@@ -108,8 +200,6 @@ export default function Settings({ settings, onSettingsChange, isPro, onUpgrade 
                     </button>
                   ))}
                 </div>
-
-                {/* Custom pickers */}
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Primary</p>
@@ -149,7 +239,130 @@ export default function Settings({ settings, onSettingsChange, isPro, onUpgrade 
           </div>
 
           {saved && (
-            <p className="text-green-400 text-xs text-center font-semibold animate-pulse">✓ Saved</p>
+            <p className="text-green-400 text-xs text-center font-semibold">✓ Saved</p>
+          )}
+        </div>
+      </section>
+
+      {/* Coach Collaboration — Pro only */}
+      <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+          <div>
+            <p className="text-white font-bold text-sm">Coach Collaboration</p>
+            <p className="text-gray-500 text-[11px] mt-0.5">Share stats with up to 2 other coaches</p>
+          </div>
+          {!isPro && (
+            <button onClick={onUpgrade}
+              className="tap-btn text-[10px] font-black px-2 py-0.5 rounded-full bg-vr-700 border border-vr-500 text-vr-200 shrink-0">
+              ⚡ PRO
+            </button>
+          )}
+        </div>
+
+        <div className="p-4">
+          {!isPro ? (
+            <button onClick={onUpgrade} className="tap-btn w-full bg-navy-700/50 border border-white/10 rounded-xl p-4 flex items-center gap-3">
+              <span className="text-2xl">👥</span>
+              <div className="text-left">
+                <p className="text-gray-500 text-sm font-semibold">Multi-coach stat sharing</p>
+                <p className="text-gray-700 text-xs mt-0.5">Pro only — free tier is single device</p>
+              </div>
+              <span className="text-gray-700 ml-auto">🔒</span>
+            </button>
+          ) : coachTeam ? (
+            /* Already in a team */
+            <div className="flex flex-col gap-3">
+              <div className="bg-navy-700 rounded-xl p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${coachTeam.role === 'owner' ? 'bg-vr-400' : 'bg-pb-400'}`} />
+                  <p className="text-white text-sm font-semibold">
+                    {coachTeam.role === 'owner' ? 'You created this team' : 'You joined this team'}
+                  </p>
+                </div>
+
+                {/* Code display */}
+                <button onClick={() => setShowCode(v => !v)}
+                  className="tap-btn w-full bg-navy-800 border border-white/10 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <div className="text-left">
+                    <p className="text-gray-500 text-[10px] uppercase tracking-wide">Team Code</p>
+                    <p className={`font-black text-xl tracking-widest mt-0.5 ${showCode ? 'text-white' : 'text-gray-600 blur-sm select-none'}`}>
+                      {coachTeam.code}
+                    </p>
+                  </div>
+                  <span className="text-gray-500 text-xs">{showCode ? 'hide' : 'show'}</span>
+                </button>
+
+                {showCode && (
+                  <div className="flex gap-2">
+                    <button onClick={copyCode}
+                      className="tap-btn flex-1 bg-vr-700 border border-vr-600 rounded-xl py-2 text-vr-200 text-sm font-bold">
+                      📋 Copy Code
+                    </button>
+                    <button onClick={handleSync} disabled={syncBusy}
+                      className="tap-btn flex-1 bg-navy-600 border border-white/10 rounded-xl py-2 text-white text-sm font-bold disabled:opacity-50">
+                      {syncBusy ? '⏳ Syncing…' : '🔄 Sync Matches'}
+                    </button>
+                  </div>
+                )}
+
+                {!showCode && (
+                  <button onClick={handleSync} disabled={syncBusy}
+                    className="tap-btn w-full bg-navy-600 border border-white/10 rounded-xl py-2.5 text-white text-sm font-bold disabled:opacity-50">
+                    {syncBusy ? '⏳ Syncing…' : '🔄 Sync Matches from Team'}
+                  </button>
+                )}
+              </div>
+
+              <p className="text-gray-600 text-xs text-center px-2">
+                Share this code with your assistant coaches. After each match, tap Sync to merge everyone's saved stats.
+              </p>
+
+              <button onClick={handleLeave}
+                className="tap-btn w-full border border-red-900/40 rounded-xl py-2.5 text-red-500 text-sm font-semibold">
+                Leave Team
+              </button>
+            </div>
+          ) : (
+            /* No team yet */
+            <div className="flex flex-col gap-4">
+              <p className="text-gray-500 text-xs text-center leading-relaxed">
+                Create a team to share match stats with up to 2 assistant coaches. Each coach keeps stats on their own device, then syncs to combine everything.
+              </p>
+
+              {/* Create */}
+              <button onClick={handleCreate} disabled={teamBusy}
+                className="tap-btn w-full bg-vr-700 border border-vr-500 rounded-xl py-3 text-white font-bold text-sm disabled:opacity-50">
+                {teamBusy ? '⏳ Creating…' : '✦ Create Team'}
+              </button>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-white/10" />
+                <p className="text-gray-600 text-xs">or join one</p>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+
+              {/* Join */}
+              <div className="flex gap-2">
+                <input
+                  value={joinCode}
+                  onChange={e => setJoinCode(e.target.value.toUpperCase())}
+                  maxLength={6}
+                  placeholder="Enter code"
+                  className="flex-1 bg-navy-700 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-pb-500 font-mono tracking-widest uppercase"
+                />
+                <button onClick={handleJoin} disabled={teamBusy || joinCode.trim().length < 4}
+                  className="tap-btn bg-pb-700 border border-pb-500 rounded-xl px-4 py-2.5 text-white font-bold text-sm disabled:opacity-40">
+                  Join
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Feedback message */}
+          {teamMsg && (
+            <p className={`text-xs text-center mt-3 font-semibold ${teamMsg.ok ? 'text-green-400' : 'text-red-400'}`}>
+              {teamMsg.text}
+            </p>
           )}
         </div>
       </section>
@@ -161,7 +374,7 @@ export default function Settings({ settings, onSettingsChange, isPro, onUpgrade 
           <div className="w-10 h-10 rounded-xl bg-vr-600 flex items-center justify-center text-xl shrink-0">⚡</div>
           <div className="text-left">
             <p className="text-white font-bold text-sm">Upgrade to Pro</p>
-            <p className="text-vr-300 text-xs mt-0.5">Custom team name, colors, practice stats, AI suggestions & more</p>
+            <p className="text-vr-300 text-xs mt-0.5">Custom team name, colors, multi-coach sync, practice stats & more</p>
           </div>
           <span className="text-vr-400 text-lg ml-auto">›</span>
         </button>
@@ -179,7 +392,7 @@ export default function Settings({ settings, onSettingsChange, isPro, onUpgrade 
           </div>
           <div className="px-4 py-3 flex items-center justify-between">
             <p className="text-gray-300 text-sm">Storage</p>
-            <p className="text-gray-600 text-sm">On-device</p>
+            <p className="text-gray-600 text-sm">{coachTeam ? 'On-device + Team sync' : 'On-device'}</p>
           </div>
           <div className="px-4 py-3 flex items-center justify-between">
             <p className="text-gray-300 text-sm">Tier</p>

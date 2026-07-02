@@ -31,3 +31,25 @@ export function applyColorVars(s: TeamSettings): void {
   root.style.setProperty('--team-primary', s.primaryColor)
   root.style.setProperty('--team-secondary', s.secondaryColor)
 }
+
+// Coach team (separate from team display settings)
+const TEAM_KEY = 'vb_coach_team'
+
+export interface CoachTeam {
+  code: string
+  role: 'owner' | 'member'
+}
+
+export function loadCoachTeam(): CoachTeam | null {
+  try {
+    const raw = localStorage.getItem(TEAM_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+export function saveCoachTeam(t: CoachTeam | null): void {
+  if (t) localStorage.setItem(TEAM_KEY, JSON.stringify(t))
+  else localStorage.removeItem(TEAM_KEY)
+}

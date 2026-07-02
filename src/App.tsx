@@ -3,8 +3,8 @@ import type { Player, Match } from './types'
 import { loadPlayers, savePlayers, loadMatches, saveMatches, loadPractices, savePractices } from './utils/storage'
 import { loadTier } from './utils/tier'
 import type { Tier } from './utils/tier'
-import { loadSettings, applyColorVars } from './utils/settings'
-import type { TeamSettings } from './utils/settings'
+import { loadSettings, applyColorVars, loadCoachTeam, saveCoachTeam } from './utils/settings'
+import type { TeamSettings, CoachTeam } from './utils/settings'
 import { SEED_PLAYERS, SEED_MATCHES, SEED_PRACTICES } from './utils/seedData'
 import Roster from './components/Roster'
 import LiveGame from './components/LiveGame'
@@ -19,18 +19,19 @@ import type { PracticeSession } from './types'
 type Tab = 'roster' | 'live' | 'history' | 'season' | 'practice' | 'settings'
 
 export default function App() {
-  const [tab, setTab]           = useState<Tab>('live')
-  const [players, setPlayers]   = useState<Player[]>(loadPlayers)
-  const [matches, setMatches]   = useState<Match[]>(loadMatches)
+  const [tab, setTab]             = useState<Tab>('live')
+  const [players, setPlayers]     = useState<Player[]>(loadPlayers)
+  const [matches, setMatches]     = useState<Match[]>(loadMatches)
   const [practices, setPractices] = useState<PracticeSession[]>(loadPractices)
-  const [tier, setTier]         = useState<Tier>(loadTier)
+  const [tier, setTier]           = useState<Tier>(loadTier)
   const [teamSettings, setTeamSettings] = useState<TeamSettings>(() => {
     const s = loadSettings()
     applyColorVars(s)
     return s
   })
+  const [coachTeam, setCoachTeam] = useState<CoachTeam | null>(loadCoachTeam)
 
-  const isPro = tier === 'pro'
+  const isPro    = tier === 'pro'
   const teamName = isPro ? teamSettings.teamName : 'My Team'
 
   const { openModal, modal } = useUpgradeModal((t) => setTier(t))
@@ -39,6 +40,21 @@ export default function App() {
   useEffect(() => { saveMatches(matches) }, [matches])
   useEffect(() => { savePractices(practices) }, [practices])
 
+  // Auto-push to team store whenever matches change and a team is active
+  useEffect(() => {
+    if (!coachTeam || !isPro || matches.length === 0) return
+    fetch('/api/team?action=push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: coachTeam.code, matches }),
+    }).catch(() => {})
+  }, [matches])
+
+  function handleCoachTeamChange(t: CoachTeam | null) {
+    saveCoachTeam(t)
+    setCoachTeam(t)
+  }
+
   function handleSaveMatch(match: Match) {
     setMatches(prev => [...prev, match])
     setTab('history')
@@ -46,6 +62,11 @@ export default function App() {
 
   function handleDeleteMatch(id: string) {
     setMatches(prev => prev.filter(m => m.id !== id))
+  }
+
+  function handleSyncMatches(newMatches: Match[]) {
+    if (newMatches.length === 0) return
+    setMatches(prev => [...prev, ...newMatches])
   }
 
   function handleLoadDemo() {
@@ -75,7 +96,6 @@ export default function App() {
     setPractices(prev => prev.filter(p => !seedPracticeIds.has(p.id)))
   }
 
-  // Live game is the only screen where we suppress the ad banner
   const [liveGameStarted, setLiveGameStarted] = useState(false)
   const showAd = !isPro && !(tab === 'live' && liveGameStarted)
 
@@ -100,9 +120,10 @@ export default function App() {
         </svg>
         <div className="flex-1">
           <h1 className="text-white font-bold text-lg leading-tight tracking-tight">{teamName}</h1>
-          <p className="text-pb-400 text-xs font-medium leading-none">Volleyball Stats</p>
+          <p className="text-pb-400 text-xs font-medium leading-none">
+            Volleyball Stats{coachTeam && isPro ? ' · 👥 Team' : ''}
+          </p>
         </div>
-        {/* Pro badge / upgrade button */}
         {isPro ? (
           <span className="text-xs font-bold px-2 py-1 rounded-full bg-vr-800 border border-vr-500/40 text-vr-300">
             ⚡ Pro
@@ -157,11 +178,14 @@ export default function App() {
             onSettingsChange={setTeamSettings}
             isPro={isPro}
             onUpgrade={openModal}
+            coachTeam={coachTeam}
+            onCoachTeamChange={handleCoachTeamChange}
+            matches={matches}
+            onSyncMatches={handleSyncMatches}
           />
         </div>
       </div>
 
-      {/* Ad banner — hidden during live tracking */}
       {showAd && <AdBanner />}
 
       {/* Bottom nav */}
