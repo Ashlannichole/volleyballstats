@@ -6,6 +6,7 @@ import { loadLineups, saveLineups } from '../utils/storage'
 interface Props {
   players: Player[]
   onSaveMatch: (match: Match) => void
+  onGameStartedChange?: (started: boolean) => void
   // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
   practiceMode?: boolean
   onSavePractice?: (session: PracticeSession) => void
@@ -75,7 +76,7 @@ interface Snapshot {
   rotation: (string | null)[]
 }
 
-export default function LiveGame({ players, onSaveMatch, practiceMode = false, onSavePractice }: Props) {
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, practiceMode = false, onSavePractice }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -271,6 +272,7 @@ export default function LiveGame({ players, onSaveMatch, practiceMode = false, o
     setSets([buildSetStats(players)])
     setHistory([])
     setGameStarted(true)
+    onGameStartedChange?.(true)
   }
 
   function applyLineup(lineup: SavedLineup) {
@@ -346,6 +348,7 @@ export default function LiveGame({ players, onSaveMatch, practiceMode = false, o
       })
     }
     setGameStarted(false)
+    onGameStartedChange?.(false)
     setTournament('')
     setOpponent('')
     setPracticeName('')

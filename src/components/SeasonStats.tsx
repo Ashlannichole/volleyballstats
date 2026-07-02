@@ -2,10 +2,13 @@ import { useState } from 'react'
 import type { Match, Player, PlayerStats } from '../types'
 import { aggregatePlayerStats, buildTeamSummary, killPct, passAvg, hittingPct, mergeStats } from '../utils/statsHelpers'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
+import { LockedSection } from './UpgradePrompt'
 
 interface Props {
   matches: Match[]
   players: Player[]
+  isPro?: boolean
+  onUpgrade?: () => void
 }
 
 type View = 'overview' | 'progress' | 'awards'
@@ -61,7 +64,7 @@ function Sparkline({ values, color = '#5ab3d0' }: { values: number[]; color?: st
   )
 }
 
-export default function SeasonStats({ matches, players }: Props) {
+export default function SeasonStats({ matches, players, isPro = false, onUpgrade }: Props) {
   const [view, setView] = useState<View>('overview')
 
   if (matches.length === 0) {
@@ -89,15 +92,17 @@ export default function SeasonStats({ matches, players }: Props) {
       {/* View tabs */}
       <div className="flex gap-1 bg-navy-800 rounded-xl p-1 mb-5">
         {([
-          { id: 'overview', label: '📊 Overview' },
-          { id: 'progress', label: '📈 Progress' },
-          { id: 'awards',   label: '🏆 Awards'   },
-        ] as { id: View; label: string }[]).map(t => (
-          <button key={t.id} onClick={() => setView(t.id)}
-            className={`tap-btn flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              view === t.id ? 'bg-vr-700 text-white' : 'text-gray-500'
+          { id: 'overview', label: '📊 Overview', locked: false },
+          { id: 'progress', label: '📈 Progress', locked: false },
+          { id: 'awards',   label: '🏆 Awards',   locked: !isPro },
+        ] as { id: View; label: string; locked: boolean }[]).map(t => (
+          <button key={t.id}
+            onClick={() => t.locked ? onUpgrade?.() : setView(t.id)}
+            className={`tap-btn flex-1 py-2 rounded-lg text-sm font-semibold transition-colors relative ${
+              view === t.id ? 'bg-vr-700 text-white' : t.locked ? 'text-gray-600' : 'text-gray-500'
             }`}>
             {t.label}
+            {t.locked && <span className="ml-1 text-[9px] text-vr-500 font-bold align-top">PRO</span>}
           </button>
         ))}
       </div>
@@ -148,8 +153,18 @@ export default function SeasonStats({ matches, players }: Props) {
           </div>
 
           {/* Per-player season totals */}
-          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest px-1">Player Totals</p>
-          {players.map(p => {
+          <div className="flex items-center justify-between px-1">
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Player Totals</p>
+            {!isPro && <span className="text-[10px] text-vr-400 font-bold">🔒 Pro</span>}
+          </div>
+          {!isPro ? (
+            <LockedSection
+              title="Player-by-player breakdowns"
+              description="See kills, digs, pass avg, hit %, and error breakdown for every player across the full season."
+              onUpgrade={onUpgrade ?? (() => {})}
+            />
+          ) : null}
+          {isPro && players.map(p => {
             const s = aggregatePlayerStats(p.id, matches)
             const setsPlayed = matches.reduce((n, m) =>
               n + m.sets.filter(set => set[p.id] && (
@@ -323,6 +338,15 @@ export default function SeasonStats({ matches, players }: Props) {
                     { emoji: '📊', label: 'Passing', entry: bestPasser,             val: (x: typeof tStats[0]) => x.s.passAttempts > 0 ? (x.s.passRatingTotal / x.s.passAttempts).toFixed(2) : '—' },
                   ].filter(a => a.entry && (Number(a.val(a.entry)) > 0 || a.label === 'Passing'))
 
+                  if (!isPro) return (
+                    <div className="border-t border-white/10 bg-navy-800/30 px-4 py-3 flex items-center justify-between gap-3">
+                      <p className="text-gray-600 text-xs">🏆 Tournament Stars</p>
+                      <button onClick={onUpgrade}
+                        className="tap-btn text-[10px] font-bold px-2 py-1 rounded-lg bg-vr-900/60 border border-vr-600/40 text-vr-400 shrink-0">
+                        🔒 Unlock with Pro
+                      </button>
+                    </div>
+                  )
                   if (miniAwards.length === 0) return null
                   return (
                     <div className="border-t border-vr-700/30 bg-vr-900/20 px-4 py-3">
@@ -348,7 +372,14 @@ export default function SeasonStats({ matches, players }: Props) {
       )}
 
       {/* ── AWARDS ───────────────────────────────────────────────────────────── */}
-      {view === 'awards' && (() => {
+      {view === 'awards' && !isPro && (
+        <LockedSection
+          title="Season Awards & Leaderboards"
+          description="Gold, silver, and bronze rankings for kills, aces, digs, assists, blocks, and passing — across the full season."
+          onUpgrade={onUpgrade ?? (() => {})}
+        />
+      )}
+      {view === 'awards' && isPro && (() => {
         // Compute each player's season totals
         const stats = players.map(p => ({
           player: p,

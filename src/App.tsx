@@ -1,29 +1,30 @@
 import { useState, useEffect } from 'react'
 import type { Player, Match } from './types'
 import { loadPlayers, savePlayers, loadMatches, saveMatches, loadPractices, savePractices } from './utils/storage'
+import { loadTier } from './utils/tier'
+import type { Tier } from './utils/tier'
 import { SEED_PLAYERS, SEED_MATCHES, SEED_PRACTICES } from './utils/seedData'
 import Roster from './components/Roster'
 import LiveGame from './components/LiveGame'
 import MatchHistory from './components/MatchHistory'
 import SeasonStats from './components/SeasonStats'
 import Practice from './components/Practice'
+import AdBanner from './components/AdBanner'
+import { useUpgradeModal } from './components/UpgradePrompt'
 import type { PracticeSession } from './types'
 
 type Tab = 'roster' | 'live' | 'history' | 'season' | 'practice'
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'roster',   label: 'Roster',    icon: '👥' },
-  { id: 'live',     label: 'Live',      icon: '🏐' },
-  { id: 'history',  label: 'History',   icon: '📋' },
-  { id: 'season',   label: 'Season',    icon: '📊' },
-  { id: 'practice', label: 'Practice',  icon: '🎽' },
-]
-
 export default function App() {
-  const [tab, setTab] = useState<Tab>('live')
-  const [players, setPlayers] = useState<Player[]>(loadPlayers)
-  const [matches, setMatches] = useState<Match[]>(loadMatches)
+  const [tab, setTab]           = useState<Tab>('live')
+  const [players, setPlayers]   = useState<Player[]>(loadPlayers)
+  const [matches, setMatches]   = useState<Match[]>(loadMatches)
   const [practices, setPractices] = useState<PracticeSession[]>(loadPractices)
+  const [tier, setTier]         = useState<Tier>(loadTier)
+
+  const isPro = tier === 'pro'
+
+  const { openModal, modal } = useUpgradeModal((t) => setTier(t))
 
   useEffect(() => { savePlayers(players) }, [players])
   useEffect(() => { saveMatches(matches) }, [matches])
@@ -65,6 +66,18 @@ export default function App() {
     setPractices(prev => prev.filter(p => !seedPracticeIds.has(p.id)))
   }
 
+  // Live game is the only screen where we suppress the ad banner
+  const [liveGameStarted, setLiveGameStarted] = useState(false)
+  const showAd = !isPro && !(tab === 'live' && liveGameStarted)
+
+  const TABS: { id: Tab; label: string; icon: string; proOnly?: boolean }[] = [
+    { id: 'roster',   label: 'Roster',   icon: '👥' },
+    { id: 'live',     label: 'Live',     icon: '🏐' },
+    { id: 'history',  label: 'History',  icon: '📋' },
+    { id: 'season',   label: 'Season',   icon: '📊' },
+    { id: 'practice', label: 'Practice', icon: '🎽', proOnly: true },
+  ]
+
   return (
     <div className="flex flex-col h-screen bg-navy-900 overflow-hidden">
       {/* Header */}
@@ -73,20 +86,47 @@ export default function App() {
           <circle cx="16" cy="16" r="16" fill="#4a1d8a" />
           <text x="16" y="22" textAnchor="middle" fontSize="18" fill="#87cde3">⚔</text>
         </svg>
-        <div>
+        <div className="flex-1">
           <h1 className="text-white font-bold text-lg leading-tight tracking-tight">Viking Roots</h1>
           <p className="text-pb-400 text-xs font-medium leading-none">Volleyball Stats</p>
         </div>
+        {/* Pro badge / upgrade button */}
+        {isPro ? (
+          <span className="text-xs font-bold px-2 py-1 rounded-full bg-vr-800 border border-vr-500/40 text-vr-300">
+            ⚡ Pro
+          </span>
+        ) : (
+          <button onClick={openModal}
+            className="tap-btn text-xs font-bold px-3 py-1.5 rounded-full bg-vr-700 text-white border border-vr-500">
+            Upgrade ⚡
+          </button>
+        )}
       </div>
 
-      {/* Content — all tabs stay mounted; hidden hides inactive ones so Live game state persists */}
-      <div className="flex-1 overflow-y-auto relative">
-        <div className={tab === 'roster'  ? '' : 'hidden'}><Roster players={players} onChange={setPlayers} /></div>
-        <div className={tab === 'live'    ? 'h-full flex flex-col' : 'hidden'}>
-          <LiveGame players={players} onSaveMatch={handleSaveMatch} />
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto relative min-h-0">
+        <div className={tab === 'roster'  ? '' : 'hidden'}>
+          <Roster players={players} onChange={setPlayers} />
         </div>
-        <div className={tab === 'history' ? '' : 'hidden'}><MatchHistory matches={matches} players={players} onDelete={handleDeleteMatch} onLoadDemo={handleLoadDemo} onClearDemo={handleClearDemo} /></div>
-        <div className={tab === 'season'   ? '' : 'hidden'}><SeasonStats matches={matches} players={players} /></div>
+        <div className={tab === 'live' ? 'h-full flex flex-col' : 'hidden'}>
+          <LiveGame
+            players={players}
+            onSaveMatch={handleSaveMatch}
+            onGameStartedChange={setLiveGameStarted}
+          />
+        </div>
+        <div className={tab === 'history' ? '' : 'hidden'}>
+          <MatchHistory
+            matches={matches}
+            players={players}
+            onDelete={handleDeleteMatch}
+            onLoadDemo={handleLoadDemo}
+            onClearDemo={handleClearDemo}
+          />
+        </div>
+        <div className={tab === 'season' ? '' : 'hidden'}>
+          <SeasonStats matches={matches} players={players} isPro={isPro} onUpgrade={openModal} />
+        </div>
         <div className={tab === 'practice' ? 'h-full flex flex-col' : 'hidden'}>
           <Practice
             players={players}
@@ -97,22 +137,33 @@ export default function App() {
         </div>
       </div>
 
+      {/* Ad banner — hidden during live tracking */}
+      {showAd && <AdBanner />}
+
       {/* Bottom nav */}
       <nav className="bg-navy-800 border-t border-white/10 flex shrink-0">
-        {TABS.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`tap-btn flex-1 flex flex-col items-center gap-1 py-3 transition-colors ${
-              tab === t.id ? 'text-pb-400' : 'text-gray-500'
-            }`}
-          >
-            <span className="text-xl">{t.icon}</span>
-            <span className="text-xs font-medium">{t.label}</span>
-            {tab === t.id && <span className="w-4 h-0.5 rounded-full bg-vr-500 mt-0.5" />}
-          </button>
-        ))}
+        {TABS.map(t => {
+          const locked = t.proOnly && !isPro
+          return (
+            <button
+              key={t.id}
+              onClick={() => locked ? openModal() : setTab(t.id)}
+              className={`tap-btn flex-1 flex flex-col items-center gap-1 py-3 transition-colors ${
+                tab === t.id && !locked ? 'text-pb-400' : locked ? 'text-gray-600' : 'text-gray-500'
+              }`}
+            >
+              <span className="text-xl">{t.icon}</span>
+              <span className="text-xs font-medium">{t.label}</span>
+              {locked
+                ? <span className="text-[9px] text-vr-500 font-bold">PRO</span>
+                : tab === t.id && <span className="w-4 h-0.5 rounded-full bg-vr-500 mt-0.5" />
+              }
+            </button>
+          )
+        })}
       </nav>
+
+      {modal}
     </div>
   )
 }
