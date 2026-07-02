@@ -1,7 +1,5 @@
-// Push live match state from coach's device to Vercel KV.
-// Called on every score change during an active match.
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { kv } from '@vercel/kv'
+import { Redis } from '@upstash/redis'
 
 export interface SpectatorState {
   code: string
@@ -9,10 +7,16 @@ export interface SpectatorState {
   ourScore: number
   theirScore: number
   setNumber: number
-  rotation: (string | null)[]   // 6 player names in court slots [P1-P6]
+  rotation: (string | null)[]
   weAreServing: boolean
   updatedAt: number
+  ended?: boolean
 }
+
+const redis = new Redis({
+  url:   process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+})
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -23,6 +27,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Store for 6 hours — long enough for any match
-  await kv.set(`spectator:${state.code}`, state, { ex: 21600 })
+  await redis.set(`spectator:${state.code}`, JSON.stringify(state), { ex: 21600 })
   res.status(200).json({ ok: true })
 }

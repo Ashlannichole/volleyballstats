@@ -1,6 +1,10 @@
-// Read live match state — polled by spectator page every 5 seconds.
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { kv } from '@vercel/kv'
+import { Redis } from '@upstash/redis'
+
+const redis = new Redis({
+  url:   process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+})
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return res.status(405).end()
@@ -10,8 +14,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Missing code' })
   }
 
-  const state = await kv.get(`spectator:${code}`)
-  if (!state) return res.status(404).json({ error: 'Match not found or expired' })
+  const raw = await redis.get(`spectator:${code}`)
+  if (!raw) return res.status(404).json({ error: 'Match not found or expired' })
 
+  // Upstash auto-parses JSON, so raw may already be an object
+  const state = typeof raw === 'string' ? JSON.parse(raw) : raw
   res.status(200).json(state)
 }
