@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
+    "@types/nodemailer": "^8.0.1",
     "@upstash/redis": "^1.38.0",
     "@vercel/node": "^5.8.21",
+    "nodemailer": "^9.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "resend": "^6.16.0"

@@ -1,12 +1,54 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { Redis } from '@upstash/redis'
-import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
-const redis  = new Redis({ url: process.env.KV_REST_API_URL!, token: process.env.KV_REST_API_TOKEN! })
-const resend = new Resend(process.env.RESEND_API_KEY!)
+const redis = new Redis({ url: process.env.KV_REST_API_URL!, token: process.env.KV_REST_API_TOKEN! })
 
-const FROM   = process.env.EMAIL_FROM ?? 'Volleyball Stats <onboarding@resend.dev>'
-const OTP_TTL    = 600        // 10 minutes
+// Email provider: swap these two blocks to switch between Gmail (beta) and Resend (production)
+// ---- Gmail (beta, no domain needed) ----
+function makeTransport() {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER!,
+      pass: process.env.GMAIL_APP_PASSWORD!,
+    },
+  })
+}
+async function sendOtpEmail(to: string, otp: string) {
+  const from = `Volleyball Stats <${process.env.GMAIL_USER}>`
+  await makeTransport().sendMail({
+    from,
+    to,
+    subject: `Your sign-in code: ${otp}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
+        <h2 style="color:#4a1d8a;margin-bottom:8px">Volleyball Stats</h2>
+        <p style="color:#444;margin-bottom:24px">Use this code to sign in. It expires in 10 minutes.</p>
+        <div style="background:#f3f0ff;border-radius:12px;padding:24px;text-align:center">
+          <span style="font-size:40px;font-weight:900;letter-spacing:8px;color:#4a1d8a">${otp}</span>
+        </div>
+        <p style="color:#888;font-size:12px;margin-top:24px">If you didn't request this, you can safely ignore it.</p>
+      </div>
+    `,
+  })
+}
+// ---- End Gmail block ----
+
+// ---- Resend (production, swap in when you have a domain) ----
+// import { Resend } from 'resend'
+// const resend = new Resend(process.env.RESEND_API_KEY!)
+// async function sendOtpEmail(to: string, otp: string) {
+//   await resend.emails.send({
+//     from: process.env.EMAIL_FROM ?? 'Volleyball Stats <noreply@yourdomain.com>',
+//     to,
+//     subject: `Your sign-in code: ${otp}`,
+//     html: `...same html...`,
+//   })
+// }
+// ---- End Resend block ----
+
+const OTP_TTL     = 600               // 10 minutes
 const SESSION_TTL = 60 * 60 * 24 * 30 // 30 days
 
 function makeOtp()   { return Math.floor(100000 + Math.random() * 900000).toString() }
@@ -27,24 +69,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await redis.set(`otp:${key}`, otp, { ex: OTP_TTL })
 
     try {
-      await resend.emails.send({
-        from: FROM,
-        to: key,
-        subject: `Your Volleyball Stats code: ${otp}`,
-        html: `
-          <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:24px">
-            <h2 style="color:#4a1d8a;margin-bottom:8px">Volleyball Stats</h2>
-            <p style="color:#444;margin-bottom:24px">Use this code to sign in. It expires in 10 minutes.</p>
-            <div style="background:#f3f0ff;border-radius:12px;padding:24px;text-align:center">
-              <span style="font-size:40px;font-weight:900;letter-spacing:8px;color:#4a1d8a">${otp}</span>
-            </div>
-            <p style="color:#888;font-size:12px;margin-top:24px">If you didn't request this, you can safely ignore it.</p>
-          </div>
-        `,
-      })
+      await sendOtpEmail(key, otp)
     } catch (e) {
-      console.error('Resend error', e)
-      return res.status(500).json({ error: 'Failed to send email. Check RESEND_API_KEY configuration.' })
+      console.error('Email send error', e)
+      return res.status(500).json({ error: 'Failed to send email. Check GMAIL_USER and GMAIL_APP_PASSWORD in Vercel env vars.' })
     }
     return res.status(200).json({ ok: true })
   }
