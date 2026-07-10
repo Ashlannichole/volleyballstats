@@ -66,24 +66,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const key = email.trim().toLowerCase()
 
-    // Beta mode: skip OTP entirely — email alone creates a session.
-    // Remove BETA_MODE env var when going to public launch.
-    if (process.env.BETA_MODE === 'true') {
-      const token = makeToken()
-      await redis.set(`session:${token}`, key, { ex: SESSION_TTL })
-      return res.status(200).json({ ok: true, token, email: key, beta: true })
-    }
+    // BETA: email alone creates a session — no OTP sent.
+    // TODO before App Store launch: remove these 3 lines and uncomment the OTP block below.
+    const token = makeToken()
+    await redis.set(`session:${token}`, key, { ex: SESSION_TTL })
+    return res.status(200).json({ ok: true, token, email: key, beta: true })
 
-    const otp = makeOtp()
-    await redis.set(`otp:${key}`, otp, { ex: OTP_TTL })
-
-    try {
-      await sendOtpEmail(key, otp)
-    } catch (e) {
-      console.error('Email send error', e)
-      return res.status(500).json({ error: 'Failed to send email. Check GMAIL_USER and GMAIL_APP_PASSWORD in Vercel env vars.' })
-    }
-    return res.status(200).json({ ok: true })
+    // OTP block (re-enable for production):
+    // const otp = makeOtp()
+    // await redis.set(`otp:${key}`, otp, { ex: OTP_TTL })
+    // try {
+    //   await sendOtpEmail(key, otp)
+    // } catch (e) {
+    //   console.error('Email send error', e)
+    //   return res.status(500).json({ error: 'Failed to send email.' })
+    // }
+    // return res.status(200).json({ ok: true })
   }
 
   // POST /api/auth?action=verify  { email, otp }
