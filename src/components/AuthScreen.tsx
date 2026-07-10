@@ -32,6 +32,13 @@ export default function AuthScreen({ onSignIn }: Props) {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Failed to send code.'); return }
+      // Beta mode: server returns token immediately, skip OTP step
+      if (data.beta && data.token) {
+        const session: Session = { token: data.token, email: data.email }
+        saveSession(session)
+        onSignIn(session)
+        return
+      }
       setStep('otp')
     } catch {
       setError('Network error. Check your connection.')

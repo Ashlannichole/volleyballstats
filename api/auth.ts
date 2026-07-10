@@ -65,6 +65,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'A valid email address is required.' })
     }
     const key = email.trim().toLowerCase()
+
+    // Beta mode: skip OTP entirely — email alone creates a session.
+    // Remove BETA_MODE env var when going to public launch.
+    if (process.env.BETA_MODE === 'true') {
+      const token = makeToken()
+      await redis.set(`session:${token}`, key, { ex: SESSION_TTL })
+      return res.status(200).json({ ok: true, token, email: key, beta: true })
+    }
+
     const otp = makeOtp()
     await redis.set(`otp:${key}`, otp, { ex: OTP_TTL })
 
