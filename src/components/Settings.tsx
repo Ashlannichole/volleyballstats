@@ -203,9 +203,9 @@ export default function Settings({
             <>
               {/* Team 1 */}
               {[
-                { num: 1 as const, nameKey: 'teamName' as const,  label: settings.teamName  || 'Team 1' },
-                { num: 2 as const, nameKey: 'team2Name' as const, label: settings.team2Name || 'Team 2' },
-              ].map(({ num, nameKey, label }) => (
+                { num: 1 as const, nameKey: 'teamName' as const },
+                { num: 2 as const, nameKey: 'team2Name' as const },
+              ].map(({ num, nameKey }) => (
                 <div key={num} className={`rounded-xl border p-3 flex items-center gap-3 ${
                   settings.activeTeam === num
                     ? 'bg-vr-900/40 border-vr-600/50'

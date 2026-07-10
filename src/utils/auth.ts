@@ -17,7 +17,12 @@ export function saveSession(s: Session | null): void {
   else localStorage.removeItem(SESSION_KEY)
 }
 
-export async function pushUserData(token: string, data: { matches: unknown[]; players: unknown[]; practices: unknown[] }) {
+interface UserData {
+  matches: unknown[]; players: unknown[]; practices: unknown[]
+  matches2?: unknown[]; players2?: unknown[]; practices2?: unknown[]
+}
+
+export async function pushUserData(token: string, data: UserData) {
   return fetch(`/api/user-data?token=${encodeURIComponent(token)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -25,9 +30,9 @@ export async function pushUserData(token: string, data: { matches: unknown[]; pl
   }).catch(() => {})
 }
 
-export async function pullUserData(token: string) {
+export async function pullUserData(token: string): Promise<UserData> {
   const res = await fetch(`/api/user-data?token=${encodeURIComponent(token)}`)
   if (res.status === 401) throw new Error('session_expired')
   if (!res.ok) throw new Error('fetch_failed')
-  return res.json() as Promise<{ matches: unknown[]; players: unknown[]; practices: unknown[] }>
+  return res.json()
 }
