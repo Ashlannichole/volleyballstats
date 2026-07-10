@@ -155,14 +155,14 @@ export default function Settings({
           </div>
           <button
             onClick={() => commit({ recMode: !settings.recMode })}
-            className={`tap-btn relative w-12 h-6 rounded-full border transition-colors ${
+            className={`tap-btn relative w-12 h-6 rounded-full border transition-colors shrink-0 ${
               settings.recMode
                 ? 'bg-green-600 border-green-500'
                 : 'bg-navy-600 border-white/20'
             }`}
           >
-            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-              settings.recMode ? 'translate-x-6' : 'translate-x-0.5'
+            <span className={`absolute top-[2px] w-5 h-5 rounded-full bg-white shadow transition-all duration-200 ${
+              settings.recMode ? 'left-[26px]' : 'left-[2px]'
             }`} />
           </button>
         </div>
