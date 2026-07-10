@@ -13,6 +13,7 @@ interface Props {
   onCoachTeamChange: (t: CoachTeam | null) => void
   session: Session | null
   onSignOut: () => void
+  onSyncNow: () => Promise<void>
   matches: Match[]
   onSyncMatches: (matches: Match[]) => void
 }
@@ -29,8 +30,24 @@ const PRESET_COLORS = [
 export default function Settings({
   settings, onSettingsChange, isPro, onUpgrade,
   coachTeam, onCoachTeamChange, matches, onSyncMatches,
-  session, onSignOut,
+  session, onSignOut, onSyncNow,
 }: Props) {
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState('')
+
+  async function handleSyncNow() {
+    setSyncing(true)
+    setSyncMsg('')
+    try {
+      await onSyncNow()
+      setSyncMsg('✓ All data synced')
+    } catch {
+      setSyncMsg('Sync failed — check your connection')
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncMsg(''), 3000)
+    }
+  }
   const [localName, setLocalName]           = useState(settings.teamName)
   const [localPrimary, setLocalPrimary]     = useState(settings.primaryColor)
   const [localSecondary, setLocalSecondary] = useState(settings.secondaryColor)
@@ -508,7 +525,16 @@ export default function Settings({
             <p className="text-gray-300 text-sm">App Version</p>
             <p className="text-gray-600 text-sm">1.0.0</p>
           </div>
-          <div className="px-4 py-3">
+          <div className="px-4 py-3 flex flex-col gap-2">
+            <button onClick={handleSyncNow} disabled={syncing}
+              className="tap-btn w-full bg-navy-700 border border-white/10 rounded-xl py-2.5 text-white text-sm font-semibold disabled:opacity-50">
+              {syncing ? '⏳ Syncing…' : '🔄 Sync Now'}
+            </button>
+            {syncMsg && (
+              <p className={`text-xs text-center font-semibold ${syncMsg.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>
+                {syncMsg}
+              </p>
+            )}
             <button onClick={onSignOut}
               className="tap-btn w-full border border-red-900/40 rounded-xl py-2.5 text-red-500 text-sm font-semibold">
               Sign Out

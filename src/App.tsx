@@ -135,6 +135,26 @@ export default function App() {
     }
   }
 
+  async function handleSyncNow() {
+    if (!session) return
+    const remote = await pullUserData(session.token) as {
+      matches: Match[]; players: Player[]; practices: PracticeSession[]
+      matches2?: Match[]; players2?: Player[]; practices2?: PracticeSession[]
+    }
+    function merge<T extends { id: string }>(rem: T[], local: T[]): T[] {
+      const remIds = new Set(rem.map(x => x.id))
+      return [...rem, ...local.filter(x => !remIds.has(x.id))]
+    }
+    const mM   = merge(remote.matches   ?? [], matches)
+    const mP   = merge(remote.players   ?? [], players)
+    const mPr  = merge(remote.practices ?? [], practices)
+    const mM2  = merge(remote.matches2  ?? [], matches2)
+    const mP2  = merge(remote.players2  ?? [], players2)
+    const mPr2 = merge(remote.practices2 ?? [], practices2)
+    setMatches(mM);   setPlayers(mP);   setPractices(mPr)
+    setMatches2(mM2); setPlayers2(mP2); setPractices2(mPr2)
+  }
+
   function handleSignOut() {
     if (session) fetch('/api/auth?action=signout', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -312,6 +332,7 @@ export default function App() {
             onSyncMatches={handleSyncMatches}
             session={session}
             onSignOut={handleSignOut}
+            onSyncNow={handleSyncNow}
           />
         </div>
       </div>
