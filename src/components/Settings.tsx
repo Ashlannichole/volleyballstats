@@ -146,6 +146,102 @@ export default function Settings({
         <h2 className="text-2xl font-bold text-white">App Settings</h2>
       </div>
 
+      {/* REC Mode — available to all */}
+      <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-white font-bold text-sm">Recreational Mode</p>
+            <p className="text-gray-500 text-[11px] mt-0.5">Unlimited subs · no sub counting</p>
+          </div>
+          <button
+            onClick={() => commit({ recMode: !settings.recMode })}
+            className={`tap-btn relative w-12 h-6 rounded-full border transition-colors ${
+              settings.recMode
+                ? 'bg-green-600 border-green-500'
+                : 'bg-navy-600 border-white/20'
+            }`}
+          >
+            <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+              settings.recMode ? 'translate-x-6' : 'translate-x-0.5'
+            }`} />
+          </button>
+        </div>
+        {settings.recMode && (
+          <div className="px-4 pb-3">
+            <p className="text-green-400 text-xs">
+              REC mode on — subs are unlimited and not counted during matches.
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* Teams — Pro only */}
+      <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+          <div>
+            <p className="text-white font-bold text-sm">My Teams</p>
+            <p className="text-gray-500 text-[11px] mt-0.5">Up to 2 rosters with separate stats</p>
+          </div>
+          {!isPro && (
+            <button onClick={onUpgrade}
+              className="tap-btn text-[10px] font-black px-2 py-0.5 rounded-full bg-vr-700 border border-vr-500 text-vr-200 shrink-0">
+              ⚡ PRO
+            </button>
+          )}
+        </div>
+        <div className="p-4 flex flex-col gap-3">
+          {!isPro ? (
+            <button onClick={onUpgrade} className="tap-btn w-full bg-navy-700/50 border border-white/10 rounded-xl p-4 flex items-center gap-3">
+              <span className="text-2xl">📋</span>
+              <div className="text-left">
+                <p className="text-gray-500 text-sm font-semibold">Multiple rosters</p>
+                <p className="text-gray-700 text-xs mt-0.5">Pro only — free tier is single roster</p>
+              </div>
+              <span className="text-gray-700 ml-auto">🔒</span>
+            </button>
+          ) : (
+            <>
+              {/* Team 1 */}
+              {[
+                { num: 1 as const, nameKey: 'teamName' as const,  label: settings.teamName  || 'Team 1' },
+                { num: 2 as const, nameKey: 'team2Name' as const, label: settings.team2Name || 'Team 2' },
+              ].map(({ num, nameKey, label }) => (
+                <div key={num} className={`rounded-xl border p-3 flex items-center gap-3 ${
+                  settings.activeTeam === num
+                    ? 'bg-vr-900/40 border-vr-600/50'
+                    : 'bg-navy-700/50 border-white/10'
+                }`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-gray-500 text-[10px] uppercase tracking-wide mb-1">Team {num}</p>
+                    <input
+                      value={settings[nameKey]}
+                      onChange={e => commit({ [nameKey]: e.target.value })}
+                      maxLength={25}
+                      placeholder={`Team ${num} name`}
+                      className="w-full bg-transparent text-white text-sm font-semibold focus:outline-none placeholder-gray-600"
+                    />
+                  </div>
+                  {settings.activeTeam === num ? (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-vr-700 border border-vr-500 text-vr-200 shrink-0">
+                      ACTIVE
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => commit({ activeTeam: num })}
+                      className="tap-btn text-[10px] font-bold px-2 py-0.5 rounded-full bg-navy-600 border border-white/20 text-gray-400 shrink-0">
+                      Switch
+                    </button>
+                  )}
+                </div>
+              ))}
+              <p className="text-gray-600 text-xs text-center">
+                Each team has its own roster, match history, and practice sessions.
+              </p>
+            </>
+          )}
+        </div>
+      </section>
+
       {/* Team Identity — Pro only */}
       <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
         <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">

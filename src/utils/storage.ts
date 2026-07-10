@@ -5,50 +5,35 @@ const MATCHES_KEY   = 'vb_matches'
 const LINEUPS_KEY   = 'vb_lineups'
 const PRACTICE_KEY  = 'vb_practice'
 
-export function loadPlayers(): Player[] {
-  try {
-    return JSON.parse(localStorage.getItem(PLAYERS_KEY) || '[]')
-  } catch {
-    return []
-  }
+// Team 2 keys
+const PLAYERS2_KEY  = 'vb_players_2'
+const MATCHES2_KEY  = 'vb_matches_2'
+const PRACTICE2_KEY = 'vb_practice_2'
+
+function parseOr<T>(key: string, fallback: T): T {
+  try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback }
+  catch { return fallback }
 }
 
-export function savePlayers(players: Player[]): void {
-  localStorage.setItem(PLAYERS_KEY, JSON.stringify(players))
-}
+// ── Team 1 ──────────────────────────────────────────────
+export function loadPlayers():   Player[]         { return parseOr(PLAYERS_KEY,  []) }
+export function savePlayers(v:   Player[])         { localStorage.setItem(PLAYERS_KEY,  JSON.stringify(v)) }
 
-export function loadMatches(): Match[] {
-  try {
-    return JSON.parse(localStorage.getItem(MATCHES_KEY) || '[]')
-  } catch {
-    return []
-  }
-}
+export function loadMatches():   Match[]           { return parseOr(MATCHES_KEY,  []) }
+export function saveMatches(v:   Match[])          { localStorage.setItem(MATCHES_KEY,  JSON.stringify(v)) }
 
-export function saveMatches(matches: Match[]): void {
-  localStorage.setItem(MATCHES_KEY, JSON.stringify(matches))
-}
+export function loadPractices(): PracticeSession[] { return parseOr(PRACTICE_KEY, []) }
+export function savePractices(v: PracticeSession[]) { localStorage.setItem(PRACTICE_KEY, JSON.stringify(v)) }
 
-export function loadLineups(): SavedLineup[] {
-  try {
-    return JSON.parse(localStorage.getItem(LINEUPS_KEY) || '[]')
-  } catch {
-    return []
-  }
-}
+export function loadLineups():   SavedLineup[]     { return parseOr(LINEUPS_KEY,  []) }
+export function saveLineups(v:   SavedLineup[])    { localStorage.setItem(LINEUPS_KEY,  JSON.stringify(v)) }
 
-export function saveLineups(lineups: SavedLineup[]): void {
-  localStorage.setItem(LINEUPS_KEY, JSON.stringify(lineups))
-}
+// ── Team 2 ──────────────────────────────────────────────
+export function loadPlayers2():   Player[]         { return parseOr(PLAYERS2_KEY,  []) }
+export function savePlayers2(v:   Player[])        { localStorage.setItem(PLAYERS2_KEY,  JSON.stringify(v)) }
 
-export function loadPractices(): PracticeSession[] {
-  try {
-    return JSON.parse(localStorage.getItem(PRACTICE_KEY) || '[]')
-  } catch {
-    return []
-  }
-}
+export function loadMatches2():   Match[]          { return parseOr(MATCHES2_KEY,  []) }
+export function saveMatches2(v:   Match[])         { localStorage.setItem(MATCHES2_KEY,  JSON.stringify(v)) }
 
-export function savePractices(sessions: PracticeSession[]): void {
-  localStorage.setItem(PRACTICE_KEY, JSON.stringify(sessions))
-}
+export function loadPractices2(): PracticeSession[] { return parseOr(PRACTICE2_KEY, []) }
+export function savePractices2(v: PracticeSession[]) { localStorage.setItem(PRACTICE2_KEY, JSON.stringify(v)) }

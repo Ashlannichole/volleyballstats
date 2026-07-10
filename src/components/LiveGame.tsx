@@ -9,6 +9,7 @@ interface Props {
   onGameStartedChange?: (started: boolean) => void
   isPro?: boolean
   teamName?: string
+  recMode?: boolean
   // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
   practiceMode?: boolean
   onSavePractice?: (session: PracticeSession) => void
@@ -78,7 +79,7 @@ interface Snapshot {
   rotation: (string | null)[]
 }
 
-export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', practiceMode = false, onSavePractice }: Props) {
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, practiceMode = false, onSavePractice }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -332,7 +333,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       setLiberoPair(null)
     }
 
-    if (!isLiberoSub) {
+    if (!isLiberoSub && !recMode) {
       const next = subCount + 1
       setSubCount(next)
       if (next >= 10) setShowSubAlert(true)
@@ -872,9 +873,15 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           ✎ Edit
         </button>
 
-        <div className={`px-3 py-1 rounded-lg text-xs font-bold border ${subCount >= 10 ? 'bg-red-900/40 border-red-500/60 text-red-300' : 'bg-navy-600 border-white/10 text-gray-400'}`}>
-          Subs {subCount}/12
-        </div>
+        {recMode ? (
+          <div className="px-3 py-1 rounded-lg text-xs font-bold border bg-green-900/30 border-green-600/40 text-green-300">
+            REC
+          </div>
+        ) : (
+          <div className={`px-3 py-1 rounded-lg text-xs font-bold border ${subCount >= 10 ? 'bg-red-900/40 border-red-500/60 text-red-300' : 'bg-navy-600 border-white/10 text-gray-400'}`}>
+            Subs {subCount}/12
+          </div>
+        )}
 
         <button
           onClick={() => setShowLiveStats(true)}

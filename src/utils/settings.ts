@@ -1,15 +1,21 @@
 export interface TeamSettings {
-  teamName: string
-  primaryColor: string   // hex e.g. '#4a1d8a'
-  secondaryColor: string // hex e.g. '#87cde3'
+  teamName: string       // active team 1 name
+  team2Name: string      // team 2 name (Pro)
+  activeTeam: 1 | 2     // which roster is currently shown
+  primaryColor: string
+  secondaryColor: string
+  recMode: boolean       // recreational mode: unlimited subs, no sub counting
 }
 
 const KEY = 'vb_team_settings'
 
 const DEFAULTS: TeamSettings = {
   teamName: 'My Team',
+  team2Name: 'Team 2',
+  activeTeam: 1,
   primaryColor: '#4a1d8a',
   secondaryColor: '#87cde3',
+  recMode: false,
 }
 
 export function loadSettings(): TeamSettings {
