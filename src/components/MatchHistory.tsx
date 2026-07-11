@@ -10,21 +10,45 @@ interface Props {
   matches: Match[]
   players: Player[]
   onDelete: (id: string) => void
+  onEdit: (updated: Match) => void
   onLoadDemo: () => void
   onClearDemo: () => void
   isPro?: boolean
   onUpgrade?: () => void
 }
 
-export default function MatchHistory({ matches, players, onDelete, onLoadDemo, onClearDemo, isPro = false, onUpgrade }: Props) {
+export default function MatchHistory({ matches, players, onDelete, onEdit, onLoadDemo, onClearDemo, isPro = false, onUpgrade }: Props) {
   const hasDemoData = matches.some(m => SEED_MATCHES.some(s => s.id === m.id))
   const [expanded, setExpanded] = useState<string | null>(null)
   const [aiMatch, setAiMatch] = useState<Match | null>(null)
+  const [editingMatch, setEditingMatch] = useState<Match | null>(null)
+  // Draft set scores while editing — array of {our, their} strings for controlled inputs
+  const [draftScores, setDraftScores] = useState<{our: string, their: string}[]>([])
 
   const sorted = [...matches].sort((a, b) => b.date.localeCompare(a.date))
 
   function totalStats(match: Match, playerId: string) {
     return match.sets.reduce((acc, s) => mergeStats(acc, s[playerId] ?? EMPTY_STATS()), EMPTY_STATS())
+  }
+
+  function openEdit(match: Match) {
+    const scores = match.setScores
+      ? match.setScores.map(s => ({ our: String(s.our), their: String(s.their) }))
+      : match.sets.map(() => ({ our: '', their: '' }))
+    setDraftScores(scores)
+    setEditingMatch(match)
+  }
+
+  function saveEdit() {
+    if (!editingMatch) return
+    const setScores = draftScores.map(d => ({
+      our: parseInt(d.our) || 0,
+      their: parseInt(d.their) || 0,
+    }))
+    const setsWon  = setScores.filter(s => s.our > s.their).length
+    const setsLost = setScores.filter(s => s.their > s.our).length
+    onEdit({ ...editingMatch, setScores, ourScore: String(setsWon), theirScore: String(setsLost) })
+    setEditingMatch(null)
   }
 
   if (aiMatch) {
@@ -72,27 +96,52 @@ export default function MatchHistory({ matches, players, onDelete, onLoadDemo, o
                 <p className="text-white font-bold text-lg">{match.opponent}</p>
                 <p className="text-gray-400 text-sm">{match.date} · {match.sets.length} set{match.sets.length !== 1 ? 's' : ''}</p>
               </div>
-              <div className="text-right flex items-center gap-2">
-                <p className="text-white font-bold text-xl">
-                  {match.ourScore || '?'} – {match.theirScore || '?'}
-                </p>
-                {match.ourScore && match.theirScore && (
-                  <span className={`text-sm font-black w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
-                    Number(match.ourScore) > Number(match.theirScore)
-                      ? 'bg-green-800 text-green-300'
-                      : Number(match.ourScore) < Number(match.theirScore)
-                        ? 'bg-red-900 text-red-300'
-                        : 'bg-gray-700 text-gray-400'
-                  }`}>
-                    {Number(match.ourScore) > Number(match.theirScore) ? 'W' : Number(match.ourScore) < Number(match.theirScore) ? 'L' : 'T'}
-                  </span>
-                )}
-              </div>
+              {(() => {
+                const w = Number(match.ourScore)
+                const l = Number(match.theirScore)
+                const isWin = w > l
+                const isLoss = l > w
+                return (
+                  <div className="flex items-center gap-2">
+                    <p className="text-white font-bold text-xl">{w}–{l}</p>
+                    <span className={`text-sm font-black w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${
+                      isWin  ? 'bg-green-800 text-green-300' :
+                      isLoss ? 'bg-red-900 text-red-300' :
+                               'bg-gray-700 text-gray-400'
+                    }`}>
+                      {isWin ? 'W' : isLoss ? 'L' : 'T'}
+                    </span>
+                  </div>
+                )
+              })()}
               <span className="text-gray-500 text-lg">{expanded === match.id ? '▲' : '▼'}</span>
             </button>
 
             {expanded === match.id && (
               <div className="border-t border-white/10 p-4">
+                {/* Set scores */}
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  {match.setScores ? match.setScores.map((s, i) => {
+                    const weWon = s.our > s.their
+                    return (
+                      <div key={i} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm font-bold ${
+                        weWon ? 'bg-green-900/30 border-green-700/40 text-green-300' : 'bg-red-900/20 border-red-700/30 text-red-300'
+                      }`}>
+                        <span className="text-gray-500 text-xs font-normal">S{i + 1}</span>
+                        {s.our}–{s.their}
+                        <span className="text-xs">{weWon ? '✓' : '✗'}</span>
+                      </div>
+                    )
+                  }) : (
+                    <p className="text-gray-600 text-xs italic">Set scores not recorded (older match)</p>
+                  )}
+                  <button
+                    onClick={() => openEdit(match)}
+                    className="tap-btn ml-auto text-xs text-gray-500 border border-white/10 px-2 py-1 rounded-lg">
+                    ✏️ Edit scores
+                  </button>
+                </div>
+
                 <div className="overflow-x-auto mb-4">
                   <table className="w-full text-sm min-w-[520px]">
                     <thead>
@@ -296,5 +345,48 @@ export default function MatchHistory({ matches, players, onDelete, onLoadDemo, o
         ))}
       </div>
     </div>
+
+    {/* Edit set scores modal */}
+    {editingMatch && (
+      <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setEditingMatch(null)}>
+        <div className="w-full max-w-lg mx-auto bg-navy-800 rounded-t-3xl p-6 pb-10" onClick={e => e.stopPropagation()}>
+          <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-5" />
+          <p className="text-white font-bold text-lg mb-1">Edit Set Scores</p>
+          <p className="text-gray-500 text-sm mb-5">vs {editingMatch.opponent}</p>
+          <div className="space-y-3 mb-6">
+            {draftScores.map((s, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-gray-500 text-sm w-12 shrink-0">Set {i + 1}</span>
+                <input
+                  type="number" min="0" max="99"
+                  value={s.our}
+                  onChange={e => setDraftScores(prev => prev.map((d, j) => j === i ? { ...d, our: e.target.value } : d))}
+                  className="w-16 bg-navy-700 border border-white/20 rounded-xl px-3 py-2 text-white text-center text-lg font-bold outline-none focus:border-vr-500"
+                />
+                <span className="text-gray-500 font-bold">–</span>
+                <input
+                  type="number" min="0" max="99"
+                  value={s.their}
+                  onChange={e => setDraftScores(prev => prev.map((d, j) => j === i ? { ...d, their: e.target.value } : d))}
+                  className="w-16 bg-navy-700 border border-white/20 rounded-xl px-3 py-2 text-white text-center text-lg font-bold outline-none focus:border-vr-500"
+                />
+                {(() => {
+                  const our = parseInt(s.our) || 0
+                  const their = parseInt(s.their) || 0
+                  if (our === their || (!s.our && !s.their)) return <span className="w-8" />
+                  return <span className={`text-sm font-bold w-8 ${our > their ? 'text-green-400' : 'text-red-400'}`}>{our > their ? 'W' : 'L'}</span>
+                })()}
+              </div>
+            ))}
+          </div>
+          <button onClick={saveEdit} className="tap-btn w-full bg-vr-600 text-white font-bold py-4 rounded-xl mb-3">
+            Save
+          </button>
+          <button onClick={() => setEditingMatch(null)} className="tap-btn w-full text-gray-500 py-3 rounded-xl text-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
+    )}
   )
 }

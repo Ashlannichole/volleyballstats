@@ -48,6 +48,7 @@ export interface Match {
   theirScore: string
   sets: SetStats[]
   notes: string
+  setScores?: { our: number; their: number }[]
 }
 
 export const EMPTY_STATS = (): PlayerStats => ({

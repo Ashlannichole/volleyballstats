@@ -468,15 +468,19 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         scrimmages: sets,
       })
     } else {
+      const allSetScores = [...completedSetScores, { our: ourScore, their: theirScore }]
+      const setsWon  = allSetScores.filter(s => s.our > s.their).length
+      const setsLost = allSetScores.filter(s => s.their > s.our).length
       onSaveMatch({
         id: crypto.randomUUID(),
         date: new Date().toISOString().split('T')[0],
         tournament: tournament.trim(),
         opponent: opponent.trim(),
-        ourScore: String(ourScore),
-        theirScore: String(theirScore),
+        ourScore: String(setsWon),
+        theirScore: String(setsLost),
         sets,
         notes: '',
+        setScores: allSetScores,
       })
     }
     setGameStarted(false)

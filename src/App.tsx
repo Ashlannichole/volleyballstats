@@ -204,6 +204,10 @@ export default function App() {
     setActiveMatches(prev => prev.filter(m => m.id !== id))
   }
 
+  function handleEditMatch(updated: Match) {
+    setActiveMatches(prev => prev.map(m => m.id === updated.id ? updated : m))
+  }
+
   function handleSyncMatches(newMatches: Match[]) {
     if (newMatches.length === 0) return
     setActiveMatches(prev => [...prev, ...newMatches])
@@ -331,6 +335,7 @@ export default function App() {
             matches={activeMatches}
             players={activePlayers}
             onDelete={handleDeleteMatch}
+            onEdit={handleEditMatch}
             onLoadDemo={handleLoadDemo}
             onClearDemo={handleClearDemo}
             isPro={isPro}
