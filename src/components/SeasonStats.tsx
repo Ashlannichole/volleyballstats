@@ -475,6 +475,7 @@ export default function SeasonStats({ matches, players, isPro = false, onUpgrade
           { emoji: '🤝', title: 'Assist Leader',  color: 'border-orange-500/40 bg-orange-900/10', textColor: 'text-orange-400', list: leader('settingAssists', 1), fmt: (x: typeof stats[0]) => `${x.s.settingAssists} assists` },
           { emoji: '🧱', title: 'Block Leader',   color: 'border-purple-500/40 bg-purple-900/10', textColor: 'text-purple-400', list: leader('soloBlocks', 1),  fmt: (x: typeof stats[0]) => `${x.s.soloBlocks} solo · ${x.s.blockAssists} assist` },
           { emoji: '📊', title: 'Top Passer',     color: 'border-pb-500/40 bg-pb-900/10', textColor: 'text-pb-400',     list: passLeader(),              fmt: (x: typeof stats[0]) => `${(x.s.passRatingTotal / x.s.passAttempts).toFixed(2)} avg (${x.s.passAttempts} att)` },
+          { emoji: '🔥', title: 'Serving Streak', color: 'border-red-500/40 bg-red-900/10', textColor: 'text-red-400',  list: leader('maxServingRun', 2), fmt: (x: typeof stats[0]) => `${x.s.maxServingRun} in a row` },
         ]
 
         return (

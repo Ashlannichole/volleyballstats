@@ -46,6 +46,7 @@ export function mergeStats(a: PlayerStats, b: PlayerStats): PlayerStats {
     passZeroShank: a.passZeroShank + b.passZeroShank,
     passZeroAce: a.passZeroAce + b.passZeroAce,
     passZeroOverpass: a.passZeroOverpass + b.passZeroOverpass,
+    maxServingRun: Math.max(a.maxServingRun ?? 0, b.maxServingRun ?? 0),
   }
 }
 
@@ -59,6 +60,7 @@ export function aggregatePlayerStats(playerId: string, matches: Match[]): Player
     atkErrMissed: 0, atkErrBlocked: 0, atkErrOut: 0, atkErrNet: 0,
     srvErrMissed: 0, srvErrNet: 0, srvErrOut: 0, srvErrFoot: 0,
     passZeroShank: 0, passZeroAce: 0, passZeroOverpass: 0,
+    maxServingRun: 0,
   }
   for (const match of matches) {
     for (const setStats of match.sets) {

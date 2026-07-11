@@ -35,6 +35,8 @@ export interface PlayerStats {
   passZeroShank: number    // shanked off platform
   passZeroAce: number      // server aced (couldn't reach)
   passZeroOverpass: number // overpass over net
+  // Serving run
+  maxServingRun: number    // longest consecutive points scored while serving
 }
 
 export type SetStats = Record<string, PlayerStats>
@@ -76,6 +78,7 @@ export const EMPTY_STATS = (): PlayerStats => ({
   passZeroShank: 0,
   passZeroAce: 0,
   passZeroOverpass: 0,
+  maxServingRun: 0,
 })
 
 export interface PracticeSession {

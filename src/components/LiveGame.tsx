@@ -83,6 +83,7 @@ interface Snapshot {
   theirScore: number
   weAreServing: boolean | null
   rotation: (string | null)[]
+  servingRun: number
 }
 
 export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice }: Props) {
@@ -131,6 +132,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
   // Timeout notification for spectator view
   const [lastTimeout, setLastTimeout] = useState<{ team: 'us' | 'them'; takenAt: number } | null>(null)
+
+  // Current consecutive serving run for the active server
+  const [servingRun, setServingRun] = useState(0)
 
   // Score run tracking
   const [scoreRun, setScoreRun] = useState<{ team: 'us' | 'them'; count: number } | null>(null)
@@ -219,7 +223,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Save current state before any mutation so we can undo it
   function snapshot() {
     setHistory(prev => [...prev.slice(-19), {
-      sets, ourScore, theirScore, weAreServing, rotation
+      sets, ourScore, theirScore, weAreServing, rotation, servingRun
     }])
   }
 
@@ -232,8 +236,30 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       setTheirScore(snap.theirScore)
       setWeAreServing(snap.weAreServing)
       setRotation(snap.rotation)
+      setServingRun(snap.servingRun)
       return prev.slice(0, -1)
     })
+  }
+
+  // Increment serving run for the current server (rotation[0]) and update their maxServingRun
+  function bumpServingRun() {
+    const serverId = rotation[0]
+    const newRun = servingRun + 1
+    setServingRun(newRun)
+    if (serverId) {
+      setSets(prev => prev.map((s, i) => {
+        if (i !== currentSet) return s
+        const ps = s[serverId] ?? EMPTY_STATS()
+        if (newRun > (ps.maxServingRun ?? 0)) {
+          return { ...s, [serverId]: { ...ps, maxServingRun: newRun } }
+        }
+        return s
+      }))
+    }
+  }
+
+  function resetServingRun() {
+    setServingRun(0)
   }
 
   // Clockwise: P2→P1, P3→P2, P4→P3, P5→P4, P6→P5, P1→P6
@@ -273,7 +299,10 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     if (weAreServing === false) {
       setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair))
       setWeAreServing(true)
+      resetServingRun()
       showRotationToastBriefly()
+    } else {
+      bumpServingRun()
     }
     setServeLocked(true)
   }
@@ -284,6 +313,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     if (weAreServing === true) {
       setWeAreServing(false)
       setServeLocked(false)
+      resetServingRun()
     }
   }
 
@@ -299,11 +329,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     if (delta > 0) {
       if (SCORES_OUR_POINT.has(key)) {
         setOurScore(s => s + 1)
-        // Side-out: we scored while receiving → rotate + take serve
         if (weAreServing === false) {
+          // Side-out: we scored while receiving → rotate + take serve
           setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair))
           setWeAreServing(true)
+          resetServingRun()
           showRotationToastBriefly()
+        } else {
+          bumpServingRun()
         }
         setServeLocked(true)
       }
@@ -312,6 +345,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         if (weAreServing === true) {
           setWeAreServing(false)
           setServeLocked(false)
+          resetServingRun()
         }
       }
     } else if (delta < 0) {
@@ -333,6 +367,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       if (weAreServing === true) {
         setWeAreServing(false)
         setServeLocked(false)
+        resetServingRun()
       }
     }
   }
@@ -377,6 +412,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setScoreRun(null)
     setServeLocked(weAreServing === true)
     setLastTimeout(null)
+    setServingRun(0)
   }
 
   function doSub(outSlot: number, inPlayerId: string) {
@@ -1507,6 +1543,32 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                   </div>
                 ))}
               </div>
+              {/* Serving streak leaderboard */}
+              {(() => {
+                const streaks = players
+                  .map(p => ({
+                    name: p.name.split(' ')[0],
+                    best: sets.reduce((max, s) => Math.max(max, s[p.id]?.maxServingRun ?? 0), 0),
+                    current: rotation[0] === p.id ? servingRun : 0,
+                  }))
+                  .filter(x => x.best > 0)
+                  .sort((a, b) => b.best - a.best)
+                if (streaks.length === 0) return null
+                return (
+                  <div className="px-4 pb-3 shrink-0">
+                    <p className="text-gray-600 text-[10px] font-bold uppercase tracking-wide mb-1.5">🔥 Serving Streaks</p>
+                    <div className="flex flex-wrap gap-2">
+                      {streaks.map(({ name, best, current }) => (
+                        <div key={name} className="bg-navy-700 border border-white/10 rounded-xl px-3 py-1.5 flex items-center gap-2">
+                          <span className="text-white text-xs font-semibold">{name}</span>
+                          <span className="text-red-400 font-black text-sm">{best}</span>
+                          {current > 0 && <span className="text-orange-400 text-[10px] font-bold">({current} now)</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
               {/* Header row */}
               <div className="grid grid-cols-4 px-4 pb-1 shrink-0">
                 <p className="text-gray-600 text-xs col-span-1">Player</p>
