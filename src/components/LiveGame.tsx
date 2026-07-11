@@ -123,6 +123,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Auto set-end banner
   const [setCompleteAlert, setSetCompleteAlert] = useState(false)
 
+  // Serve-lock: true when it's our serve and no attempt has been recorded yet
+  const [serveLocked, setServeLocked] = useState(false)
+
   // Score run tracking
   const [scoreRun, setScoreRun] = useState<{ team: 'us' | 'them'; count: number } | null>(null)
   const prevScoresRef = useRef({ our: 0, their: 0 })
@@ -258,12 +261,16 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       setWeAreServing(true)
       showRotationToastBriefly()
     }
+    setServeLocked(true)
   }
 
   function addTheirPoint() {
     snapshot()
     setTheirScore(s => s + 1)
-    if (weAreServing === true) setWeAreServing(false)
+    if (weAreServing === true) {
+      setWeAreServing(false)
+      setServeLocked(false)
+    }
   }
 
   function adjust(playerId: string, key: keyof PlayerStats, delta: number) {
@@ -284,10 +291,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           setWeAreServing(true)
           showRotationToastBriefly()
         }
+        setServeLocked(true)
       }
       if (SCORES_THEIR_POINT.has(key)) {
         setTheirScore(s => s + 1)
-        if (weAreServing === true) setWeAreServing(false)
+        if (weAreServing === true) {
+          setWeAreServing(false)
+          setServeLocked(false)
+        }
       }
     } else if (delta < 0) {
       // Undo score on minus (corrections)
@@ -305,7 +316,10 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     }))
     if (rating === 0 && autoScore) {
       setTheirScore(s => s + 1)
-      if (weAreServing === true) setWeAreServing(false)
+      if (weAreServing === true) {
+        setWeAreServing(false)
+        setServeLocked(false)
+      }
     }
   }
 
@@ -331,6 +345,11 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setPendingError(null)
   }
 
+  function recordServeAttempt(playerId: string) {
+    adjust(playerId, 'serveAttempts', 1)
+    setServeLocked(false)
+  }
+
   function nextSet() {
     setCompletedSetScores(prev => [...prev, { our: ourScore, their: theirScore }])
     setSets(prev => [...prev, buildSetStats(players)])
@@ -342,6 +361,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setSubCount(0)
     setLiberoPair(null)
     setScoreRun(null)
+    setServeLocked(weAreServing === true)
   }
 
   function doSub(outSlot: number, inPlayerId: string) {
@@ -377,6 +397,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setRotation([...preLineup])
     setSets([buildSetStats(players)])
     setHistory([])
+    setServeLocked(weAreServing === true)
     setGameStarted(true)
     onGameStartedChange?.(true)
   }
@@ -882,7 +903,11 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       <div className="bg-navy-800/60 border-b border-white/5 px-3 py-1.5 flex items-center gap-2 shrink-0">
         {/* Serve toggle */}
         <button
-          onClick={() => setWeAreServing(s => !s)}
+          onClick={() => {
+            const next = !weAreServing
+            setWeAreServing(next)
+            setServeLocked(next)
+          }}
           className={`tap-btn px-3 py-1 rounded-lg text-xs font-bold border ${
             weAreServing ? 'bg-vr-700 border-vr-500 text-white' : 'bg-navy-600 border-white/10 text-gray-400'
           }`}
@@ -964,9 +989,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                   )
                 }
 
+                const isServeLocked = serveLocked && weAreServing === true
+                const isLocked = isServeLocked && !isServer
+
                 return (
                   <div key={slotIdx}
-                    className={`border rounded-2xl overflow-hidden flex flex-col ${
+                    className={`border rounded-2xl overflow-hidden flex flex-col transition-opacity ${
+                      isLocked ? 'opacity-40' : ''
+                    } ${
                       isServer
                         ? 'bg-vr-900/60 border-vr-500/60'
                         : isExpanded
@@ -1002,50 +1032,62 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                       </div>
                     </div>
 
-                    {/* Stat chips */}
-                    <div className="px-2 pt-1.5 pb-1 flex flex-col gap-1">
-                      {CHIP_ROWS.map((row, ri) => (
-                        <div key={ri} className="grid grid-cols-4 gap-1">
-                          {row.map(chip => (
-                            <button key={chip.key}
-                              onClick={() => {
-                                if (chip.isErrorTrigger) {
-                                  setPendingError({ playerId, type: chip.key === 'attackErrors' ? 'attack' : 'serve' })
-                                } else {
-                                  adjust(playerId, chip.key, 1)
-                                }
-                              }}
-                              onContextMenu={e => { e.preventDefault(); adjust(playerId, chip.key, -1) }}
-                              className={`tap-btn border rounded-lg py-1 px-0.5 text-center ${chip.bg}`}>
-                              <p className={`text-xs font-bold leading-none ${chip.color}`}>{ps[chip.key] as number}</p>
-                              <p className="text-white/30 text-[9px] leading-none mt-0.5">{chip.label}</p>
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Pass rating */}
-                    <div className="px-2 pb-2">
-                      <div className="flex items-center gap-1">
-                        <span className="text-gray-600 text-[10px] w-6 shrink-0">PA</span>
-                        <span className="text-pb-400 text-xs font-bold w-8">
-                          {ps.passAttempts > 0 ? (ps.passRatingTotal / ps.passAttempts).toFixed(1) : '—'}
-                        </span>
-                        <div className="flex gap-1 flex-1">
-                          {[0,1,2,3].map(r => (
-                            <button key={r}
-                              onClick={() => r === 0 ? setPendingError({ playerId, type: 'pass' }) : adjustPass(playerId, r)}
-                              className={`tap-btn flex-1 rounded text-xs font-bold py-1 border ${
-                                r === 0 ? 'border-red-600/60 bg-red-900/30 text-red-300' :
-                                r === 1 ? 'border-orange-700/50 bg-orange-900/20 text-orange-300' :
-                                r === 2 ? 'border-yellow-700/50 bg-yellow-900/20 text-yellow-300' :
-                                'border-green-700/50 bg-green-900/20 text-green-300'
-                              }`}>{r}</button>
-                          ))}
-                        </div>
+                    {/* Stat chips — replaced by SERVE button when this player is serving and locked */}
+                    {isServer && isServeLocked ? (
+                      <div className="flex-1 flex items-center justify-center px-2 py-3">
+                        <button
+                          onClick={() => recordServeAttempt(playerId)}
+                          className="tap-btn w-full py-3 rounded-xl bg-vr-700 border-2 border-vr-400 text-white font-black text-sm tracking-wide">
+                          🏐 SERVE
+                        </button>
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        <div className={`px-2 pt-1.5 pb-1 flex flex-col gap-1 ${isLocked ? 'pointer-events-none' : ''}`}>
+                          {CHIP_ROWS.map((row, ri) => (
+                            <div key={ri} className="grid grid-cols-4 gap-1">
+                              {row.map(chip => (
+                                <button key={chip.key}
+                                  onClick={() => {
+                                    if (chip.isErrorTrigger) {
+                                      setPendingError({ playerId, type: chip.key === 'attackErrors' ? 'attack' : 'serve' })
+                                    } else {
+                                      adjust(playerId, chip.key, 1)
+                                    }
+                                  }}
+                                  onContextMenu={e => { e.preventDefault(); adjust(playerId, chip.key, -1) }}
+                                  className={`tap-btn border rounded-lg py-1 px-0.5 text-center ${chip.bg}`}>
+                                  <p className={`text-xs font-bold leading-none ${chip.color}`}>{ps[chip.key] as number}</p>
+                                  <p className="text-white/30 text-[9px] leading-none mt-0.5">{chip.label}</p>
+                                </button>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Pass rating */}
+                        <div className={`px-2 pb-2 ${isLocked ? 'pointer-events-none' : ''}`}>
+                          <div className="flex items-center gap-1">
+                            <span className="text-gray-600 text-[10px] w-6 shrink-0">PA</span>
+                            <span className="text-pb-400 text-xs font-bold w-8">
+                              {ps.passAttempts > 0 ? (ps.passRatingTotal / ps.passAttempts).toFixed(1) : '—'}
+                            </span>
+                            <div className="flex gap-1 flex-1">
+                              {[0,1,2,3].map(r => (
+                                <button key={r}
+                                  onClick={() => r === 0 ? setPendingError({ playerId, type: 'pass' }) : adjustPass(playerId, r)}
+                                  className={`tap-btn flex-1 rounded text-xs font-bold py-1 border ${
+                                    r === 0 ? 'border-red-600/60 bg-red-900/30 text-red-300' :
+                                    r === 1 ? 'border-orange-700/50 bg-orange-900/20 text-orange-300' :
+                                    r === 2 ? 'border-yellow-700/50 bg-yellow-900/20 text-yellow-300' :
+                                    'border-green-700/50 bg-green-900/20 text-green-300'
+                                  }`}>{r}</button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
 
                     {/* Expanded extras */}
                     {isExpanded && (
