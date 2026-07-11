@@ -6,7 +6,7 @@ import {
 } from './utils/storage'
 import { loadTier } from './utils/tier'
 import type { Tier } from './utils/tier'
-import { loadSettings, saveSettings, applyColorVars, loadCoachTeam, saveCoachTeam } from './utils/settings'
+import { loadSettings, saveSettings, applyColorVars, loadCoachTeam, saveCoachTeam, DEFAULTS as DEFAULT_SETTINGS } from './utils/settings'
 import type { TeamSettings, CoachTeam } from './utils/settings'
 import { loadSession, saveSession, pushUserData, pullUserData } from './utils/auth'
 import type { Session } from './utils/auth'
@@ -33,7 +33,8 @@ export default function App() {
   const [tier, setTier] = useState<Tier>(loadTier)
   const [teamSettings, setTeamSettings] = useState<TeamSettings>(() => {
     const s = loadSettings()
-    applyColorVars(s)
+    const t = loadTier()
+    applyColorVars(t === 'pro' ? s : DEFAULT_SETTINGS)
     return s
   })
   const [coachTeam, setCoachTeam] = useState<CoachTeam | null>(loadCoachTeam)
@@ -71,6 +72,11 @@ export default function App() {
     else localStorage.removeItem('vb_team_logo')
     setLogo(url)
   }
+
+  // Re-apply colors whenever tier changes — free users always get defaults
+  useEffect(() => {
+    applyColorVars(isPro ? teamSettings : DEFAULT_SETTINGS)
+  }, [isPro])
 
   const { openModal, modal } = useUpgradeModal((t) => setTier(t))
 
@@ -181,7 +187,7 @@ export default function App() {
 
   function handleSettingsChange(s: TeamSettings) {
     saveSettings(s)
-    applyColorVars(s)
+    applyColorVars(isPro ? s : DEFAULT_SETTINGS)
     setTeamSettings(s)
   }
 
@@ -257,12 +263,12 @@ export default function App() {
     <div className="flex flex-col h-dvh bg-navy-900 overflow-hidden">
       {/* Header */}
       <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0 flex items-center gap-3">
-        {logo ? (
+        {isPro && logo ? (
           <img src={logo} alt="Team logo" className="w-8 h-8 rounded-full object-cover border border-white/20 shrink-0" />
         ) : (
           <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="16" cy="16" r="16" fill={teamSettings.primaryColor} />
-            <text x="16" y="22" textAnchor="middle" fontSize="18" fill={teamSettings.secondaryColor}>
+            <circle cx="16" cy="16" r="16" fill={isPro ? teamSettings.primaryColor : DEFAULT_SETTINGS.primaryColor} />
+            <text x="16" y="22" textAnchor="middle" fontSize="18" fill={isPro ? teamSettings.secondaryColor : DEFAULT_SETTINGS.secondaryColor}>
               {isPro ? '⚔' : '🏐'}
             </text>
           </svg>
@@ -369,13 +375,13 @@ export default function App() {
               className={`tap-btn flex-1 flex flex-col items-center gap-1 py-3 transition-colors ${
                 locked ? 'text-gray-600' : tab === t.id ? '' : 'text-gray-500'
               }`}
-              style={tab === t.id && !locked ? { color: teamSettings.primaryColor } : {}}
+              style={tab === t.id && !locked ? { color: isPro ? teamSettings.primaryColor : DEFAULT_SETTINGS.primaryColor } : {}}
             >
               <span className="text-xl">{t.icon}</span>
               <span className="text-[10px] font-medium">{t.label}</span>
               {locked
                 ? <span className="text-[9px] text-vr-500 font-bold">PRO</span>
-                : tab === t.id && <span className="w-4 h-0.5 rounded-full mt-0.5" style={{ backgroundColor: teamSettings.primaryColor }} />
+                : tab === t.id && <span className="w-4 h-0.5 rounded-full mt-0.5" style={{ backgroundColor: isPro ? teamSettings.primaryColor : DEFAULT_SETTINGS.primaryColor }} />
               }
             </button>
           )

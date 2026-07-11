@@ -9,7 +9,7 @@ export interface TeamSettings {
 
 const KEY = 'vb_team_settings'
 
-const DEFAULTS: TeamSettings = {
+export const DEFAULTS: TeamSettings = {
   teamName: 'My Team',
   team2Name: 'Team 2',
   activeTeam: 1,
