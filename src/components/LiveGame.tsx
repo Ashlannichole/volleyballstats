@@ -133,6 +133,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Timeout notification for spectator view
   const [lastTimeout, setLastTimeout] = useState<{ team: 'us' | 'them'; takenAt: number } | null>(null)
 
+  // Serving streak celebration
+  const [streakAlert, setStreakAlert] = useState<{ name: string; count: number } | null>(null)
+
   // Current consecutive serving run for the active server
   const [servingRun, setServingRun] = useState(0)
 
@@ -177,6 +180,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       pushSpectatorState(spectatorCode)
     }
   }, [ourScore, theirScore, rotation, weAreServing, currentSet])
+
+  // Auto-dismiss streak celebration
+  useEffect(() => {
+    if (!streakAlert) return
+    const t = setTimeout(() => setStreakAlert(null), 3500)
+    return () => clearTimeout(t)
+  }, [streakAlert])
 
   // Push immediately when a timeout is called so spectators see it right away
   useEffect(() => {
@@ -255,6 +265,10 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         }
         return s
       }))
+      if (newRun >= 5 && newRun % 5 === 0) {
+        const server = players.find(p => p.id === serverId)
+        if (server) setStreakAlert({ name: server.name.split(' ')[0], count: newRun })
+      }
     }
   }
 
@@ -1593,6 +1607,73 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               </div>
             </div>
           </div>
+        )
+      })()}
+
+      {/* ── SERVING STREAK FIREWORKS ─────────────────────────────────────── */}
+      {streakAlert && (() => {
+        const PARTICLES = [
+          { color: '#f87171', angle: 0   }, { color: '#fb923c', angle: 30  },
+          { color: '#facc15', angle: 60  }, { color: '#4ade80', angle: 90  },
+          { color: '#60a5fa', angle: 120 }, { color: '#c084fc', angle: 150 },
+          { color: '#f87171', angle: 180 }, { color: '#fb923c', angle: 210 },
+          { color: '#facc15', angle: 240 }, { color: '#4ade80', angle: 270 },
+          { color: '#60a5fa', angle: 300 }, { color: '#c084fc', angle: 330 },
+        ]
+        return (
+          <>
+            <style>{`
+              @keyframes fw-pop {
+                0%   { transform: scale(0.4); opacity: 0 }
+                60%  { transform: scale(1.08); opacity: 1 }
+                100% { transform: scale(1); opacity: 1 }
+              }
+              @keyframes fw-out {
+                0%   { transform: rotate(var(--a)) translateY(0)    scale(1);   opacity: 1 }
+                80%  { opacity: 1 }
+                100% { transform: rotate(var(--a)) translateY(-90px) scale(0.3); opacity: 0 }
+              }
+              @keyframes fw-pulse {
+                0%, 100% { transform: scale(1) }
+                50%       { transform: scale(1.18) }
+              }
+            `}</style>
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
+              onClick={() => setStreakAlert(null)}
+            >
+              <div style={{ animation: 'fw-pop 0.35s ease-out forwards' }}
+                className="relative bg-navy-900 border-2 border-orange-500/60 rounded-3xl px-10 py-8 text-center shadow-2xl mx-6">
+
+                {/* Firework particles */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  {PARTICLES.map(({ color, angle }, i) => (
+                    <div key={i} className="absolute w-3 h-3 rounded-full"
+                      style={{
+                        backgroundColor: color,
+                        '--a': `${angle}deg`,
+                        animation: `fw-out 0.9s ease-out ${0.15 + i * 0.04}s both`,
+                      } as React.CSSProperties} />
+                  ))}
+                </div>
+
+                {/* Fire emoji */}
+                <div className="text-6xl mb-3 leading-none"
+                  style={{ animation: 'fw-pulse 0.6s ease-in-out infinite' }}>
+                  🔥
+                </div>
+
+                <p className="text-orange-400 font-black text-xl tracking-wide uppercase mb-1">
+                  On Fire!
+                </p>
+                <p className="text-white font-bold text-2xl mb-0.5">{streakAlert.name}</p>
+                <p className="text-gray-300 text-base">
+                  {streakAlert.count} serves in a row!
+                </p>
+                <p className="text-gray-600 text-xs mt-4">tap to dismiss</p>
+              </div>
+            </div>
+          </>
         )
       })()}
 
