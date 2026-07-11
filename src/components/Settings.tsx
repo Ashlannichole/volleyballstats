@@ -18,6 +18,7 @@ interface Props {
   onSyncMatches: (matches: Match[]) => void
   logo: string
   onLogoChange: (url: string) => void
+  onTutorial?: () => void
 }
 
 const PRESET_COLORS = [
@@ -32,7 +33,7 @@ const PRESET_COLORS = [
 export default function Settings({
   settings, onSettingsChange, isPro, onUpgrade,
   coachTeam, onCoachTeamChange, matches, onSyncMatches,
-  session, onSignOut, onSyncNow, logo, onLogoChange,
+  session, onSignOut, onSyncNow, logo, onLogoChange, onTutorial,
 }: Props) {
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
@@ -706,6 +707,12 @@ export default function Settings({
               <p className={`text-xs text-center font-semibold ${syncMsg.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>
                 {syncMsg}
               </p>
+            )}
+            {onTutorial && (
+              <button onClick={onTutorial}
+                className="tap-btn w-full border border-white/10 rounded-xl py-2.5 text-gray-400 text-sm font-semibold">
+                📖 View Tutorial
+              </button>
             )}
             <button onClick={onSignOut}
               className="tap-btn w-full border border-red-900/40 rounded-xl py-2.5 text-red-500 text-sm font-semibold">

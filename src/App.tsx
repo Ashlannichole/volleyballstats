@@ -19,6 +19,7 @@ import SeasonStats from './components/SeasonStats'
 import Practice from './components/Practice'
 import SettingsPage from './components/Settings'
 import AdBanner from './components/AdBanner'
+import Onboarding from './components/Onboarding'
 import { useUpgradeModal } from './components/UpgradePrompt'
 import type { PracticeSession } from './types'
 
@@ -30,6 +31,7 @@ export default function App() {
   const [syncError, setSyncError] = useState('')
 
   const [tab, setTab] = useState<Tab>('live')
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('vb_onboarded'))
   const [tier, setTier] = useState<Tier>(loadTier)
   const [teamSettings, setTeamSettings] = useState<TeamSettings>(() => {
     const s = loadSettings()
@@ -208,6 +210,15 @@ export default function App() {
     setActiveMatches(prev => prev.map(m => m.id === updated.id ? updated : m))
   }
 
+  function handleOpenTutorial() {
+    setShowOnboarding(true)
+  }
+
+  function handleFinishOnboarding() {
+    localStorage.setItem('vb_onboarded', '1')
+    setShowOnboarding(false)
+  }
+
   function handleSyncMatches(newMatches: Match[]) {
     if (newMatches.length === 0) return
     setActiveMatches(prev => [...prev, ...newMatches])
@@ -265,6 +276,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-dvh bg-navy-900 overflow-hidden">
+      {showOnboarding && <Onboarding onDone={handleFinishOnboarding} />}
       {/* Header */}
       <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0 flex items-center gap-3">
         {isPro && logo ? (
@@ -368,6 +380,7 @@ export default function App() {
             onSyncNow={handleSyncNow}
             logo={logo}
             onLogoChange={handleLogoChange}
+            onTutorial={handleOpenTutorial}
           />
         </div>
       </div>
