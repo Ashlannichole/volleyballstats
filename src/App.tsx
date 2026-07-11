@@ -79,6 +79,7 @@ export default function App() {
   function schedulePush(
     m: Match[], p: Player[], pr: PracticeSession[],
     m2: Match[], p2: Player[], pr2: PracticeSession[],
+    s: TeamSettings,
   ) {
     if (!session) return
     if (pushTimer.current) clearTimeout(pushTimer.current)
@@ -86,13 +87,14 @@ export default function App() {
       pushUserData(session.token, {
         matches: m,  players: p,  practices: pr,
         matches2: m2, players2: p2, practices2: pr2,
+        settings: s,
       })
     }, 1500)
   }
 
   useEffect(() => {
-    if (session) schedulePush(matches, players, practices, matches2, players2, practices2)
-  }, [matches, players, practices, matches2, players2, practices2])
+    if (session) schedulePush(matches, players, practices, matches2, players2, practices2, teamSettings)
+  }, [matches, players, practices, matches2, players2, practices2, teamSettings])
 
   // On sign-in: pull server data, merge with local
   async function handleSignIn(s: Session) {
@@ -103,6 +105,7 @@ export default function App() {
       const remote = await pullUserData(s.token) as {
         matches: Match[]; players: Player[]; practices: PracticeSession[]
         matches2?: Match[]; players2?: Player[]; practices2?: PracticeSession[]
+        settings?: TeamSettings
       }
 
       function merge<T extends { id: string }>(remote: T[], local: T[]): T[] {
@@ -119,10 +122,12 @@ export default function App() {
 
       setMatches(mM);   setPlayers(mP);   setPractices(mPr)
       setMatches2(mM2); setPlayers2(mP2); setPractices2(mPr2)
+      if (remote.settings) handleSettingsChange(remote.settings)
 
       await pushUserData(s.token, {
         matches: mM, players: mP, practices: mPr,
         matches2: mM2, players2: mP2, practices2: mPr2,
+        settings: remote.settings ?? teamSettings,
       })
     } catch (e) {
       if (e instanceof Error && e.message === 'session_expired') {
@@ -140,6 +145,7 @@ export default function App() {
     const remote = await pullUserData(session.token) as {
       matches: Match[]; players: Player[]; practices: PracticeSession[]
       matches2?: Match[]; players2?: Player[]; practices2?: PracticeSession[]
+      settings?: TeamSettings
     }
     function merge<T extends { id: string }>(rem: T[], local: T[]): T[] {
       const remIds = new Set(rem.map(x => x.id))
@@ -153,6 +159,7 @@ export default function App() {
     const mPr2 = merge(remote.practices2 ?? [], practices2)
     setMatches(mM);   setPlayers(mP);   setPractices(mPr)
     setMatches2(mM2); setPlayers2(mP2); setPractices2(mPr2)
+    if (remote.settings) handleSettingsChange(remote.settings)
   }
 
   function handleSignOut() {

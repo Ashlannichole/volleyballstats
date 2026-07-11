@@ -20,6 +20,7 @@ export function saveSession(s: Session | null): void {
 interface UserData {
   matches: unknown[]; players: unknown[]; practices: unknown[]
   matches2?: unknown[]; players2?: unknown[]; practices2?: unknown[]
+  settings?: unknown
 }
 
 export async function pushUserData(token: string, data: UserData) {
