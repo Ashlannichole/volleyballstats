@@ -133,6 +133,36 @@ export default function MatchHistory({ matches, players, onDelete, onLoadDemo, o
                   </table>
                 </div>
 
+                {/* Team totals strip */}
+                {(() => {
+                  const totals = players.reduce((acc, p) => {
+                    const s = totalStats(match, p.id)
+                    return {
+                      kills:        acc.kills        + s.kills,
+                      attackErrors: acc.attackErrors + s.attackErrors,
+                      serveErrors:  acc.serveErrors  + s.serveErrors,
+                      aces:         acc.aces         + s.aces,
+                    }
+                  }, { kills: 0, attackErrors: 0, serveErrors: 0, aces: 0 })
+                  const errors = totals.attackErrors + totals.serveErrors
+                  return (
+                    <div className="grid grid-cols-3 gap-2 mb-4">
+                      {[
+                        { label: 'Team Kills',  value: totals.kills, color: 'text-green-400'  },
+                        { label: 'Team Errors', value: errors,       color: 'text-red-400',
+                          sub: `${totals.attackErrors} atk · ${totals.serveErrors} srv` },
+                        { label: 'Team Aces',   value: totals.aces,  color: 'text-yellow-400' },
+                      ].map(({ label, value, color, sub }) => (
+                        <div key={label} className="bg-navy-800 border border-white/10 rounded-xl py-2 px-3 text-center">
+                          <p className={`text-2xl font-black ${color}`}>{value}</p>
+                          <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide">{label}</p>
+                          {sub && <p className="text-gray-600 text-[9px] mt-0.5">{sub}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+
                 <details className="mb-4">
                   <summary className="text-pb-400 text-sm cursor-pointer mb-2">View per-set breakdown</summary>
                   {match.sets.map((setStats, i) => (

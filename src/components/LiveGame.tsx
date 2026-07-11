@@ -1450,6 +1450,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           return { p, kills: s.kills, passAvg, servePct, onCourt }
         }).sort((a, b) => b.kills - a.kills)
 
+        // Team totals across all sets
+        const teamKills  = totals.reduce((n, t) => n + t.kills, 0)
+        const teamAces   = sets.reduce((n, set) => n + players.reduce((m, p) => m + (set[p.id]?.aces ?? 0), 0), 0)
+        const teamAtkErr = sets.reduce((n, set) => n + players.reduce((m, p) => m + (set[p.id]?.attackErrors ?? 0), 0), 0)
+        const teamSrvErr = sets.reduce((n, set) => n + players.reduce((m, p) => m + (set[p.id]?.serveErrors ?? 0), 0), 0)
+        const teamErrors = teamAtkErr + teamSrvErr
+
         return (
           <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setShowLiveStats(false)}>
             <div className="w-full max-w-lg mx-auto bg-navy-800 rounded-t-3xl pb-8 max-h-[80vh] flex flex-col"
@@ -1457,6 +1464,21 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               <div className="px-4 pt-4 pb-2 flex items-center justify-between shrink-0">
                 <p className="text-white font-bold">Live Team Stats</p>
                 <p className="text-gray-500 text-xs">All sets combined</p>
+              </div>
+              {/* Team totals strip */}
+              <div className="grid grid-cols-3 gap-2 px-4 pb-3 shrink-0">
+                {[
+                  { label: 'Kills',  value: teamKills,  color: 'text-green-400'  },
+                  { label: 'Errors', value: teamErrors, color: 'text-red-400',
+                    sub: `${teamAtkErr} atk · ${teamSrvErr} srv` },
+                  { label: 'Aces',   value: teamAces,   color: 'text-yellow-400' },
+                ].map(({ label, value, color, sub }) => (
+                  <div key={label} className="bg-navy-700 border border-white/10 rounded-xl py-2 text-center">
+                    <p className={`text-2xl font-black ${color}`}>{value}</p>
+                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide">{label}</p>
+                    {sub && <p className="text-gray-600 text-[9px] mt-0.5">{sub}</p>}
+                  </div>
+                ))}
               </div>
               {/* Header row */}
               <div className="grid grid-cols-4 px-4 pb-1 shrink-0">
