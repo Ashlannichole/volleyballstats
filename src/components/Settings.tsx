@@ -205,6 +205,26 @@ export default function Settings({
         )}
       </section>
 
+      {/* Match Format */}
+      <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-white font-bold text-sm">Best of 5 Sets</p>
+            <p className="text-gray-500 text-[11px] mt-0.5">Off = best of 3 · On = best of 5 (sets 3 &amp; 5 play to 15)</p>
+          </div>
+          <button
+            onClick={() => commit({ bestOf5: !settings.bestOf5 })}
+            className={`tap-btn relative w-12 h-6 rounded-full border transition-colors shrink-0 ${
+              settings.bestOf5 ? 'bg-vr-600 border-vr-500' : 'bg-navy-600 border-white/20'
+            }`}
+          >
+            <span className={`absolute top-[2px] w-5 h-5 rounded-full bg-white shadow transition-all duration-200 ${
+              settings.bestOf5 ? 'left-[26px]' : 'left-[2px]'
+            }`} />
+          </button>
+        </div>
+      </section>
+
       {/* Teams — Pro only */}
       <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
         <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">

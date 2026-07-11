@@ -12,6 +12,7 @@ interface Props {
   recMode?: boolean
   sponsors?: string[]
   showSponsors?: boolean
+  bestOf5?: boolean
   // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
   practiceMode?: boolean
   onSavePractice?: (session: PracticeSession) => void
@@ -81,7 +82,7 @@ interface Snapshot {
   rotation: (string | null)[]
 }
 
-export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, practiceMode = false, onSavePractice }: Props) {
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -163,13 +164,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     }
   }, [ourScore, theirScore, rotation, weAreServing, currentSet])
 
-  // Auto set-end: trigger when a team reaches 25+ and leads by 2+
+  // Auto set-end: deciding set plays to 15, all others to 25
   useEffect(() => {
     if (!gameStarted) return
     const hi = Math.max(ourScore, theirScore)
     const lo = Math.min(ourScore, theirScore)
-    if (hi >= 25 && hi - lo >= 2) setSetCompleteAlert(true)
-  }, [ourScore, theirScore])
+    const limit = currentSet === (bestOf5 ? 4 : 2) ? 15 : 25
+    if (hi >= limit && hi - lo >= 2) setSetCompleteAlert(true)
+  }, [ourScore, theirScore, currentSet, bestOf5])
 
   // Score run tracking
   useEffect(() => {
@@ -240,6 +242,28 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   function showRotationToastBriefly() {
     setRotationToast(true)
     setTimeout(() => setRotationToast(false), 2000)
+  }
+
+  // Match format derived values
+  const setsToWin   = bestOf5 ? 3 : 2
+  const ourSetsWon  = completedSetScores.filter(s => s.our > s.their).length
+  const theirSetsWon = completedSetScores.filter(s => s.their > s.our).length
+
+  // Manual score tap — handles side-out rotation just like stat-based scoring
+  function addOurPoint() {
+    snapshot()
+    setOurScore(s => s + 1)
+    if (weAreServing === false) {
+      setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair))
+      setWeAreServing(true)
+      showRotationToastBriefly()
+    }
+  }
+
+  function addTheirPoint() {
+    snapshot()
+    setTheirScore(s => s + 1)
+    if (weAreServing === true) setWeAreServing(false)
   }
 
   function adjust(playerId: string, key: keyof PlayerStats, delta: number) {
@@ -785,11 +809,11 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                     className={`tap-btn w-3 h-3 rounded-full border ${i < ourTimeouts ? 'bg-vr-500 border-vr-400' : 'bg-transparent border-white/30'}`} />
                 ))}
               </div>
-              <button onClick={() => setOurScore(s => s + 1)}
+              <button onClick={addOurPoint}
                 className="tap-btn text-4xl font-black text-white leading-none w-14 text-center">
                 {String(ourScore).padStart(2, '0')}
               </button>
-              <button onClick={() => setOurScore(s => Math.max(0, s - 1))}
+              <button onClick={() => { snapshot(); setOurScore(s => Math.max(0, s - 1)) }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
             </div>
           </div>
@@ -822,9 +846,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <button onClick={() => setTheirScore(s => Math.max(0, s - 1))}
+              <button onClick={() => { snapshot(); setTheirScore(s => Math.max(0, s - 1)) }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
-              <button onClick={() => setTheirScore(s => s + 1)}
+              <button onClick={addTheirPoint}
                 className="tap-btn text-4xl font-black text-white leading-none w-14 text-center">
                 {String(theirScore).padStart(2, '0')}
               </button>
@@ -1303,31 +1327,63 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       )}
 
       {/* ── SET COMPLETE ALERT ───────────────────────────────────────────── */}
-      {setCompleteAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-navy-800 border border-vr-700/50 rounded-2xl p-6 w-full max-w-sm text-center">
-            <p className="text-4xl mb-3">{ourScore > theirScore ? '🏆' : '😤'}</p>
-            <h3 className="text-xl font-bold text-white mb-1">Set {currentSet + 1} Complete</h3>
-            <p className="text-pb-400 text-2xl font-black mb-1">{ourScore} – {theirScore}</p>
-            <p className="text-gray-400 text-sm mb-5">
-              {ourScore > theirScore ? `${teamName} win the set!` : `${opponent} wins the set.`}
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setSetCompleteAlert(false)}
-                className="tap-btn flex-1 py-3 rounded-xl border border-white/20 text-gray-300 font-semibold text-sm">
-                Keep Playing
-              </button>
-              <button onClick={() => {
-                setSetCompleteAlert(false)
-                nextSet()
-              }}
-                className="tap-btn flex-1 py-3 rounded-xl bg-vr-600 text-white font-bold text-sm">
-                Start Set {currentSet + 2}
-              </button>
+      {setCompleteAlert && (() => {
+        const weWonSet = ourScore > theirScore
+        const hypoOurWins  = ourSetsWon  + (weWonSet ? 1 : 0)
+        const hypoTheirWins = theirSetsWon + (weWonSet ? 0 : 1)
+        const matchOver = hypoOurWins >= setsToWin || hypoTheirWins >= setsToWin
+        const matchWinner = hypoOurWins >= setsToWin ? teamName : opponent
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-navy-800 border border-vr-700/50 rounded-2xl p-6 w-full max-w-sm text-center">
+              <p className="text-4xl mb-3">{weWonSet ? '🏆' : '😤'}</p>
+              <h3 className="text-xl font-bold text-white mb-1">
+                {matchOver ? 'Match Complete!' : `Set ${currentSet + 1} Complete`}
+              </h3>
+              <p className="text-pb-400 text-2xl font-black mb-1">{ourScore} – {theirScore}</p>
+              {matchOver ? (
+                <>
+                  <p className="text-gray-400 text-sm mb-1">
+                    {matchWinner} wins the match!
+                  </p>
+                  <p className="text-gray-600 text-xs mb-5">
+                    Sets: {hypoOurWins}–{hypoTheirWins}
+                  </p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setSetCompleteAlert(false)}
+                      className="tap-btn flex-1 py-3 rounded-xl border border-white/20 text-gray-300 font-semibold text-sm">
+                      Keep Playing
+                    </button>
+                    <button onClick={() => { setSetCompleteAlert(false); confirmEnd() }}
+                      className="tap-btn flex-1 py-3 rounded-xl bg-vr-600 text-white font-bold text-sm">
+                      Save Match
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-400 text-sm mb-1">
+                    {weWonSet ? `${teamName} win the set!` : `${opponent} wins the set.`}
+                  </p>
+                  <p className="text-gray-600 text-xs mb-5">
+                    Sets: {hypoOurWins}–{hypoTheirWins} · first to {setsToWin} wins
+                  </p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setSetCompleteAlert(false)}
+                      className="tap-btn flex-1 py-3 rounded-xl border border-white/20 text-gray-300 font-semibold text-sm">
+                      Keep Playing
+                    </button>
+                    <button onClick={() => { setSetCompleteAlert(false); nextSet() }}
+                      className="tap-btn flex-1 py-3 rounded-xl bg-vr-600 text-white font-bold text-sm">
+                      Start Set {currentSet + 2}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ── LIVE STATS PANEL ─────────────────────────────────────────────── */}
       {showLiveStats && (() => {
