@@ -28,6 +28,7 @@ export default function SpectatorView() {
   const [state, setState] = useState<MatchState | null>(null)
   const [error, setError] = useState('')
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [sponsorIdx, setSponsorIdx] = useState(0)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const code = getCode()
 
@@ -53,6 +54,13 @@ export default function SpectatorView() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [code])
 
+  const sponsors = state?.sponsors ?? []
+  useEffect(() => {
+    if (sponsors.length <= 1) return
+    const t = setInterval(() => setSponsorIdx(i => (i + 1) % sponsors.length), 3000)
+    return () => clearInterval(t)
+  }, [sponsors.length])
+
   if (!code || error) {
     return (
       <div className="min-h-screen bg-navy-900 flex flex-col items-center justify-center p-6 gap-4">
@@ -75,14 +83,6 @@ export default function SpectatorView() {
   const displayName = state.teamName ?? 'Home Team'
   const secondsSince = lastUpdate ? Math.floor((Date.now() - lastUpdate.getTime()) / 1000) : 0
   const prev = state.previousSets ?? []
-  const sponsors = state.sponsors ?? []
-
-  const [sponsorIdx, setSponsorIdx] = useState(0)
-  useEffect(() => {
-    if (sponsors.length <= 1) return
-    const t = setInterval(() => setSponsorIdx(i => (i + 1) % sponsors.length), 3000)
-    return () => clearInterval(t)
-  }, [sponsors.length])
 
   return (
     <div className="min-h-screen bg-navy-900 flex flex-col">
@@ -203,11 +203,11 @@ export default function SpectatorView() {
       )}
 
       {/* Sponsor strip */}
-      {sponsors.length > 0 && (
+      {(state.sponsors ?? []).length > 0 && (
         <div className="border-t border-white/5 py-3 px-4 text-center">
           <p className="text-gray-600 text-[9px] uppercase tracking-widest mb-1">Thank you to our sponsors</p>
           <p key={sponsorIdx} className="text-gray-400 text-sm font-semibold animate-pulse">
-            {sponsors[sponsorIdx]}
+            {(state.sponsors ?? [])[sponsorIdx]}
           </p>
         </div>
       )}
