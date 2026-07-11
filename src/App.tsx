@@ -246,7 +246,7 @@ export default function App() {
   const hasTeam2 = isPro && (players2.length > 0 || teamSettings.team2Name !== 'Team 2')
 
   return (
-    <div className="flex flex-col h-screen bg-navy-900 overflow-hidden">
+    <div className="flex flex-col h-dvh bg-navy-900 overflow-hidden">
       {/* Header */}
       <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0 flex items-center gap-3">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
