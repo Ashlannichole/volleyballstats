@@ -168,7 +168,8 @@ export default function SeasonStats({ matches, players, isPro = false, onUpgrade
             const s = aggregatePlayerStats(p.id, matches)
             const setsPlayed = matches.reduce((n, m) =>
               n + m.sets.filter(set => set[p.id] && (
-                set[p.id].kills + set[p.id].digs + set[p.id].attackAttempts + set[p.id].serveAttempts > 0
+                set[p.id].kills + set[p.id].digs + set[p.id].attackAttempts + set[p.id].serveAttempts +
+              set[p.id].aces + set[p.id].soloBlocks + set[p.id].blockAssists + set[p.id].settingAssists > 0
               )).length, 0)
             if (setsPlayed === 0) return null
             return (
@@ -386,7 +387,8 @@ export default function SeasonStats({ matches, players, isPro = false, onUpgrade
           s: aggregatePlayerStats(p.id, matches),
           setsPlayed: matches.reduce((n, m) =>
             n + m.sets.filter(set => set[p.id] && (
-              set[p.id].kills + set[p.id].digs + set[p.id].attackAttempts + set[p.id].serveAttempts > 0
+              set[p.id].kills + set[p.id].digs + set[p.id].attackAttempts + set[p.id].serveAttempts +
+              set[p.id].aces + set[p.id].soloBlocks + set[p.id].blockAssists + set[p.id].settingAssists > 0
             )).length, 0),
         })).filter(x => x.setsPlayed > 0)
 
