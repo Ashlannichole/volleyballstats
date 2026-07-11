@@ -158,6 +158,7 @@ export default function MatchHistory({ matches, players, onDelete, onEdit, onLoa
                         <th className="text-center px-2">BA</th>
                         <th className="text-center px-2">Ast</th>
                         <th className="text-center px-2">PA</th>
+                        <th className="text-center px-2">🔥</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -176,6 +177,12 @@ export default function MatchHistory({ matches, players, onDelete, onEdit, onLoa
                             <td className="text-center px-2 text-vr-300">{s.blockAssists}</td>
                             <td className="text-center px-2 text-orange-400">{s.settingAssists}</td>
                             <td className="text-center px-2 text-gray-300">{passAvg(s)}</td>
+                            <td className="text-center px-2 text-red-400 font-semibold">
+                              {(() => {
+                                const best = match.sets.reduce((max, set) => Math.max(max, set[p.id]?.maxServingRun ?? 0), 0)
+                                return best > 0 ? best : '—'
+                              })()}
+                            </td>
                           </tr>
                         )
                       })}
