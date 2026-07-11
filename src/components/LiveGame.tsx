@@ -129,6 +129,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Serve-lock: true when it's our serve and no attempt has been recorded yet
   const [serveLocked, setServeLocked] = useState(false)
 
+  // Timeout notification for spectator view
+  const [lastTimeout, setLastTimeout] = useState<{ team: 'us' | 'them'; takenAt: number } | null>(null)
+
   // Score run tracking
   const [scoreRun, setScoreRun] = useState<{ team: 'us' | 'them'; count: number } | null>(null)
   const prevScoresRef = useRef({ our: 0, their: 0 })
@@ -160,15 +163,23 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         updatedAt: Date.now(),
         ended,
         sponsors: showSponsors ? sponsors : [],
+        timeout: lastTimeout,
       }),
     }).catch(() => {})
-  }, [players, rotation, opponent, teamName, ourScore, theirScore, currentSet, weAreServing, completedSetScores, sponsors, showSponsors])
+  }, [players, rotation, opponent, teamName, ourScore, theirScore, currentSet, weAreServing, completedSetScores, sponsors, showSponsors, lastTimeout])
 
   useEffect(() => {
     if (spectatorCode && gameStarted && !practiceMode) {
       pushSpectatorState(spectatorCode)
     }
   }, [ourScore, theirScore, rotation, weAreServing, currentSet])
+
+  // Push immediately when a timeout is called so spectators see it right away
+  useEffect(() => {
+    if (spectatorCode && gameStarted && !practiceMode && lastTimeout) {
+      pushSpectatorState(spectatorCode)
+    }
+  }, [lastTimeout])
 
   // Auto set-end: deciding set plays to 15, all others to 25
   useEffect(() => {
@@ -365,6 +376,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setLiberoPair(null)
     setScoreRun(null)
     setServeLocked(weAreServing === true)
+    setLastTimeout(null)
   }
 
   function doSub(outSlot: number, inPlayerId: string) {
@@ -833,7 +845,11 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
             <div className="flex items-center gap-2 mt-0.5">
               <div className="flex gap-1">
                 {[0,1].map(i => (
-                  <button key={i} onClick={() => setOurTimeouts(t => t === i+1 ? i : i+1)}
+                  <button key={i} onClick={() => {
+                    const next = ourTimeouts === i+1 ? i : i+1
+                    if (next > ourTimeouts) setLastTimeout({ team: 'us', takenAt: Date.now() })
+                    setOurTimeouts(next)
+                  }}
                     className={`tap-btn w-3 h-3 rounded-full border ${i < ourTimeouts ? 'bg-vr-500 border-vr-400' : 'bg-transparent border-white/30'}`} />
                 ))}
               </div>
@@ -882,7 +898,11 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               </button>
               <div className="flex gap-1">
                 {[0,1].map(i => (
-                  <button key={i} onClick={() => setTheirTimeouts(t => t === i+1 ? i : i+1)}
+                  <button key={i} onClick={() => {
+                    const next = theirTimeouts === i+1 ? i : i+1
+                    if (next > theirTimeouts) setLastTimeout({ team: 'them', takenAt: Date.now() })
+                    setTheirTimeouts(next)
+                  }}
                     className={`tap-btn w-3 h-3 rounded-full border ${i < theirTimeouts ? 'bg-gray-400 border-gray-300' : 'bg-transparent border-white/30'}`} />
                 ))}
               </div>

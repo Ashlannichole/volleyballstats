@@ -13,6 +13,7 @@ interface MatchState {
   updatedAt: number
   ended?: boolean
   sponsors?: string[]
+  timeout?: { team: 'us' | 'them'; takenAt: number } | null
 }
 
 const COURT_LAYOUT = [
@@ -29,6 +30,7 @@ export default function SpectatorView() {
   const [error, setError] = useState('')
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [sponsorIdx, setSponsorIdx] = useState(0)
+  const [now, setNow] = useState(Date.now())
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const code = getCode()
 
@@ -53,6 +55,14 @@ export default function SpectatorView() {
     intervalRef.current = setInterval(fetchState, 5000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [code])
+
+  // Tick every second while a timeout banner is active so it hides at exactly 30s
+  const timeoutActive = !!(state?.timeout && (now - state.timeout.takenAt) < 30_000)
+  useEffect(() => {
+    if (!timeoutActive) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [timeoutActive])
 
   const sponsors = state?.sponsors ?? []
   useEffect(() => {
@@ -103,6 +113,24 @@ export default function SpectatorView() {
           )}
         </div>
       </div>
+
+      {/* Timeout banner */}
+      {timeoutActive && state?.timeout && (
+        <div className="bg-yellow-500 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">⏸</span>
+            <div>
+              <p className="text-black font-black text-base leading-tight">TIMEOUT</p>
+              <p className="text-black/70 text-sm font-semibold">
+                {state.timeout.team === 'us' ? (state.teamName ?? 'Home Team') : state.opponent}
+              </p>
+            </div>
+          </div>
+          <div className="text-black/60 text-sm font-bold tabular-nums">
+            {Math.max(0, 30 - Math.floor((now - state.timeout.takenAt) / 1000))}s
+          </div>
+        </div>
+      )}
 
       {/* Previous sets */}
       {prev.length > 0 && (
