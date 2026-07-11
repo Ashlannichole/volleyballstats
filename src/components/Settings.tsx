@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { Match } from '../types'
 import type { TeamSettings, CoachTeam } from '../utils/settings'
 import { saveSettings, applyColorVars, saveCoachTeam } from '../utils/settings'
@@ -36,6 +36,8 @@ export default function Settings({
 }: Props) {
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
+  const [newSponsor, setNewSponsor] = useState('')
+  const sponsorInputRef = useRef<HTMLInputElement>(null)
 
   async function handleSyncNow() {
     setSyncing(true)
@@ -407,6 +409,107 @@ export default function Settings({
           {saved && (
             <p className="text-green-400 text-xs text-center font-semibold">✓ Saved</p>
           )}
+        </div>
+      </section>
+
+      {/* Sponsors — Pro only */}
+      <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+          <div>
+            <p className="text-white font-bold text-sm">Sponsors</p>
+            <p className="text-gray-500 text-[11px] mt-0.5">Show on the parent spectator view</p>
+          </div>
+          {!isPro ? (
+            <button onClick={onUpgrade}
+              className="tap-btn text-[10px] font-black px-2 py-0.5 rounded-full bg-vr-700 border border-vr-500 text-vr-200 shrink-0">
+              ⚡ PRO
+            </button>
+          ) : (
+            <button
+              onClick={() => commit({ showSponsors: !settings.showSponsors })}
+              className={`tap-btn relative w-12 h-6 rounded-full border transition-colors shrink-0 ${
+                settings.showSponsors ? 'bg-green-600 border-green-500' : 'bg-navy-600 border-white/20'
+              }`}
+            >
+              <span className={`absolute top-[2px] w-5 h-5 rounded-full bg-white shadow transition-all duration-200 ${
+                settings.showSponsors ? 'left-[26px]' : 'left-[2px]'
+              }`} />
+            </button>
+          )}
+        </div>
+
+        <div className="p-4">
+          {!isPro ? (
+            <button onClick={onUpgrade} className="tap-btn w-full bg-navy-700/50 border border-white/10 rounded-xl p-4 flex items-center gap-3">
+              <span className="text-2xl">🤝</span>
+              <div className="text-left">
+                <p className="text-gray-500 text-sm font-semibold">Sponsor acknowledgments</p>
+                <p className="text-gray-700 text-xs mt-0.5">Show sponsor names on the live spectator view</p>
+              </div>
+              <span className="text-gray-700 ml-auto">🔒</span>
+            </button>
+          ) : (() => {
+            const activeSponsorsKey = settings.activeTeam === 2 ? 'team2Sponsors' : 'sponsors'
+            const activeSponsors: string[] = settings[activeSponsorsKey] ?? []
+
+            function addSponsor() {
+              const name = newSponsor.trim()
+              if (!name || activeSponsors.includes(name)) return
+              commit({ [activeSponsorsKey]: [...activeSponsors, name] })
+              setNewSponsor('')
+              sponsorInputRef.current?.focus()
+            }
+
+            function removeSponsor(name: string) {
+              commit({ [activeSponsorsKey]: activeSponsors.filter(s => s !== name) })
+            }
+
+            return (
+              <div className="flex flex-col gap-3">
+                {!settings.showSponsors && (
+                  <p className="text-gray-600 text-xs text-center">Toggle on above to show sponsors on the spectator view.</p>
+                )}
+
+                {/* Sponsor list */}
+                {activeSponsors.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {activeSponsors.map(name => (
+                      <div key={name} className="flex items-center justify-between bg-navy-700 border border-white/10 rounded-xl px-3 py-2.5">
+                        <p className="text-white text-sm font-medium">🤝 {name}</p>
+                        <button onClick={() => removeSponsor(name)}
+                          className="tap-btn text-red-500 text-xs px-2 py-1">
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-600 text-xs text-center">No sponsors added yet.</p>
+                )}
+
+                {/* Add sponsor */}
+                <div className="flex gap-2">
+                  <input
+                    ref={sponsorInputRef}
+                    value={newSponsor}
+                    onChange={e => setNewSponsor(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addSponsor()}
+                    placeholder="Sponsor name"
+                    maxLength={40}
+                    className="flex-1 bg-navy-700 border border-white/20 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none"
+                  />
+                  <button onClick={addSponsor}
+                    disabled={!newSponsor.trim()}
+                    className="tap-btn bg-navy-600 border border-white/20 rounded-xl px-4 py-2 text-white text-sm font-bold disabled:opacity-40">
+                    Add
+                  </button>
+                </div>
+                <p className="text-gray-600 text-[10px] text-center">
+                  Sponsors rotate every 3 s on the parent view · {settings.activeTeam === 2 ? settings.team2Name : settings.teamName}
+                </p>
+              </div>
+            )
+          })()}
         </div>
       </section>
 

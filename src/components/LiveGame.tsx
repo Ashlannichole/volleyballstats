@@ -10,6 +10,8 @@ interface Props {
   isPro?: boolean
   teamName?: string
   recMode?: boolean
+  sponsors?: string[]
+  showSponsors?: boolean
   // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
   practiceMode?: boolean
   onSavePractice?: (session: PracticeSession) => void
@@ -79,7 +81,7 @@ interface Snapshot {
   rotation: (string | null)[]
 }
 
-export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, practiceMode = false, onSavePractice }: Props) {
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, practiceMode = false, onSavePractice }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -150,9 +152,10 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         previousSets: completedSetScores,
         updatedAt: Date.now(),
         ended,
+        sponsors: showSponsors ? sponsors : [],
       }),
     }).catch(() => {})
-  }, [players, rotation, opponent, teamName, ourScore, theirScore, currentSet, weAreServing, completedSetScores])
+  }, [players, rotation, opponent, teamName, ourScore, theirScore, currentSet, weAreServing, completedSetScores, sponsors, showSponsors])
 
   useEffect(() => {
     if (spectatorCode && gameStarted && !practiceMode) {

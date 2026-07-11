@@ -5,6 +5,9 @@ export interface TeamSettings {
   primaryColor: string
   secondaryColor: string
   recMode: boolean       // recreational mode: unlimited subs, no sub counting
+  showSponsors: boolean  // Pro: show sponsor strip on spectator view
+  sponsors: string[]     // Pro: team 1 sponsor names
+  team2Sponsors: string[] // Pro: team 2 sponsor names
 }
 
 const KEY = 'vb_team_settings'
@@ -16,6 +19,9 @@ export const DEFAULTS: TeamSettings = {
   primaryColor: '#4a1d8a',
   secondaryColor: '#87cde3',
   recMode: false,
+  showSponsors: false,
+  sponsors: [],
+  team2Sponsors: [],
 }
 
 export function loadSettings(): TeamSettings {

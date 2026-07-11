@@ -12,6 +12,7 @@ interface MatchState {
   previousSets: { our: number; their: number }[]
   updatedAt: number
   ended?: boolean
+  sponsors?: string[]
 }
 
 const COURT_LAYOUT = [
@@ -74,6 +75,14 @@ export default function SpectatorView() {
   const displayName = state.teamName ?? 'Home Team'
   const secondsSince = lastUpdate ? Math.floor((Date.now() - lastUpdate.getTime()) / 1000) : 0
   const prev = state.previousSets ?? []
+  const sponsors = state.sponsors ?? []
+
+  const [sponsorIdx, setSponsorIdx] = useState(0)
+  useEffect(() => {
+    if (sponsors.length <= 1) return
+    const t = setInterval(() => setSponsorIdx(i => (i + 1) % sponsors.length), 3000)
+    return () => clearInterval(t)
+  }, [sponsors.length])
 
   return (
     <div className="min-h-screen bg-navy-900 flex flex-col">
@@ -193,8 +202,18 @@ export default function SpectatorView() {
         </div>
       )}
 
+      {/* Sponsor strip */}
+      {sponsors.length > 0 && (
+        <div className="border-t border-white/5 py-3 px-4 text-center">
+          <p className="text-gray-600 text-[9px] uppercase tracking-widest mb-1">Thank you to our sponsors</p>
+          <p key={sponsorIdx} className="text-gray-400 text-sm font-semibold animate-pulse">
+            {sponsors[sponsorIdx]}
+          </p>
+        </div>
+      )}
+
       {/* Footer */}
-      <div className="py-3 text-center border-t border-white/5">
+      <div className="py-2 text-center border-t border-white/5">
         <p className="text-gray-700 text-xs">
           {state.ended
             ? 'Match ended'

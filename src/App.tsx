@@ -321,6 +321,8 @@ export default function App() {
             isPro={isPro}
             teamName={activeTeamName}
             recMode={recMode}
+            sponsors={isPro ? (activeTeam === 2 ? teamSettings.team2Sponsors : teamSettings.sponsors) : []}
+            showSponsors={isPro && teamSettings.showSponsors}
           />
         </div>
         <div className={tab === 'history' ? '' : 'hidden'}>
