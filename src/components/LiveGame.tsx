@@ -41,9 +41,12 @@ const CHIP_ROWS: StatChipDef[][] = [
   ],
   [
     { key: 'digs',           label: 'DIG',  color: 'text-cyan-300',   bg: 'bg-cyan-900/30 border-cyan-600/30' },
-    { key: 'soloBlocks',     label: 'BS',   color: 'text-vr-300',     bg: 'bg-vr-900/30 border-vr-600/30' },
     { key: 'settingAssists', label: 'AST',  color: 'text-orange-300', bg: 'bg-orange-900/30 border-orange-600/30' },
     { key: 'serveErrors',    label: 'SE',   color: 'text-red-400',    bg: 'bg-red-900/30 border-red-700/30',    isErrorTrigger: true },
+  ],
+  [
+    { key: 'soloBlocks',     label: 'BS',   color: 'text-vr-300',     bg: 'bg-vr-900/30 border-vr-600/30' },
+    { key: 'blockAssists',   label: 'BA',   color: 'text-vr-200',     bg: 'bg-vr-900/20 border-vr-600/20' },
   ],
 ]
 
@@ -1045,7 +1048,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                       <>
                         <div className={`px-2 pt-1.5 pb-1 flex flex-col gap-1 ${isLocked ? 'pointer-events-none' : ''}`}>
                           {CHIP_ROWS.map((row, ri) => (
-                            <div key={ri} className="grid grid-cols-4 gap-1">
+                            <div key={ri} className={`grid gap-1 ${row.length === 2 ? 'grid-cols-2' : row.length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`}>
                               {row.map(chip => (
                                 <button key={chip.key}
                                   onClick={() => {
