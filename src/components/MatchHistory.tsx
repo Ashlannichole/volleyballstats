@@ -206,6 +206,74 @@ export default function MatchHistory({ matches, players, onDelete, onLoadDemo, o
                   ))}
                 </details>
 
+                <details className="mb-4">
+                  <summary className="text-pb-400 text-sm cursor-pointer mb-2">View error &amp; pass breakdown</summary>
+                  <div className="space-y-3">
+                    {players.map(p => {
+                      const s = totalStats(match, p.id)
+                      const atkErrs = [
+                        { label: 'Missed', val: s.atkErrMissed },
+                        { label: 'Blocked', val: s.atkErrBlocked },
+                        { label: 'Out', val: s.atkErrOut },
+                        { label: 'Net', val: s.atkErrNet },
+                      ].filter(x => x.val > 0)
+                      const srvErrs = [
+                        { label: 'Missed', val: s.srvErrMissed },
+                        { label: 'Net', val: s.srvErrNet },
+                        { label: 'Long/Out', val: s.srvErrOut },
+                        { label: 'Foot Fault', val: s.srvErrFoot },
+                      ].filter(x => x.val > 0)
+                      const passZeros = [
+                        { label: 'Shank', val: s.passZeroShank },
+                        { label: 'Aced', val: s.passZeroAce },
+                        { label: 'Overpass', val: s.passZeroOverpass },
+                      ].filter(x => x.val > 0)
+                      if (!atkErrs.length && !srvErrs.length && !passZeros.length) return null
+                      return (
+                        <div key={p.id} className="bg-navy-800 rounded-xl p-3">
+                          <p className="text-white text-xs font-bold mb-2">{p.name}</p>
+                          {atkErrs.length > 0 && (
+                            <div className="mb-1.5">
+                              <p className="text-red-400 text-[10px] font-bold uppercase tracking-wide mb-1">Attack Errors</p>
+                              <div className="flex flex-wrap gap-2">
+                                {atkErrs.map(({ label, val }) => (
+                                  <span key={label} className="text-[11px] bg-red-900/30 border border-red-700/30 rounded-lg px-2 py-0.5 text-red-300">
+                                    {label}: <span className="font-bold">{val}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {srvErrs.length > 0 && (
+                            <div className="mb-1.5">
+                              <p className="text-orange-400 text-[10px] font-bold uppercase tracking-wide mb-1">Serve Errors</p>
+                              <div className="flex flex-wrap gap-2">
+                                {srvErrs.map(({ label, val }) => (
+                                  <span key={label} className="text-[11px] bg-orange-900/30 border border-orange-700/30 rounded-lg px-2 py-0.5 text-orange-300">
+                                    {label}: <span className="font-bold">{val}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {passZeros.length > 0 && (
+                            <div>
+                              <p className="text-yellow-400 text-[10px] font-bold uppercase tracking-wide mb-1">Pass Zeros</p>
+                              <div className="flex flex-wrap gap-2">
+                                {passZeros.map(({ label, val }) => (
+                                  <span key={label} className="text-[11px] bg-yellow-900/20 border border-yellow-700/20 rounded-lg px-2 py-0.5 text-yellow-300">
+                                    {label}: <span className="font-bold">{val}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </details>
+
                 <div className="flex gap-3">
                   <button
                     onClick={() => isPro ? setAiMatch(match) : onUpgrade?.()}

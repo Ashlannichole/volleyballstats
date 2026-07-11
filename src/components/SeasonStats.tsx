@@ -199,7 +199,7 @@ export default function SeasonStats({ matches, players, isPro = false, onUpgrade
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-4 gap-2 border-t border-white/10 pt-3">
+                <div className="grid grid-cols-4 gap-2 border-t border-white/10 pt-3 mb-3">
                   {[
                     { label: 'Hit %',    val: hittingPct(s) },
                     { label: 'Kill %',   val: killPct(s) },
@@ -212,6 +212,70 @@ export default function SeasonStats({ matches, players, isPro = false, onUpgrade
                     </div>
                   ))}
                 </div>
+                {/* Error & pass breakdown */}
+                {(() => {
+                  const atkErrs = [
+                    { label: 'Missed', val: s.atkErrMissed },
+                    { label: 'Blocked', val: s.atkErrBlocked },
+                    { label: 'Out', val: s.atkErrOut },
+                    { label: 'Net', val: s.atkErrNet },
+                  ].filter(x => x.val > 0)
+                  const srvErrs = [
+                    { label: 'Missed', val: s.srvErrMissed },
+                    { label: 'Net', val: s.srvErrNet },
+                    { label: 'Long/Out', val: s.srvErrOut },
+                    { label: 'Foot Fault', val: s.srvErrFoot },
+                  ].filter(x => x.val > 0)
+                  const passZeros = [
+                    { label: 'Shank', val: s.passZeroShank },
+                    { label: 'Aced', val: s.passZeroAce },
+                    { label: 'Overpass', val: s.passZeroOverpass },
+                  ].filter(x => x.val > 0)
+                  if (!atkErrs.length && !srvErrs.length && !passZeros.length) return null
+                  return (
+                    <details className="border-t border-white/10 pt-3">
+                      <summary className="text-gray-500 text-xs cursor-pointer mb-2">Error &amp; pass breakdown</summary>
+                      <div className="space-y-2 mt-2">
+                        {atkErrs.length > 0 && (
+                          <div>
+                            <p className="text-red-400 text-[10px] font-bold uppercase tracking-wide mb-1">Attack Errors</p>
+                            <div className="flex flex-wrap gap-2">
+                              {atkErrs.map(({ label, val }) => (
+                                <span key={label} className="text-[11px] bg-red-900/30 border border-red-700/30 rounded-lg px-2 py-0.5 text-red-300">
+                                  {label}: <span className="font-bold">{val}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {srvErrs.length > 0 && (
+                          <div>
+                            <p className="text-orange-400 text-[10px] font-bold uppercase tracking-wide mb-1">Serve Errors</p>
+                            <div className="flex flex-wrap gap-2">
+                              {srvErrs.map(({ label, val }) => (
+                                <span key={label} className="text-[11px] bg-orange-900/30 border border-orange-700/30 rounded-lg px-2 py-0.5 text-orange-300">
+                                  {label}: <span className="font-bold">{val}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {passZeros.length > 0 && (
+                          <div>
+                            <p className="text-yellow-400 text-[10px] font-bold uppercase tracking-wide mb-1">Pass Zeros</p>
+                            <div className="flex flex-wrap gap-2">
+                              {passZeros.map(({ label, val }) => (
+                                <span key={label} className="text-[11px] bg-yellow-900/20 border border-yellow-700/20 rounded-lg px-2 py-0.5 text-yellow-300">
+                                  {label}: <span className="font-bold">{val}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  )
+                })()}
               </div>
             )
           })}
