@@ -16,6 +16,8 @@ interface Props {
   onSyncNow: () => Promise<void>
   matches: Match[]
   onSyncMatches: (matches: Match[]) => void
+  logo: string
+  onLogoChange: (url: string) => void
 }
 
 const PRESET_COLORS = [
@@ -30,7 +32,7 @@ const PRESET_COLORS = [
 export default function Settings({
   settings, onSettingsChange, isPro, onUpgrade,
   coachTeam, onCoachTeamChange, matches, onSyncMatches,
-  session, onSignOut, onSyncNow,
+  session, onSignOut, onSyncNow, logo, onLogoChange,
 }: Props) {
   const [syncing, setSyncing] = useState(false)
   const [syncMsg, setSyncMsg] = useState('')
@@ -59,6 +61,15 @@ export default function Settings({
   const [teamMsg, setTeamMsg]     = useState<{ text: string; ok: boolean } | null>(null)
   const [syncBusy, setSyncBusy]   = useState(false)
   const [showCode, setShowCode]   = useState(false)
+
+  function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => onLogoChange((ev.target?.result as string) ?? '')
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
 
   function commit(patch: Partial<TeamSettings>) {
     const next = { ...settings, teamName: localName, primaryColor: localPrimary, secondaryColor: localSecondary, ...patch }
@@ -272,6 +283,44 @@ export default function Settings({
         </div>
 
         <div className="p-4 flex flex-col gap-4">
+          {/* Team Logo */}
+          <div>
+            <label className="text-gray-400 text-xs font-semibold uppercase tracking-wide block mb-2">
+              Team Logo
+            </label>
+            {isPro ? (
+              <div className="flex items-center gap-4">
+                {logo ? (
+                  <img src={logo} alt="Team logo" className="w-16 h-16 rounded-full object-cover border-2 border-white/20 shrink-0" />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-navy-700 border-2 border-dashed border-white/20 flex items-center justify-center text-2xl shrink-0">
+                    🏐
+                  </div>
+                )}
+                <div className="flex flex-col gap-2 flex-1">
+                  <label className="tap-btn cursor-pointer text-center bg-navy-700 border border-white/20 rounded-xl px-3 py-2 text-white text-sm font-medium">
+                    {logo ? 'Change Logo' : 'Upload Logo'}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  </label>
+                  {logo && (
+                    <button onClick={() => onLogoChange('')}
+                      className="tap-btn text-red-500 text-xs text-center py-1">
+                      Remove
+                    </button>
+                  )}
+                  <p className="text-gray-600 text-[10px] text-center">PNG, JPG · appears in header</p>
+                </div>
+              </div>
+            ) : (
+              <button onClick={onUpgrade}
+                className="tap-btn w-full bg-navy-700/50 border border-white/10 rounded-xl p-3 flex items-center justify-between">
+                <div className="w-10 h-10 rounded-full bg-navy-600 border-2 border-dashed border-white/20 flex items-center justify-center text-lg">🏐</div>
+                <span className="text-gray-500 text-sm">Upload your team logo</span>
+                <span className="text-gray-700 text-xs">🔒 Pro only</span>
+              </button>
+            )}
+          </div>
+
           {/* Team Name */}
           <div>
             <label className="text-gray-400 text-xs font-semibold uppercase tracking-wide block mb-1.5">

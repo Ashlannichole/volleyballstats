@@ -36,6 +36,26 @@ export function applyColorVars(s: TeamSettings): void {
   const root = document.documentElement
   root.style.setProperty('--team-primary', s.primaryColor)
   root.style.setProperty('--team-secondary', s.secondaryColor)
+
+  // Inject a global style so focus rings, borders, and key accents follow the team color
+  let el = document.getElementById('team-theme') as HTMLStyleElement | null
+  if (!el) {
+    el = document.createElement('style')
+    el.id = 'team-theme'
+    document.head.appendChild(el)
+  }
+  el.textContent = `
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: ${s.primaryColor} !important;
+      box-shadow: 0 0 0 2px ${s.primaryColor}33;
+    }
+    .team-accent { color: ${s.primaryColor}; }
+    .team-accent-bg { background-color: ${s.primaryColor}; }
+    .team-accent-border { border-color: ${s.primaryColor}; }
+    .team-secondary { color: ${s.secondaryColor}; }
+    .team-secondary-bg { background-color: ${s.secondaryColor}; }
+  `
 }
 
 // Coach team (separate from team display settings)
