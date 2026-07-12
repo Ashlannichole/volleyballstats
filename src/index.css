@@ -60,6 +60,21 @@ html.light .border-pb-500\/50, html.light [class*="border-pb-"] { border-color: 
 
 /* Text: flip whites/grays to dark — but not when inside a colored bg */
 html.light .text-white    { color: #111827 !important; }
+
+/* Opacity variants of white text — become dark gray in light mode */
+html.light .text-white\/30 { color: rgba(0,0,0,0.40) !important; }
+html.light .text-white\/40 { color: rgba(0,0,0,0.45) !important; }
+html.light .text-white\/50 { color: rgba(0,0,0,0.50) !important; }
+html.light .text-white\/60 { color: rgba(0,0,0,0.55) !important; }
+html.light .text-white\/70 { color: rgba(0,0,0,0.60) !important; }
+html.light .text-white\/80 { color: rgba(0,0,0,0.70) !important; }
+
+/* Restore white opacity text inside colored/dark containers */
+html.light .bg-navy-800.border-b .text-white\/30,
+html.light .bg-navy-800.border-b .text-white\/50,
+html.light .bg-navy-800.border-b .text-white\/70 { color: rgba(255,255,255,0.55) !important; }
+html.light .bg-vr-700 .text-white\/30,
+html.light .bg-vr-700 .text-white\/50 { color: rgba(255,255,255,0.6) !important; }
 html.light .bg-vr-700 .text-white, html.light .bg-vr-700.text-white,
 html.light .bg-vr-600 .text-white, html.light .bg-vr-600.text-white,
 html.light .bg-vr-500 .text-white, html.light .bg-vr-500.text-white,
