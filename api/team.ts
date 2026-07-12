@@ -23,6 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       memberCount: 1,
       createdAt: Date.now(),
       matches: [],
+      players: [],
     }), { ex: TTL })
     return res.status(200).json({ code })
   }
@@ -35,26 +36,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const raw = await redis.get(`team:${code}`)
     if (!raw) return res.status(404).json({ error: 'Team not found. Check the code and try again.' })
 
-    const team = typeof raw === 'string' ? JSON.parse(raw) : raw as { memberCount: number; matches: unknown[] }
+    const team = typeof raw === 'string' ? JSON.parse(raw) : raw as { memberCount: number; matches: unknown[]; players: unknown[] }
     if (team.memberCount >= 3) {
       return res.status(403).json({ error: 'This team is full (max 3 coaches).' })
     }
 
     team.memberCount = team.memberCount + 1
     await redis.set(`team:${code}`, JSON.stringify(team), { ex: TTL })
-    return res.status(200).json({ ok: true, matchCount: (team.matches ?? []).length })
+    return res.status(200).json({
+      ok: true,
+      matchCount: (team.matches ?? []).length,
+      playerCount: (team.players ?? []).length,
+    })
   }
 
-  // POST /api/team?action=push  body: { code, matches }
+  // POST /api/team?action=push  body: { code, matches, players }
   if (action === 'push' && req.method === 'POST') {
-    const { code, matches } = req.body as { code: string; matches: unknown[] }
+    const { code, matches, players } = req.body as { code: string; matches: unknown[]; players: unknown[] }
     if (!code) return res.status(400).json({ error: 'Missing code' })
 
     const raw = await redis.get(`team:${code}`)
     if (!raw) return res.status(404).json({ error: 'Team not found' })
 
     const team = typeof raw === 'string' ? JSON.parse(raw) : raw
-    team.matches = matches
+    team.matches = matches ?? team.matches
+    team.players = players ?? team.players
     team.updatedAt = Date.now()
     await redis.set(`team:${code}`, JSON.stringify(team), { ex: TTL })
     return res.status(200).json({ ok: true })
@@ -68,8 +74,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const raw = await redis.get(`team:${code}`)
     if (!raw) return res.status(404).json({ error: 'Team not found or expired' })
 
-    const team = typeof raw === 'string' ? JSON.parse(raw) : raw as { matches: unknown[] }
-    return res.status(200).json({ matches: team.matches ?? [] })
+    const team = typeof raw === 'string' ? JSON.parse(raw) : raw as { matches: unknown[]; players: unknown[] }
+    return res.status(200).json({
+      matches: team.matches ?? [],
+      players: team.players ?? [],
+    })
   }
 
   return res.status(400).json({ error: 'Unknown action' })

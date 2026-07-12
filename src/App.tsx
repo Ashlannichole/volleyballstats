@@ -90,6 +90,50 @@ export default function App() {
   useEffect(() => { saveMatches2(matches2) },     [matches2])
   useEffect(() => { savePractices2(practices2) }, [practices2])
 
+  // Keep a ref so timer callbacks always see the latest coachTeam without stale closures
+  const coachTeamRef = useRef(coachTeam)
+  useEffect(() => { coachTeamRef.current = coachTeam }, [coachTeam])
+
+  // Merge matches: dedup by ID first, then by date+opponent fingerprint
+  function mergeMatches(local: Match[], incoming: Match[]): Match[] {
+    const byId = new Map(local.map(m => [m.id, m]))
+    const fingerprints = new Set(local.map(m => `${m.date}|${m.opponent.toLowerCase().trim()}`))
+    for (const m of incoming) {
+      if (byId.has(m.id)) continue
+      const fp = `${m.date}|${m.opponent.toLowerCase().trim()}`
+      if (fingerprints.has(fp)) continue
+      byId.set(m.id, m)
+      fingerprints.add(fp)
+    }
+    return Array.from(byId.values())
+  }
+
+  // Merge players: dedup by ID, then by name+number
+  function mergePlayers(local: Player[], incoming: Player[]): Player[] {
+    const byId = new Map(local.map(p => [p.id, p]))
+    const byKey = new Set(local.map(p => `${p.name.toLowerCase().trim()}|${p.number}`))
+    for (const p of incoming) {
+      if (byId.has(p.id)) continue
+      const key = `${p.name.toLowerCase().trim()}|${p.number}`
+      if (byKey.has(key)) continue
+      byId.set(p.id, p)
+      byKey.add(key)
+    }
+    return Array.from(byId.values())
+  }
+
+  // Silent pull from team blob and merge into local state (always team 1 data)
+  async function pullTeamData(ct = coachTeamRef.current) {
+    if (!ct) return
+    try {
+      const res = await fetch(`/api/team?action=pull&code=${encodeURIComponent(ct.code)}`)
+      if (!res.ok) return
+      const data = await res.json() as { matches: Match[]; players: Player[] }
+      setMatches(prev => mergeMatches(prev, data.matches ?? []))
+      setPlayers(prev => mergePlayers(prev, data.players ?? []))
+    } catch { /* silent — network down or team expired */ }
+  }
+
   // Debounced push to server on any data change
   const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   function schedulePush(
@@ -105,6 +149,15 @@ export default function App() {
         matches2: m2, players2: p2, practices2: pr2,
         settings: s,
       })
+      // Also push team 1 data to shared team blob so other coaches get it
+      const ct = coachTeamRef.current
+      if (ct) {
+        fetch('/api/team?action=push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: ct.code, matches: m, players: p }),
+        }).catch(() => {})
+      }
     }, 1500)
   }
 
@@ -112,7 +165,12 @@ export default function App() {
     if (session) schedulePush(matches, players, practices, matches2, players2, practices2, teamSettings)
   }, [matches, players, practices, matches2, players2, practices2, teamSettings])
 
-  // On sign-in: pull server data, merge with local
+  // Auto-pull team data silently on app load (if already signed in and in a team)
+  useEffect(() => {
+    if (session && coachTeam) pullTeamData(coachTeam)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // On sign-in: pull server data, merge with local, then pull team data
   async function handleSignIn(s: Session) {
     setSession(s)
     setSyncing(true)
@@ -124,17 +182,17 @@ export default function App() {
         settings?: TeamSettings
       }
 
-      function merge<T extends { id: string }>(remote: T[], local: T[]): T[] {
-        const remoteIds = new Set(remote.map(x => x.id))
-        return [...remote, ...local.filter(x => !remoteIds.has(x.id))]
+      function mergeById<T extends { id: string }>(rem: T[], local: T[]): T[] {
+        const remoteIds = new Set(rem.map(x => x.id))
+        return [...rem, ...local.filter(x => !remoteIds.has(x.id))]
       }
 
-      const mM   = merge(remote.matches   ?? [], matches)
-      const mP   = merge(remote.players   ?? [], players)
-      const mPr  = merge(remote.practices ?? [], practices)
-      const mM2  = merge(remote.matches2  ?? [], matches2)
-      const mP2  = merge(remote.players2  ?? [], players2)
-      const mPr2 = merge(remote.practices2 ?? [], practices2)
+      const mM   = mergeById(remote.matches   ?? [], matches)
+      const mP   = mergeById(remote.players   ?? [], players)
+      const mPr  = mergeById(remote.practices ?? [], practices)
+      const mM2  = mergeById(remote.matches2  ?? [], matches2)
+      const mP2  = mergeById(remote.players2  ?? [], players2)
+      const mPr2 = mergeById(remote.practices2 ?? [], practices2)
 
       setMatches(mM);   setPlayers(mP);   setPractices(mPr)
       setMatches2(mM2); setPlayers2(mP2); setPractices2(mPr2)
@@ -145,6 +203,9 @@ export default function App() {
         matches2: mM2, players2: mP2, practices2: mPr2,
         settings: remote.settings ?? teamSettings,
       })
+
+      // After personal data is synced, also pull shared team data
+      if (coachTeamRef.current) await pullTeamData(coachTeamRef.current)
     } catch (e) {
       if (e instanceof Error && e.message === 'session_expired') {
         saveSession(null); setSession(null)
@@ -219,9 +280,9 @@ export default function App() {
     setShowOnboarding(false)
   }
 
-  function handleSyncMatches(newMatches: Match[]) {
-    if (newMatches.length === 0) return
-    setActiveMatches(prev => [...prev, ...newMatches])
+  function handleSyncTeamData(newMatches: Match[], newPlayers: Player[]) {
+    setMatches(prev => mergeMatches(prev, newMatches))
+    setPlayers(prev => mergePlayers(prev, newPlayers))
   }
 
   function handleLoadDemo() {
@@ -375,7 +436,8 @@ export default function App() {
             coachTeam={coachTeam}
             onCoachTeamChange={handleCoachTeamChange}
             matches={activeMatches}
-            onSyncMatches={handleSyncMatches}
+            players={activePlayers}
+            onSyncTeamData={handleSyncTeamData}
             session={session}
             onSignOut={handleSignOut}
             onSyncNow={handleSyncNow}

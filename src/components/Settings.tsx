@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import type { Match } from '../types'
+import type { Match, Player } from '../types'
 import type { TeamSettings, CoachTeam } from '../utils/settings'
 import { saveSettings, applyColorVars, saveCoachTeam } from '../utils/settings'
 import type { Session } from '../utils/auth'
@@ -15,7 +15,8 @@ interface Props {
   onSignOut: () => void
   onSyncNow: () => Promise<void>
   matches: Match[]
-  onSyncMatches: (matches: Match[]) => void
+  players: Player[]
+  onSyncTeamData: (matches: Match[], players: Player[]) => void
   logo: string
   onLogoChange: (url: string) => void
   onTutorial?: () => void
@@ -32,7 +33,7 @@ const PRESET_COLORS = [
 
 export default function Settings({
   settings, onSettingsChange, isPro, onUpgrade,
-  coachTeam, onCoachTeamChange, matches, onSyncMatches,
+  coachTeam, onCoachTeamChange, matches, players, onSyncTeamData,
   session, onSignOut, onSyncNow, logo, onLogoChange, onTutorial,
 }: Props) {
   const [syncing, setSyncing] = useState(false)
@@ -143,12 +144,29 @@ export default function Settings({
       const res = await fetch(`/api/team?action=pull&code=${encodeURIComponent(coachTeam.code)}`)
       const data = await res.json()
       if (!res.ok) { flash(data.error ?? 'Sync failed', false); return }
-      const pulled: Match[] = data.matches ?? []
-      // Merge: keep local matches not in pull, add any pulled matches we don't have
-      const localIds = new Set(matches.map((m: Match) => m.id))
-      const newOnes = pulled.filter(m => !localIds.has(m.id))
-      onSyncMatches(newOnes)
-      flash(newOnes.length > 0 ? `Synced ${newOnes.length} new match${newOnes.length !== 1 ? 'es' : ''} from team.` : 'Already up to date.', true)
+      const pulledMatches: Match[] = data.matches ?? []
+      const pulledPlayers: Player[] = data.players ?? []
+
+      // Count genuinely new items for the feedback message
+      const localMatchIds = new Set(matches.map(m => m.id))
+      const localMatchFps = new Set(matches.map(m => `${m.date}|${m.opponent.toLowerCase().trim()}`))
+      const newMatches = pulledMatches.filter(m =>
+        !localMatchIds.has(m.id) &&
+        !localMatchFps.has(`${m.date}|${m.opponent.toLowerCase().trim()}`)
+      )
+      const localPlayerIds = new Set(players.map(p => p.id))
+      const localPlayerKeys = new Set(players.map(p => `${p.name.toLowerCase().trim()}|${p.number}`))
+      const newPlayers = pulledPlayers.filter(p =>
+        !localPlayerIds.has(p.id) &&
+        !localPlayerKeys.has(`${p.name.toLowerCase().trim()}|${p.number}`)
+      )
+
+      onSyncTeamData(pulledMatches, pulledPlayers)
+
+      const parts: string[] = []
+      if (newMatches.length > 0) parts.push(`${newMatches.length} match${newMatches.length !== 1 ? 'es' : ''}`)
+      if (newPlayers.length > 0) parts.push(`${newPlayers.length} player${newPlayers.length !== 1 ? 's' : ''}`)
+      flash(parts.length > 0 ? `Synced ${parts.join(' & ')} from team.` : 'Already up to date.', true)
     } catch {
       flash('Network error. Try again.', false)
     } finally {
@@ -618,7 +636,7 @@ export default function Settings({
                     </button>
                     <button onClick={handleSync} disabled={syncBusy}
                       className="tap-btn flex-1 bg-navy-600 border border-white/10 rounded-xl py-2 text-white text-sm font-bold disabled:opacity-50">
-                      {syncBusy ? '⏳ Syncing…' : '🔄 Sync Matches'}
+                      {syncBusy ? '⏳ Syncing…' : '🔄 Sync Team Data'}
                     </button>
                   </div>
                 )}
@@ -626,13 +644,13 @@ export default function Settings({
                 {!showCode && (
                   <button onClick={handleSync} disabled={syncBusy}
                     className="tap-btn w-full bg-navy-600 border border-white/10 rounded-xl py-2.5 text-white text-sm font-bold disabled:opacity-50">
-                    {syncBusy ? '⏳ Syncing…' : '🔄 Sync Matches from Team'}
+                    {syncBusy ? '⏳ Syncing…' : '🔄 Sync Team Data'}
                   </button>
                 )}
               </div>
 
               <p className="text-gray-600 text-xs text-center px-2">
-                Share this code with your assistant coaches. After each match, tap Sync to merge everyone's saved stats.
+                Share this code with your coaches. Stats sync automatically when you save a match — or tap Sync to pull updates now.
               </p>
 
               <button onClick={handleLeave}
