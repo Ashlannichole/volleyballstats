@@ -4,6 +4,7 @@ export interface TeamSettings {
   activeTeam: 1 | 2     // which roster is currently shown
   primaryColor: string
   secondaryColor: string
+  colorMode: 'dark' | 'light'
   recMode: boolean       // recreational mode: unlimited subs, no sub counting
   bestOf5: boolean       // best of 5 sets (default: best of 3)
   showSponsors: boolean  // Pro: show sponsor strip on spectator view
@@ -19,6 +20,7 @@ export const DEFAULTS: TeamSettings = {
   activeTeam: 1,
   primaryColor: '#4a1d8a',
   secondaryColor: '#87cde3',
+  colorMode: 'dark',
   recMode: false,
   bestOf5: false,
   showSponsors: false,
@@ -76,6 +78,8 @@ export function applyColorVars(s: TeamSettings): void {
   root.style.setProperty('--pb-500', blend(sc as [number,number,number], 255, 0.12))
   root.style.setProperty('--pb-400', `${sc[0]} ${sc[1]} ${sc[2]}`)
   root.style.setProperty('--pb-300', blend(sc as [number,number,number], 255, 0.38))
+
+  document.documentElement.classList.toggle('light', s.colorMode === 'light')
 
   let el = document.getElementById('team-theme') as HTMLStyleElement | null
   if (!el) {

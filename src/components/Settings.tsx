@@ -177,6 +177,34 @@ export default function Settings({
         <h2 className="text-2xl font-bold text-white">App Settings</h2>
       </div>
 
+      {/* Appearance */}
+      <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-white font-bold text-sm">Appearance</p>
+            <p className="text-gray-500 text-[11px] mt-0.5">Dark mode · Light mode</p>
+          </div>
+          <div className="flex items-center gap-1 bg-navy-900 rounded-xl p-1 border border-white/10">
+            <button
+              onClick={() => onSettingsChange({ ...settings, colorMode: 'dark' })}
+              className={`tap-btn px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
+                settings.colorMode !== 'light'
+                  ? 'bg-vr-700 text-white shadow'
+                  : 'text-gray-500'
+              }`}
+            >🌙 Dark</button>
+            <button
+              onClick={() => onSettingsChange({ ...settings, colorMode: 'light' })}
+              className={`tap-btn px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${
+                settings.colorMode === 'light'
+                  ? 'bg-vr-700 text-white shadow'
+                  : 'text-gray-500'
+              }`}
+            >☀️ Light</button>
+          </div>
+        </div>
+      </section>
+
       {/* REC Mode — available to all */}
       <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
         <div className="px-4 py-3 flex items-center justify-between">

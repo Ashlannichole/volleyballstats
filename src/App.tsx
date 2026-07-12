@@ -36,7 +36,7 @@ export default function App() {
   const [teamSettings, setTeamSettings] = useState<TeamSettings>(() => {
     const s = loadSettings()
     const t = loadTier()
-    applyColorVars(t === 'pro' ? s : DEFAULT_SETTINGS)
+    applyColorVars(t === 'pro' ? s : { ...DEFAULT_SETTINGS, colorMode: s.colorMode })
     return s
   })
   const [coachTeam, setCoachTeam] = useState<CoachTeam | null>(loadCoachTeam)
@@ -75,9 +75,9 @@ export default function App() {
     setLogo(url)
   }
 
-  // Re-apply colors whenever tier changes — free users always get defaults
+  // Re-apply colors whenever tier changes — free users get default colors but keep their colorMode
   useEffect(() => {
-    applyColorVars(isPro ? teamSettings : DEFAULT_SETTINGS)
+    applyColorVars(isPro ? teamSettings : { ...DEFAULT_SETTINGS, colorMode: teamSettings.colorMode })
   }, [isPro])
 
   const { openModal, modal } = useUpgradeModal((t) => setTier(t))
@@ -189,7 +189,7 @@ export default function App() {
 
   function handleSettingsChange(s: TeamSettings) {
     saveSettings(s)
-    applyColorVars(isPro ? s : DEFAULT_SETTINGS)
+    applyColorVars(isPro ? s : { ...DEFAULT_SETTINGS, colorMode: s.colorMode })
     setTeamSettings(s)
   }
 
