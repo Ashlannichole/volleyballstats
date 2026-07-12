@@ -252,6 +252,8 @@ export default function App() {
   const showAd = !isPro && !(tab === 'live' && liveGameStarted)
 
   // --- Auth gate ---
+  if (showOnboarding) return <Onboarding onDone={handleFinishOnboarding} />
+
   if (!session) return <AuthScreen onSignIn={handleSignIn} />
 
   if (syncing) {
@@ -276,7 +278,6 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-dvh bg-navy-900 overflow-hidden">
-      {showOnboarding && <Onboarding onDone={handleFinishOnboarding} />}
       {/* Header */}
       <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0 flex items-center gap-3">
         {isPro && logo ? (

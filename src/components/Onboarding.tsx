@@ -22,8 +22,8 @@ const SLIDES = [
     title: 'Build Your Roster',
     subtitle: 'Set up your team before the first match',
     bullets: [
-      'Add players with their jersey number and position (OH, S, MB, L…)',
-      'Save and load lineups so you're court-ready in seconds',
+      'Add players with their jersey number and position (OH, S, MB, L...)',
+      'Save and load lineups so you\'re court-ready in seconds',
       'Pro: manage two separate rosters for two-team programs',
     ],
   },
@@ -68,14 +68,14 @@ const SLIDES = [
     bullets: [
       'Set-by-set scores, full player stats, and error breakdowns per match',
       'Edit set scores after the fact if something was recorded wrong',
-      'Serving streaks, attack error types, serve error types, and pass zeros all visible',
+      'Serving streaks, attack errors, serve errors, and pass zeros all visible',
     ],
   },
   {
     emoji: '🏆',
     color: 'text-vr-300',
     title: 'Season Stats & Awards',
-    subtitle: 'See who's leading the team all season long',
+    subtitle: "See who's leading the team all season long",
     bullets: [
       'Kill leaders, ace leaders, dig queens, block leaders, top passers',
       '🔥 Serving Streak award — who had the longest run all season',
@@ -85,7 +85,7 @@ const SLIDES = [
   {
     emoji: '🚀',
     color: 'text-green-300',
-    title: 'You\'re All Set!',
+    title: "You're All Set!",
     subtitle: 'Start by building your roster',
     bullets: [
       'Go to the Roster tab and add your players',
@@ -135,7 +135,7 @@ export default function Onboarding({ onDone }: Props) {
         .ob-exit       { animation: ${dir === 'forward' ? 'ob-out-fwd' : 'ob-out-back'} 0.18s ease-in forwards }
       `}</style>
 
-      {/* Skip */}
+      {/* Progress dots + Skip */}
       <div className="flex items-center justify-between px-5 pt-safe pt-5 shrink-0">
         <div className="flex gap-1.5">
           {SLIDES.map((_, i) => (
