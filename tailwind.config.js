@@ -11,23 +11,23 @@ export default {
           600: '#162344',
           500: '#1a2a52',
         },
-        // Viking Roots purple
+        // Team primary (dynamic via CSS vars set by applyColorVars)
         vr: {
-          900: '#1a0a2e',
-          800: '#2d1154',
-          700: '#4a1d8a',
-          600: '#6b35b8',
-          500: '#8b52d4',
-          400: '#a97ee0',
-          300: '#c9acea',
+          900: 'rgb(var(--vr-900) / <alpha-value>)',
+          800: 'rgb(var(--vr-800) / <alpha-value>)',
+          700: 'rgb(var(--vr-700) / <alpha-value>)',
+          600: 'rgb(var(--vr-600) / <alpha-value>)',
+          500: 'rgb(var(--vr-500) / <alpha-value>)',
+          400: 'rgb(var(--vr-400) / <alpha-value>)',
+          300: 'rgb(var(--vr-300) / <alpha-value>)',
         },
-        // Viking Roots powder blue
+        // Team secondary (dynamic via CSS vars set by applyColorVars)
         pb: {
-          700: '#1e5f7a',
-          600: '#2e87a8',
-          500: '#5ab3d0',
-          400: '#87cde3',
-          300: '#b5e3f0',
+          700: 'rgb(var(--pb-700) / <alpha-value>)',
+          600: 'rgb(var(--pb-600) / <alpha-value>)',
+          500: 'rgb(var(--pb-500) / <alpha-value>)',
+          400: 'rgb(var(--pb-400) / <alpha-value>)',
+          300: 'rgb(var(--pb-300) / <alpha-value>)',
         },
       },
     },

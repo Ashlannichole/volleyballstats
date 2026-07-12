@@ -40,12 +40,43 @@ export function saveSettings(s: TeamSettings): void {
   localStorage.setItem(KEY, JSON.stringify(s))
 }
 
+function hexToRgb(hex: string): [number, number, number] | null {
+  const m = hex.replace('#', '').match(/.{2}/g)
+  if (!m || m.length < 3) return null
+  return [parseInt(m[0], 16), parseInt(m[1], 16), parseInt(m[2], 16)]
+}
+
+function blend(rgb: [number,number,number], target: number, t: number): string {
+  const r = Math.round(rgb[0] + (target - rgb[0]) * t)
+  const g = Math.round(rgb[1] + (target - rgb[1]) * t)
+  const b = Math.round(rgb[2] + (target - rgb[2]) * t)
+  return `${r} ${g} ${b}`
+}
+
 export function applyColorVars(s: TeamSettings): void {
   const root = document.documentElement
   root.style.setProperty('--team-primary', s.primaryColor)
   root.style.setProperty('--team-secondary', s.secondaryColor)
 
-  // Inject a global style so focus rings, borders, and key accents follow the team color
+  const p = hexToRgb(s.primaryColor) ?? [74, 29, 138]
+  const sc = hexToRgb(s.secondaryColor) ?? [135, 205, 227]
+
+  // Primary scale anchored at vr-700 = pure primary
+  root.style.setProperty('--vr-900', blend(p as [number,number,number], 0, 0.72))
+  root.style.setProperty('--vr-800', blend(p as [number,number,number], 0, 0.50))
+  root.style.setProperty('--vr-700', `${p[0]} ${p[1]} ${p[2]}`)
+  root.style.setProperty('--vr-600', blend(p as [number,number,number], 255, 0.22))
+  root.style.setProperty('--vr-500', blend(p as [number,number,number], 255, 0.40))
+  root.style.setProperty('--vr-400', blend(p as [number,number,number], 255, 0.56))
+  root.style.setProperty('--vr-300', blend(p as [number,number,number], 255, 0.72))
+
+  // Secondary scale
+  root.style.setProperty('--pb-700', blend(sc as [number,number,number], 0, 0.50))
+  root.style.setProperty('--pb-600', blend(sc as [number,number,number], 0, 0.28))
+  root.style.setProperty('--pb-500', blend(sc as [number,number,number], 255, 0.12))
+  root.style.setProperty('--pb-400', `${sc[0]} ${sc[1]} ${sc[2]}`)
+  root.style.setProperty('--pb-300', blend(sc as [number,number,number], 255, 0.38))
+
   let el = document.getElementById('team-theme') as HTMLStyleElement | null
   if (!el) {
     el = document.createElement('style')
@@ -58,11 +89,6 @@ export function applyColorVars(s: TeamSettings): void {
       border-color: ${s.primaryColor} !important;
       box-shadow: 0 0 0 2px ${s.primaryColor}33;
     }
-    .team-accent { color: ${s.primaryColor}; }
-    .team-accent-bg { background-color: ${s.primaryColor}; }
-    .team-accent-border { border-color: ${s.primaryColor}; }
-    .team-secondary { color: ${s.secondaryColor}; }
-    .team-secondary-bg { background-color: ${s.secondaryColor}; }
   `
 }
 
