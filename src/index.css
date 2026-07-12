@@ -41,15 +41,22 @@ html.light .bg-navy-800\/30 { background-color: rgba(255,255,255,0.7) !important
 html.light .bg-navy-800\/50 { background-color: rgba(255,255,255,0.85) !important; }
 html.light .bg-navy-700\/50 { background-color: rgba(232,234,242,0.8) !important; }
 
-/* vr-* backgrounds → subtle tint of primary, not heavy purple */
-html.light .bg-vr-900, html.light .bg-vr-800 { background-color: rgba(var(--vr-700), 0.08) !important; }
-html.light .bg-vr-700 { background-color: rgb(var(--vr-700)) !important; }
-html.light .bg-vr-600 { background-color: rgb(var(--vr-600)) !important; }
+/* vr-* backgrounds → fixed purple tints (not dynamic team color) */
+html.light .bg-vr-900, html.light .bg-vr-800 { background-color: #f3f0fa !important; }
+html.light .bg-vr-700 { background-color: #6d28d9 !important; }
+html.light .bg-vr-600 { background-color: #7c3aed !important; }
 
-/* vr-* text → use dark primary for contrast, never light purple */
+/* vr-* text → readable dark purple */
 html.light .text-vr-300,
 html.light .text-vr-400,
-html.light .text-vr-500 { color: rgb(var(--vr-700)) !important; }
+html.light .text-vr-500 { color: #5b21b6 !important; }
+html.light .text-vr-200 { color: #6d28d9 !important; }
+
+/* pb-* (blue) → readable dark blue */
+html.light .text-pb-300,
+html.light .text-pb-400 { color: #0369a1 !important; }
+html.light .bg-pb-900\/60, html.light [class*="bg-pb-900"] { background-color: #e0f2fe !important; }
+html.light .border-pb-500\/50, html.light [class*="border-pb-"] { border-color: #7dd3fc !important; }
 
 /* Text: flip whites/grays to dark — but not when inside a colored bg */
 html.light .text-white    { color: #111827 !important; }
@@ -91,3 +98,73 @@ html.light input, html.light textarea, html.light select {
   border-color: rgba(0,0,0,0.12) !important;
 }
 html.light input::placeholder, html.light textarea::placeholder { color: #9ca3af !important; }
+
+/* ── Live stats: stat chip overrides ────────────────────────────────── */
+/* Flip dark-bg/light-text chips to light-bg/dark-text for readability  */
+
+/* Green (kills, aces on some views) */
+html.light [class*="bg-green-900"] { background-color: #dcfce7 !important; }
+html.light [class*="border-green-600"] { border-color: #86efac !important; }
+html.light [class*="text-green-300"] { color: #15803d !important; }
+html.light [class*="text-green-400"] { color: #16a34a !important; }
+
+/* Red (errors, serves missed) */
+html.light [class*="bg-red-900"] { background-color: #fee2e2 !important; }
+html.light [class*="border-red-600"] { border-color: #fca5a5 !important; }
+html.light [class*="text-red-300"] { color: #b91c1c !important; }
+html.light [class*="text-red-400"] { color: #dc2626 !important; }
+
+/* Yellow (aces) */
+html.light [class*="bg-yellow-900"] { background-color: #fef9c3 !important; }
+html.light [class*="border-yellow-600"] { border-color: #fde047 !important; }
+html.light [class*="text-yellow-300"] { color: #854d0e !important; }
+html.light [class*="text-yellow-400"] { color: #a16207 !important; }
+
+/* Orange (pass 1 / poor) */
+html.light [class*="bg-orange-900"] { background-color: #ffedd5 !important; }
+html.light [class*="border-orange-600"] { border-color: #fdba74 !important; }
+html.light [class*="text-orange-300"] { color: #c2410c !important; }
+html.light [class*="text-orange-400"] { color: #ea580c !important; }
+
+/* Cyan (digs — used in some chip variants) */
+html.light [class*="bg-cyan-900"] { background-color: #cffafe !important; }
+html.light [class*="border-cyan-600"] { border-color: #67e8f9 !important; }
+html.light [class*="text-cyan-300"] { color: #0e7490 !important; }
+html.light [class*="text-cyan-400"] { color: #0891b2 !important; }
+
+/* Blue (digs via pb- already handled above; standard blue fallback) */
+html.light [class*="bg-blue-900"] { background-color: #dbeafe !important; }
+html.light [class*="border-blue-600"] { border-color: #93c5fd !important; }
+html.light [class*="text-blue-300"] { color: #1d4ed8 !important; }
+html.light [class*="text-blue-400"] { color: #2563eb !important; }
+
+/* Purple (blocks, set-ball indicators) */
+html.light [class*="bg-purple-900"] { background-color: #f3e8ff !important; }
+html.light [class*="border-purple-600"] { border-color: #c084fc !important; }
+html.light [class*="text-purple-300"] { color: #7e22ce !important; }
+html.light [class*="text-purple-400"] { color: #9333ea !important; }
+
+/* Pink (service aces on some chips) */
+html.light [class*="bg-pink-900"] { background-color: #fce7f3 !important; }
+html.light [class*="border-pink-600"] { border-color: #f9a8d4 !important; }
+html.light [class*="text-pink-300"] { color: #be185d !important; }
+html.light [class*="text-pink-400"] { color: #db2777 !important; }
+
+/* ── Live stats: pass rating buttons ─────────────────────────────────── */
+html.light [class*="bg-red-900\/30"] { background-color: rgba(254,226,226,0.9) !important; }
+html.light [class*="bg-orange-900\/20"] { background-color: rgba(255,237,213,0.9) !important; }
+html.light [class*="bg-yellow-900\/20"] { background-color: rgba(254,249,195,0.9) !important; }
+html.light [class*="bg-green-900\/30"] { background-color: rgba(220,252,231,0.9) !important; }
+
+/* ── Live stats: player card server highlight ───────────────────────── */
+html.light [class*="bg-vr-900\/60"] { background-color: rgba(237,233,254,0.9) !important; }
+html.light [class*="border-vr-500\/60"] { border-color: rgba(139,92,246,0.5) !important; }
+
+/* ── Score display — large numbers stay dark ─────────────────────────── */
+html.light .text-4xl.text-white,
+html.light .text-5xl.text-white,
+html.light .text-6xl.text-white { color: #0f172a !important; }
+
+/* ── Make sure bg-white/10 overlay panels are visible in light mode ─── */
+html.light [class*="bg-white\/10"] { background-color: rgba(0,0,0,0.04) !important; }
+html.light [class*="bg-white\/5"]  { background-color: rgba(0,0,0,0.02) !important; }
