@@ -26,55 +26,68 @@
 
 /* ── Light mode overrides ───────────────────────────────────────────── */
 html.light {
-  /* navy scale → white/light-gray */
-  --navy-900: 241 243 248;
-  --navy-800: 255 255 255;
-  --navy-700: 226 229 238;
-  --navy-600: 210 214 228;
-  --navy-500: 195 200 218;
-
   color-scheme: light;
 }
 
-/* Tailwind navy-* classes in light mode */
-html.light .bg-navy-900 { background-color: #f1f3f8 !important; }
-html.light .bg-navy-800 { background-color: #ffffff !important; }
-html.light .bg-navy-700 { background-color: #e2e5ee !important; }
-html.light .bg-navy-600 { background-color: #d2d6e4 !important; }
-html.light .bg-navy-500 { background-color: #c3c8da !important; }
-
-/* Text: flip whites to dark */
-html.light .text-white   { color: #0a0f1e !important; }
-html.light .text-gray-100 { color: #1a1e2e !important; }
-html.light .text-gray-200 { color: #2a2e40 !important; }
-html.light .text-gray-300 { color: #3a3f56 !important; }
-html.light .text-gray-400 { color: #555c7a !important; }
-html.light .text-gray-500 { color: #6b7494 !important; }
-html.light .text-gray-600 { color: #8891ab !important; }
-
-/* Borders: lighten */
-html.light .border-white\/10 { border-color: rgba(10,15,30,0.10) !important; }
-html.light .border-white\/8  { border-color: rgba(10,15,30,0.08) !important; }
-html.light .border-white\/20 { border-color: rgba(10,15,30,0.15) !important; }
+/* Backgrounds: navy → white/light-gray */
+html.light .bg-navy-900  { background-color: #f1f3f8 !important; }
+html.light .bg-navy-800  { background-color: #ffffff !important; }
+html.light .bg-navy-700  { background-color: #e8eaf2 !important; }
+html.light .bg-navy-600  { background-color: #d8dbe8 !important; }
+html.light .bg-navy-500  { background-color: #c8ccdf !important; }
 
 /* Semi-transparent navy overlays */
-html.light .bg-navy-800\/30 { background-color: rgba(255,255,255,0.6) !important; }
-html.light .bg-navy-800\/50 { background-color: rgba(255,255,255,0.8) !important; }
-html.light .bg-navy-700\/50 { background-color: rgba(226,229,238,0.8) !important; }
+html.light .bg-navy-800\/30 { background-color: rgba(255,255,255,0.7) !important; }
+html.light .bg-navy-800\/50 { background-color: rgba(255,255,255,0.85) !important; }
+html.light .bg-navy-700\/50 { background-color: rgba(232,234,242,0.8) !important; }
 
-/* Header bar: use primary team color */
-html.light .bg-navy-800.border-b { background-color: rgb(var(--vr-700)) !important; border-color: rgba(0,0,0,0.1) !important; }
-html.light .bg-navy-800.border-b .text-white   { color: #ffffff !important; }
+/* vr-* backgrounds → subtle tint of primary, not heavy purple */
+html.light .bg-vr-900, html.light .bg-vr-800 { background-color: rgba(var(--vr-700), 0.08) !important; }
+html.light .bg-vr-700 { background-color: rgb(var(--vr-700)) !important; }
+html.light .bg-vr-600 { background-color: rgb(var(--vr-600)) !important; }
+
+/* vr-* text → use dark primary for contrast, never light purple */
+html.light .text-vr-300,
+html.light .text-vr-400,
+html.light .text-vr-500 { color: rgb(var(--vr-700)) !important; }
+
+/* Text: flip whites/grays to dark — but not when inside a colored bg */
+html.light .text-white    { color: #111827 !important; }
+html.light .bg-vr-700 .text-white, html.light .bg-vr-700.text-white,
+html.light .bg-vr-600 .text-white, html.light .bg-vr-600.text-white,
+html.light .bg-vr-500 .text-white, html.light .bg-vr-500.text-white,
+html.light [class*="bg-green-"] .text-white, html.light [class*="bg-green-"].text-white,
+html.light [class*="bg-red-"] .text-white, html.light [class*="bg-red-"].text-white { color: #ffffff !important; }
+html.light .text-gray-100 { color: #1f2937 !important; }
+html.light .text-gray-200 { color: #374151 !important; }
+html.light .text-gray-300 { color: #4b5563 !important; }
+html.light .text-gray-400 { color: #6b7280 !important; }
+html.light .text-gray-500 { color: #9ca3af !important; }
+html.light .text-gray-600 { color: #b3b9c9 !important; }
+
+/* Borders: flip to dark-on-light */
+html.light .border-white\/8  { border-color: rgba(0,0,0,0.07) !important; }
+html.light .border-white\/10 { border-color: rgba(0,0,0,0.09) !important; }
+html.light .border-white\/20 { border-color: rgba(0,0,0,0.12) !important; }
+
+/* Header: team primary color so it stands out */
+html.light .bg-navy-800.border-b {
+  background-color: rgb(var(--vr-700)) !important;
+  border-color: rgba(0,0,0,0.08) !important;
+}
+html.light .bg-navy-800.border-b .text-white    { color: #ffffff !important; }
 html.light .bg-navy-800.border-b .text-gray-400 { color: rgba(255,255,255,0.75) !important; }
+html.light .bg-navy-800.border-b .text-vr-300,
+html.light .bg-navy-800.border-b .text-vr-400   { color: rgba(255,255,255,0.9) !important; }
 
-/* Bottom nav: use primary color for active */
-html.light nav.bg-navy-800 { background-color: #ffffff !important; border-color: rgba(10,15,30,0.10) !important; }
-html.light nav .text-gray-600 { color: #8891ab !important; }
+/* Bottom nav: white bar, dark labels */
+html.light nav.bg-navy-800 { background-color: #ffffff !important; border-color: rgba(0,0,0,0.09) !important; }
+html.light nav .text-gray-600 { color: #9ca3af !important; }
 
 /* Inputs */
 html.light input, html.light textarea, html.light select {
   background-color: #f8f9fc !important;
-  color: #0a0f1e !important;
-  border-color: rgba(10,15,30,0.15) !important;
+  color: #111827 !important;
+  border-color: rgba(0,0,0,0.12) !important;
 }
-html.light input::placeholder, html.light textarea::placeholder { color: #8891ab !important; }
+html.light input::placeholder, html.light textarea::placeholder { color: #9ca3af !important; }
