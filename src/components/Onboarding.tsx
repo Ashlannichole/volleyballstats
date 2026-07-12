@@ -24,7 +24,7 @@ const SLIDES = [
     bullets: [
       'Add players with their jersey number and position (OH, S, MB, L...)',
       'Save and load lineups so you\'re court-ready in seconds',
-      'Pro: manage two separate rosters for two-team programs',
+      '⚡ Pro: two separate rosters, practice tracking, custom team name & colors',
     ],
   },
   {
@@ -53,11 +53,11 @@ const SLIDES = [
     emoji: '📡',
     color: 'text-cyan-400',
     title: 'Live Score for Parents',
-    subtitle: 'Share a link — they see everything in real time',
+    subtitle: 'Parents follow along in real time — no app needed',
     bullets: [
-      'Tap the 📡 button during a match to get a shareable spectator link',
+      '⚡ Pro: tap the 📡 button during a match to get a shareable live score link',
       'Parents see the score, set number, and rotation — updates every 5 seconds',
-      'Pro: add sponsor acknowledgments and timeout notifications to the live view',
+      '⚡ Pro: add sponsor banners and timeout pop-up notifications to the live view',
     ],
   },
   {
@@ -77,9 +77,9 @@ const SLIDES = [
     title: 'Season Stats & Awards',
     subtitle: "See who's leading the team all season long",
     bullets: [
-      'Kill leaders, ace leaders, dig queens, block leaders, top passers',
-      '🔥 Serving Streak award — who had the longest run all season',
-      'Pro: full per-player season breakdowns, tournament-by-tournament progress',
+      'Overview and progress charts are free — see team trends across every match',
+      '⚡ Pro: per-player season breakdowns with full stat history',
+      '⚡ Pro: Awards tab — kill leaders, ace leaders, dig queens, serving streak, and more',
     ],
   },
   {
