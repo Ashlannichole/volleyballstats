@@ -12,11 +12,9 @@ interface Props {
   onEdit: (updated: Match) => void
   onLoadDemo: () => void
   onClearDemo: () => void
-  isPro?: boolean
-  onUpgrade?: () => void
 }
 
-export default function MatchHistory({ matches, players, onDelete, onEdit, onLoadDemo, onClearDemo, isPro = false, onUpgrade }: Props) {
+export default function MatchHistory({ matches, players, onDelete, onEdit, onLoadDemo, onClearDemo }: Props) {
   const hasDemoData = matches.some(m => SEED_MATCHES.some(s => s.id === m.id))
   const [expanded, setExpanded] = useState<string | null>(null)
   const [editingMatch, setEditingMatch] = useState<Match | null>(null)

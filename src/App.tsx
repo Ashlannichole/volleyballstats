@@ -453,8 +453,6 @@ export default function App() {
             onEdit={handleEditMatch}
             onLoadDemo={handleLoadDemo}
             onClearDemo={handleClearDemo}
-            isPro={isPro}
-            onUpgrade={openModal}
           />
         </div>
         <div className={tab === 'season' ? '' : 'hidden'}>
