@@ -430,7 +430,6 @@ export default function App() {
             isPro={isPro}
             onUpgrade={openModal}
             players={activePlayers}
-            matches={activeMatches}
             practices={activePractices}
             onSavePractice={s => setActivePractices(prev => [...prev, s])}
             onDeletePractice={id => setActivePractices(prev => prev.filter(p => p.id !== id))}

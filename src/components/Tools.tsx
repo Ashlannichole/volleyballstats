@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Player, Match, PracticeSession } from '../types'
+import type { Player, PracticeSession } from '../types'
 import Practice from './Practice'
 import Scouting from './Scouting'
 import Calendar from './Calendar'
@@ -10,7 +10,6 @@ interface Props {
   isPro: boolean
   onUpgrade: () => void
   players: Player[]
-  matches: Match[]
   practices: PracticeSession[]
   onSavePractice: (s: PracticeSession) => void
   onDeletePractice: (id: string) => void
@@ -30,7 +29,7 @@ const TOOLS: {
   { id: 'ai',        icon: '🤖', label: 'AI Suggestions',    description: 'Personalized drills based on your stats',    available: false },
 ]
 
-export default function Tools({ isPro, onUpgrade, players, matches, practices, onSavePractice, onDeletePractice }: Props) {
+export default function Tools({ isPro, onUpgrade, players, practices, onSavePractice, onDeletePractice }: Props) {
   const [active, setActive] = useState<ToolId | null>(null)
 
   function back() { setActive(null) }
@@ -54,7 +53,7 @@ export default function Tools({ isPro, onUpgrade, players, matches, practices, o
     <div className="h-full flex flex-col">
       <ToolHeader label="Team Calendar" onBack={back} />
       <div className="flex-1 overflow-y-auto">
-        <Calendar matches={matches} />
+        <Calendar />
       </div>
     </div>
   )
