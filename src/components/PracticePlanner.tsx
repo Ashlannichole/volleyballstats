@@ -195,22 +195,22 @@ function SortableBlock({ block, blockStart, blockEnd, isEditMode, isExpanded, on
 
   return (
     <div ref={setNodeRef} style={style} className={`bg-navy-800 border rounded-2xl overflow-hidden transition-colors ${isExpanded ? 'border-vr-500/50' : 'border-white/15'}`}>
-      <div className="px-4 pt-3 pb-3 flex items-start gap-2">
+      <div className="px-4 pt-2 pb-2 flex items-start gap-2">
         {/* Drag handle */}
         <button {...attributes} {...listeners}
-          className="shrink-0 mt-1 touch-none text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing px-0.5 py-1 text-base leading-none">
+          className="shrink-0 mt-0.5 touch-none text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing px-0.5 py-0.5 text-base leading-none">
           ⠿
         </button>
         {/* Time column */}
         <div className="flex flex-col items-center shrink-0 pt-0.5">
           <span className="text-gray-500 text-[10px] font-mono">{displayTime(blockStart)}</span>
-          <div className="w-px flex-1 bg-white/10 my-1 min-h-[18px]" />
+          <div className="w-px flex-1 bg-white/10 my-0.5 min-h-[14px]" />
           <span className="text-gray-600 text-[10px] font-mono">{displayTime(blockEnd)}</span>
         </div>
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <p className="text-white font-bold text-sm mb-1.5">{block.name}</p>
-          <div className="flex flex-wrap gap-1 mb-2">
+          <p className="text-white font-bold text-sm mb-1">{block.name}</p>
+          <div className="flex flex-wrap gap-1 mb-1.5">
             {block.tags.map(t => (
               <span key={t} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${TAG_STYLES[t].bg} ${TAG_STYLES[t].color}`}>
                 {TAG_STYLES[t].label}
