@@ -195,8 +195,8 @@ function SortableBlock({ block, blockStart, blockEnd, isEditMode, isExpanded, on
 
   return (
     <div ref={setNodeRef} style={style} className={`bg-navy-800 border rounded-2xl overflow-hidden transition-colors ${isExpanded ? 'border-vr-500/50' : 'border-white/15'}`}>
+      {/* Top row: handle + time + name/tags */}
       <div className="px-4 pt-3 pb-2 flex items-start gap-3">
-        {/* Drag handle */}
         <button {...attributes} {...listeners}
           className="shrink-0 mt-1 touch-none text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing px-0.5 py-1">
           ⠿
@@ -208,7 +208,7 @@ function SortableBlock({ block, blockStart, blockEnd, isEditMode, isExpanded, on
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-white font-bold text-sm mb-1.5">{block.name}</p>
-          <div className="flex flex-wrap gap-1 mb-2">
+          <div className="flex flex-wrap gap-1">
             {block.tags.map(t => (
               <span key={t} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${TAG_STYLES[t].bg} ${TAG_STYLES[t].color}`}>
                 {TAG_STYLES[t].label}
@@ -220,21 +220,22 @@ function SortableBlock({ block, blockStart, blockEnd, isEditMode, isExpanded, on
               {block.stations === 'full' ? '⚡ Full team' : '🔀 Stations'}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => onDurationChange(-5)}
-              className="tap-btn w-8 h-8 rounded-lg bg-navy-700 border border-white/10 text-white text-base flex items-center justify-center">−</button>
-            <span className="text-white font-bold text-sm w-10 text-center">{fmt(block.duration)}</span>
-            <button onClick={() => onDurationChange(5)}
-              className="tap-btn w-8 h-8 rounded-lg bg-navy-700 border border-white/10 text-white text-base flex items-center justify-center">+</button>
-            <div className="flex-1" />
-            <button onClick={onToggleNotes}
-              className={`tap-btn text-xs px-2 py-1.5 rounded-lg border ${isExpanded ? 'border-vr-500/50 text-vr-300' : 'border-white/10 text-gray-500'}`}>
-              Notes
-            </button>
-            <button onClick={onRemove}
-              className="tap-btn w-8 h-8 rounded-lg bg-red-900/20 border border-red-800/30 text-red-500 text-sm flex items-center justify-center">✕</button>
-          </div>
         </div>
+      </div>
+      {/* Controls row: always full width, no overflow */}
+      <div className="px-4 pb-3 flex items-center gap-2">
+        <button onClick={() => onDurationChange(-5)}
+          className="tap-btn w-9 h-9 rounded-lg bg-navy-700 border border-white/10 text-white text-lg flex items-center justify-center shrink-0">−</button>
+        <span className="text-white font-bold text-sm w-12 text-center shrink-0">{fmt(block.duration)}</span>
+        <button onClick={() => onDurationChange(5)}
+          className="tap-btn w-9 h-9 rounded-lg bg-navy-700 border border-white/10 text-white text-lg flex items-center justify-center shrink-0">+</button>
+        <div className="flex-1" />
+        <button onClick={onToggleNotes}
+          className={`tap-btn text-xs px-3 py-2 rounded-lg border shrink-0 ${isExpanded ? 'border-vr-500/50 text-vr-300' : 'border-white/10 text-gray-500'}`}>
+          Notes
+        </button>
+        <button onClick={onRemove}
+          className="tap-btn w-9 h-9 rounded-lg bg-red-900/20 border border-red-800/30 text-red-500 text-sm flex items-center justify-center shrink-0">✕</button>
       </div>
       {isExpanded && (
         <div className="px-4 pb-3">
