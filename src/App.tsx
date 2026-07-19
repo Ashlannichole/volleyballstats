@@ -20,10 +20,11 @@ import Practice from './components/Practice'
 import SettingsPage from './components/Settings'
 import AdBanner from './components/AdBanner'
 import Onboarding from './components/Onboarding'
+import Scouting from './components/Scouting'
 import { useUpgradeModal } from './components/UpgradePrompt'
 import type { PracticeSession } from './types'
 
-type Tab = 'roster' | 'live' | 'history' | 'season' | 'practice' | 'settings'
+type Tab = 'roster' | 'live' | 'history' | 'season' | 'practice' | 'scout' | 'settings'
 
 export default function App() {
   const [session, setSession]     = useState<Session | null>(loadSession)
@@ -332,6 +333,7 @@ export default function App() {
     { id: 'history',  label: 'History',  icon: '📋' },
     { id: 'season',   label: 'Season',   icon: '📊' },
     { id: 'practice', label: 'Practice', icon: '🎽', proOnly: true },
+    { id: 'scout',    label: 'Scout',    icon: '🔍', proOnly: true },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
   ]
 
@@ -426,6 +428,9 @@ export default function App() {
             onSave={s => setActivePractices(prev => [...prev, s])}
             onDelete={id => setActivePractices(prev => prev.filter(p => p.id !== id))}
           />
+        </div>
+        <div className={tab === 'scout' ? 'h-full flex flex-col' : 'hidden'}>
+          <Scouting isPro={isPro} onUpgrade={openModal} />
         </div>
         <div className={tab === 'settings' ? '' : 'hidden'}>
           <SettingsPage
