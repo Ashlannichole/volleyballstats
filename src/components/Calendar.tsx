@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type EventType = 'tournament' | 'scrimmage' | 'open_gym' | 'practice' | 'match' | 'other'
+type EventType = 'tournament' | 'scrimmage' | 'open_gym' | 'practice' | 'other'
 
 interface CalEvent {
   id: string
@@ -24,13 +24,12 @@ function save(evs: CalEvent[]) { localStorage.setItem(KEY, JSON.stringify(evs)) 
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const EVENT_TYPES: { id: EventType; label: string; icon: string; color: string; bg: string }[] = [
-  { id: 'tournament', label: 'Tournament',  icon: '🏆', color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-600/40' },
-  { id: 'match',      label: 'Match',       icon: '🏐', color: 'text-green-400',  bg: 'bg-green-900/30 border-green-600/40' },
-  { id: 'scrimmage',  label: 'Scrimmage',   icon: '🤝', color: 'text-blue-400',   bg: 'bg-blue-900/30 border-blue-600/40' },
-  { id: 'open_gym',   label: 'Open Gym',    icon: '🏋️', color: 'text-purple-400', bg: 'bg-purple-900/30 border-purple-600/40' },
-  { id: 'practice',   label: 'Practice',    icon: '🎽', color: 'text-pb-400',     bg: 'bg-pb-900/30 border-pb-600/40' },
-  { id: 'other',      label: 'Other',       icon: '📌', color: 'text-gray-400',   bg: 'bg-gray-800/50 border-gray-600/40' },
+const EVENT_TYPES: { id: EventType; label: string; icon: string; color: string; bg: string; dot: string }[] = [
+  { id: 'tournament', label: 'Tournament', icon: '🏆', color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-600/40', dot: 'bg-yellow-400' },
+  { id: 'scrimmage',  label: 'Scrimmage',  icon: '🤝', color: 'text-blue-400',   bg: 'bg-blue-900/30 border-blue-600/40',   dot: 'bg-blue-400'   },
+  { id: 'open_gym',   label: 'Open Gym',   icon: '🏋️', color: 'text-purple-400', bg: 'bg-purple-900/30 border-purple-600/40', dot: 'bg-purple-400' },
+  { id: 'practice',   label: 'Practice',   icon: '🎽', color: 'text-pb-400',     bg: 'bg-pb-900/30 border-pb-600/40',       dot: 'bg-pb-400'     },
+  { id: 'other',      label: 'Other',      icon: '📌', color: 'text-gray-400',   bg: 'bg-gray-800/50 border-gray-600/40',   dot: 'bg-gray-400'   },
 ]
 
 function typeInfo(t: EventType) { return EVENT_TYPES.find(e => e.id === t)! }
@@ -169,7 +168,7 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
           <div className="flex flex-col gap-1">
             <label className="text-gray-500 text-xs uppercase tracking-wide">Title *</label>
             <input value={data.title} onChange={e => setField('title', e.target.value)}
-              placeholder={`e.g. ${data.type === 'tournament' ? 'Spring Invitational' : data.type === 'scrimmage' ? 'vs Lincoln High' : data.type === 'open_gym' ? 'Saturday Open Gym' : 'Practice'}`}
+              placeholder={`e.g. ${data.type === 'tournament' ? 'Spring Invitational' : data.type === 'scrimmage' ? 'vs Lincoln High' : data.type === 'open_gym' ? 'Saturday Open Gym' : data.type === 'practice' ? 'Tuesday Practice' : 'Team Event'}`}
               className="bg-navy-700 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none" />
           </div>
 
@@ -329,7 +328,7 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
               {dayEvents.length > 0 && (
                 <div className="flex flex-wrap gap-0.5 justify-center mt-0.5" style={{ maxWidth: 28 }}>
                   {dayEvents.slice(0, 3).map((ev, j) => (
-                    <span key={j} className={`w-1.5 h-1.5 rounded-full ${typeInfo(ev.type).color.replace('text-', 'bg-')}`} />
+                    <span key={j} className={`w-1.5 h-1.5 rounded-full ${typeInfo(ev.type).dot}`} />
                   ))}
                   {dayEvents.length > 3 && (
                     <span className="text-gray-600 text-[8px] leading-none">+{dayEvents.length - 3}</span>
@@ -345,7 +344,7 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 justify-center mt-3 px-4">
         {EVENT_TYPES.map(t => (
           <div key={t.id} className="flex items-center gap-1">
-            <span className={`w-2 h-2 rounded-full ${t.color.replace('text-', 'bg-')}`} />
+            <span className={`w-2 h-2 rounded-full ${t.dot}`} />
             <span className="text-gray-600 text-[10px]">{t.label}</span>
           </div>
         ))}
