@@ -123,16 +123,48 @@ export default function App() {
     return Array.from(byId.values())
   }
 
+  // Merge an incoming array into a localStorage key, deduping by id
+  function mergeToLocalStorage(key: string, incoming: { id: string }[]) {
+    try {
+      const local: { id: string }[] = JSON.parse(localStorage.getItem(key) ?? '[]')
+      const byId = new Map(local.map(x => [x.id, x]))
+      for (const item of incoming) byId.set(item.id, item)
+      localStorage.setItem(key, JSON.stringify([...byId.values()]))
+    } catch { /* ignore */ }
+  }
+
   // Silent pull from team blob and merge into local state (always team 1 data)
   async function pullTeamData(ct = coachTeamRef.current) {
     if (!ct) return
     try {
       const res = await fetch(`/api/team?action=pull&code=${encodeURIComponent(ct.code)}`)
       if (!res.ok) return
-      const data = await res.json() as { matches: Match[]; players: Player[] }
+      const data = await res.json() as {
+        matches: Match[]; players: Player[]
+        scoutSessions?: { id: string }[]; calEvents?: { id: string }[]; practicePlans?: { id: string }[]
+      }
       setMatches(prev => mergeMatches(prev, data.matches ?? []))
       setPlayers(prev => mergePlayers(prev, data.players ?? []))
+      if (data.scoutSessions?.length) mergeToLocalStorage('vb_scouting', data.scoutSessions)
+      if (data.calEvents?.length)     mergeToLocalStorage('vb_calendar', data.calEvents)
+      if (data.practicePlans?.length) mergeToLocalStorage('vb_plans',    data.practicePlans)
     } catch { /* silent — network down or team expired */ }
+  }
+
+  // Called by tools (Scout/Calendar/Planner) after any local save — pushes their data to team blob
+  function onToolSync() {
+    const ct = coachTeamRef.current
+    if (!ct) return
+    try {
+      const scoutSessions = JSON.parse(localStorage.getItem('vb_scouting') ?? '[]')
+      const calEvents     = JSON.parse(localStorage.getItem('vb_calendar') ?? '[]')
+      const practicePlans = JSON.parse(localStorage.getItem('vb_plans')    ?? '[]')
+      fetch('/api/team?action=push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: ct.code, scoutSessions, calEvents, practicePlans }),
+      }).catch(() => {})
+    } catch { /* ignore */ }
   }
 
   // Debounced push to server on any data change
@@ -153,10 +185,13 @@ export default function App() {
       // Also push team 1 data to shared team blob so other coaches get it
       const ct = coachTeamRef.current
       if (ct) {
+        const scoutSessions = JSON.parse(localStorage.getItem('vb_scouting') ?? '[]')
+        const calEvents     = JSON.parse(localStorage.getItem('vb_calendar') ?? '[]')
+        const practicePlans = JSON.parse(localStorage.getItem('vb_plans')    ?? '[]')
         fetch('/api/team?action=push', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: ct.code, matches: m, players: p }),
+          body: JSON.stringify({ code: ct.code, matches: m, players: p, scoutSessions, calEvents, practicePlans }),
         }).catch(() => {})
       }
     }, 1500)
@@ -433,6 +468,7 @@ export default function App() {
             practices={activePractices}
             onSavePractice={s => setActivePractices(prev => [...prev, s])}
             onDeletePractice={id => setActivePractices(prev => prev.filter(p => p.id !== id))}
+            onToolSync={onToolSync}
           />
         </div>
       </div>

@@ -46,7 +46,7 @@ function blank(date: string): Omit<CalEvent, 'id'> {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function Calendar() {
+export default function Calendar({ onSync }: { onSync?: () => void }) {
   const [events,   setEvents]   = useState<CalEvent[]>(load)
   const [year,     setYear]     = useState(() => new Date().getFullYear())
   const [month,    setMonth]    = useState(() => new Date().getMonth())
@@ -63,12 +63,12 @@ export default function Calendar() {
     const next = events.some(e => e.id === ev.id)
       ? events.map(e => e.id === ev.id ? ev : e)
       : [...events, ev]
-    setEvents(next); save(next)
+    setEvents(next); save(next); onSync?.()
   }
 
   function deleteEvent(id: string) {
     const next = events.filter(e => e.id !== id)
-    setEvents(next); save(next)
+    setEvents(next); save(next); onSync?.()
   }
 
   function prevMonth() {

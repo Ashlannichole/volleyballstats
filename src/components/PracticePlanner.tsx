@@ -141,14 +141,15 @@ function blockFromDrill(d: Drill): PlanBlock {
 
 type View = 'home' | 'setup' | 'build' | 'custom'
 
-export default function PracticePlanner() {
+export default function PracticePlanner({ onBack, onSync }: { onBack?: () => void; onSync?: () => void }) {
   const [plans,        setPlans]        = useState<PracticePlan[]>(loadPlans)
   const [customDrills, setCustomDrills] = useState<Drill[]>(loadCustom)
   const [view,         setView]         = useState<View>('home')
   const [activePlan,   setActivePlan]   = useState<PracticePlan | null>(null)
   const [showLibrary,  setShowLibrary]  = useState(false)
+  const [showPlanEdit, setShowPlanEdit] = useState(false)
   const [tagFilter,    setTagFilter]    = useState<SkillTag[]>([])
-  const [editBlock,    setEditBlock]    = useState<string | null>(null)   // block id being edited
+  const [editBlock,    setEditBlock]    = useState<string | null>(null)
   const [confirmDel,   setConfirmDel]   = useState<string | null>(null)
   const [planNameEdit, setPlanNameEdit] = useState(false)
 
@@ -172,7 +173,7 @@ export default function PracticePlanner() {
 
   function upsertPlan(p: PracticePlan) {
     const next = plans.some(x => x.id === p.id) ? plans.map(x => x.id === p.id ? p : x) : [...plans, p]
-    setPlans(next); savePlans(next)
+    setPlans(next); savePlans(next); onSync?.()
     if (activePlan?.id === p.id) setActivePlan(p)
   }
 
@@ -220,11 +221,13 @@ export default function PracticePlanner() {
     const today = new Date().toISOString().split('T')[0]
 
     return (
-      <div className="p-4 flex flex-col gap-4 pb-10">
-        <div className="text-center mt-2 mb-1">
-          <p className="text-gray-500 text-xs uppercase tracking-widest mb-1">Practice Planner</p>
-          <h2 className="text-2xl font-bold text-white">Plans</h2>
-        </div>
+      <div className="flex flex-col h-full">
+      <div className="bg-navy-800 border-b border-white/10 px-4 py-3 flex items-center shrink-0">
+        <button onClick={onBack} className="tap-btn text-gray-400 text-sm">← Tools</button>
+        <p className="flex-1 text-center text-white font-bold text-sm">Practice Planner</p>
+        <div className="w-16" />
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 pb-10">
 
         <button onClick={() => { setSetupIsTemplate(false); setSetupName(''); setView('setup') }}
           className="tap-btn w-full bg-vr-700 border border-vr-500 rounded-2xl py-3.5 text-white font-bold text-sm">
@@ -279,6 +282,7 @@ export default function PracticePlanner() {
           className="tap-btn w-full border border-dashed border-white/15 rounded-2xl py-3 text-gray-600 text-sm">
           + Save a Template
         </button>
+      </div>
       </div>
     )
   }
@@ -399,11 +403,58 @@ export default function PracticePlanner() {
               )}
               {plan.isTemplate && <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-vr-900/50 border border-vr-600/40 text-vr-400">TEMPLATE</span>}
             </div>
-            <button onClick={() => upsertPlan({ ...plan, isTemplate: !plan.isTemplate })}
-              className="tap-btn text-gray-600 text-xs">
-              {plan.isTemplate ? '📋' : '⭐'}
-            </button>
+            <div className="flex gap-1.5">
+              <button onClick={() => setShowPlanEdit(e => !e)}
+                className="tap-btn text-gray-500 text-xs px-2 py-1 border border-white/10 rounded-lg">⚙</button>
+              <button onClick={() => upsertPlan({ ...plan, isTemplate: !plan.isTemplate })}
+                className="tap-btn text-gray-600 text-xs">
+                {plan.isTemplate ? '📋' : '⭐'}
+              </button>
+            </div>
           </div>
+          {/* Plan settings edit panel */}
+          {showPlanEdit && (
+            <div className="mt-2 bg-navy-700/60 border border-white/10 rounded-xl p-3 flex flex-col gap-2">
+              <div className="flex gap-2">
+                {!plan.isTemplate && (
+                  <div className="flex-1 flex flex-col gap-0.5">
+                    <label className="text-gray-600 text-[9px] uppercase tracking-wide">Date</label>
+                    <input type="date" value={plan.date}
+                      onChange={e => upsertPlan({ ...plan, date: e.target.value })}
+                      className="bg-navy-700 border border-white/15 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none" />
+                  </div>
+                )}
+                <div className="flex-1 flex flex-col gap-0.5">
+                  <label className="text-gray-600 text-[9px] uppercase tracking-wide">Start Time</label>
+                  <input type="time" value={plan.startTime}
+                    onChange={e => upsertPlan({ ...plan, startTime: e.target.value })}
+                    className="bg-navy-700 border border-white/15 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1 flex flex-col gap-0.5">
+                  <label className="text-gray-600 text-[9px] uppercase tracking-wide">Duration</label>
+                  <div className="flex items-center gap-1 bg-navy-700 border border-white/15 rounded-lg px-2 py-1.5">
+                    <button onClick={() => upsertPlan({ ...plan, totalMinutes: Math.max(30, plan.totalMinutes - 15) })}
+                      className="tap-btn text-gray-400 text-sm">−</button>
+                    <span className="flex-1 text-center text-white text-xs font-bold">{fmt(plan.totalMinutes)}</span>
+                    <button onClick={() => upsertPlan({ ...plan, totalMinutes: Math.min(240, plan.totalMinutes + 15) })}
+                      className="tap-btn text-gray-400 text-sm">+</button>
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-col gap-0.5">
+                  <label className="text-gray-600 text-[9px] uppercase tracking-wide">Players</label>
+                  <div className="flex items-center gap-1 bg-navy-700 border border-white/15 rounded-lg px-2 py-1.5">
+                    <button onClick={() => upsertPlan({ ...plan, playerCount: Math.max(2, plan.playerCount - 1) })}
+                      className="tap-btn text-gray-400 text-sm">−</button>
+                    <span className="flex-1 text-center text-white text-xs font-bold">{plan.playerCount}</span>
+                    <button onClick={() => upsertPlan({ ...plan, playerCount: Math.min(30, plan.playerCount + 1) })}
+                      className="tap-btn text-gray-400 text-sm">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           {/* Time bar */}
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-gray-500 text-[11px]">{displayTime(plan.startTime)}</span>

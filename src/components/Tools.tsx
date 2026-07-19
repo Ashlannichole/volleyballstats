@@ -14,6 +14,7 @@ interface Props {
   practices: PracticeSession[]
   onSavePractice: (s: PracticeSession) => void
   onDeletePractice: (id: string) => void
+  onToolSync: () => void
 }
 
 const TOOLS: {
@@ -22,15 +23,16 @@ const TOOLS: {
   label: string
   description: string
   available: boolean
+  proOnly: boolean
 }[] = [
-  { id: 'practice',  icon: '🎽', label: 'Practice Tracker',  description: 'Log drills, track reps, review stats',      available: true  },
-  { id: 'scout',     icon: '🔍', label: 'Opponent Scouting', description: 'Chart hits, build heat maps, spot patterns', available: true  },
-  { id: 'calendar',  icon: '📅', label: 'Team Calendar',     description: 'Match schedule with your stats at a glance', available: true  },
-  { id: 'planner',   icon: '📋', label: 'Practice Planner',  description: 'Build timed plans with drill library',       available: true  },
-  { id: 'ai',        icon: '🤖', label: 'AI Suggestions',    description: 'Personalized drills based on your stats',    available: false },
+  { id: 'practice', icon: '🎽', label: 'Practice Tracker',  description: 'Log drills, track reps, review stats',        available: true,  proOnly: true  },
+  { id: 'scout',    icon: '🔍', label: 'Opponent Scouting', description: 'Chart hits, build heat maps, spot patterns',   available: true,  proOnly: true  },
+  { id: 'calendar', icon: '📅', label: 'Team Calendar',     description: 'Schedule tournaments, scrimmages, open gyms', available: true,  proOnly: true  },
+  { id: 'planner',  icon: '📋', label: 'Practice Planner',  description: 'Build timed plans with drill library',         available: true,  proOnly: true  },
+  { id: 'ai',       icon: '🤖', label: 'AI Suggestions',    description: 'Personalized drills based on your stats',      available: false, proOnly: true  },
 ]
 
-export default function Tools({ isPro, onUpgrade, players, practices, onSavePractice, onDeletePractice }: Props) {
+export default function Tools({ isPro, onUpgrade, players, practices, onSavePractice, onDeletePractice, onToolSync }: Props) {
   const [active, setActive] = useState<ToolId | null>(null)
 
   function back() { setActive(null) }
@@ -46,13 +48,7 @@ export default function Tools({ isPro, onUpgrade, players, practices, onSavePrac
 
   if (active === 'scout') return (
     <div className="h-full flex flex-col">
-      <Scouting isPro={isPro} onUpgrade={onUpgrade} />
-    </div>
-  )
-
-  if (active === 'planner') return (
-    <div className="h-full flex flex-col">
-      <PracticePlanner />
+      <Scouting isPro={isPro} onUpgrade={onUpgrade} onBack={back} onSync={onToolSync} />
     </div>
   )
 
@@ -60,8 +56,14 @@ export default function Tools({ isPro, onUpgrade, players, practices, onSavePrac
     <div className="h-full flex flex-col">
       <ToolHeader label="Team Calendar" onBack={back} />
       <div className="flex-1 overflow-y-auto">
-        <Calendar />
+        <Calendar onSync={onToolSync} />
       </div>
+    </div>
+  )
+
+  if (active === 'planner') return (
+    <div className="h-full flex flex-col">
+      <PracticePlanner onBack={back} onSync={onToolSync} />
     </div>
   )
 
@@ -90,14 +92,14 @@ export default function Tools({ isPro, onUpgrade, players, practices, onSavePrac
 
       <div className="flex flex-col gap-3">
         {TOOLS.map(tool => {
-          const locked = !isPro
+          const locked     = tool.proOnly && !isPro
           const comingSoon = !tool.available
 
           return (
             <button key={tool.id}
               onClick={() => {
-                if (locked)      { onUpgrade(); return }
-                if (comingSoon)  { return }
+                if (locked)     { onUpgrade(); return }
+                if (comingSoon) { return }
                 setActive(tool.id)
               }}
               className={`tap-btn w-full bg-navy-800 border rounded-2xl p-4 flex items-center gap-4 text-left transition-all ${
@@ -137,7 +139,7 @@ export default function Tools({ isPro, onUpgrade, players, practices, onSavePrac
   )
 }
 
-function ToolHeader({ label, onBack }: { label: string; onBack: () => void }) {
+export function ToolHeader({ label, onBack }: { label: string; onBack: () => void }) {
   return (
     <div className="bg-navy-800 border-b border-white/10 px-4 py-3 flex items-center shrink-0">
       <button onClick={onBack} className="tap-btn text-gray-400 text-sm">← Tools</button>

@@ -76,9 +76,9 @@ function clampOOB(v: number) { return Math.max(-0.12, Math.min(1.12, v)) }
 // ── Main component ────────────────────────────────────────────────────────────
 
 type View = 'home' | 'chart' | 'report' | 'review'
-interface Props { isPro: boolean; onUpgrade: () => void }
+interface Props { isPro: boolean; onUpgrade: () => void; onBack?: () => void; onSync?: () => void }
 
-export default function Scouting({ isPro, onUpgrade }: Props) {
+export default function Scouting({ isPro, onUpgrade, onBack, onSync }: Props) {
   const [sessions,   setSessions]   = useState<ScoutSession[]>(loadSessions)
   const [view,       setView]       = useState<View>('home')
   const [active,     setActive]     = useState<ScoutSession | null>(null)
@@ -91,12 +91,12 @@ export default function Scouting({ isPro, onUpgrade }: Props) {
     const next = sessions.some(x => x.id === s.id)
       ? sessions.map(x => x.id === s.id ? s : x)
       : [...sessions, s]
-    setSessions(next); persist(next)
+    setSessions(next); persist(next); onSync?.()
   }
 
   function remove(id: string) {
     const next = sessions.filter(s => s.id !== id)
-    setSessions(next); persist(next)
+    setSessions(next); persist(next); onSync?.()
   }
 
   function startSession() {
@@ -151,11 +151,13 @@ export default function Scouting({ isPro, onUpgrade }: Props) {
   const opponents = [...new Set(sessions.map(s => s.opponent))]
 
   return (
-    <div className="p-4 flex flex-col gap-4 pb-10">
-      <div className="text-center mt-4 mb-1">
-        <p className="text-gray-500 text-xs uppercase tracking-widest mb-1">Scouting</p>
-        <h2 className="text-2xl font-bold text-white">Opponents</h2>
-      </div>
+    <div className="flex flex-col h-full">
+    <div className="bg-navy-800 border-b border-white/10 px-4 py-3 flex items-center shrink-0">
+      <button onClick={onBack} className="tap-btn text-gray-400 text-sm">← Tools</button>
+      <p className="flex-1 text-center text-white font-bold text-sm">Opponents</p>
+      <div className="w-16" />
+    </div>
+    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 pb-10">
 
       {showForm ? (
         <div className="bg-navy-800 border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
@@ -224,6 +226,7 @@ export default function Scouting({ isPro, onUpgrade }: Props) {
           </div>
         )
       })}
+    </div>
     </div>
   )
 }
