@@ -3,6 +3,7 @@ import type { Player, PracticeSession } from '../types'
 import Practice from './Practice'
 import Scouting from './Scouting'
 import Calendar from './Calendar'
+import PracticePlanner from './PracticePlanner'
 
 type ToolId = 'practice' | 'scout' | 'calendar' | 'planner' | 'ai'
 
@@ -25,7 +26,7 @@ const TOOLS: {
   { id: 'practice',  icon: '🎽', label: 'Practice Tracker',  description: 'Log drills, track reps, review stats',      available: true  },
   { id: 'scout',     icon: '🔍', label: 'Opponent Scouting', description: 'Chart hits, build heat maps, spot patterns', available: true  },
   { id: 'calendar',  icon: '📅', label: 'Team Calendar',     description: 'Match schedule with your stats at a glance', available: true  },
-  { id: 'planner',   icon: '📋', label: 'Practice Planner',  description: 'Build and save practice plans',              available: false },
+  { id: 'planner',   icon: '📋', label: 'Practice Planner',  description: 'Build timed plans with drill library',       available: true  },
   { id: 'ai',        icon: '🤖', label: 'AI Suggestions',    description: 'Personalized drills based on your stats',    available: false },
 ]
 
@@ -46,6 +47,12 @@ export default function Tools({ isPro, onUpgrade, players, practices, onSavePrac
   if (active === 'scout') return (
     <div className="h-full flex flex-col">
       <Scouting isPro={isPro} onUpgrade={onUpgrade} />
+    </div>
+  )
+
+  if (active === 'planner') return (
+    <div className="h-full flex flex-col">
+      <PracticePlanner />
     </div>
   )
 
