@@ -46,12 +46,13 @@ function blank(date: string): Omit<CalEvent, 'id'> {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function Calendar({ onSync }: { onSync?: () => void }) {
-  const [events,   setEvents]   = useState<CalEvent[]>(load)
-  const [year,     setYear]     = useState(() => new Date().getFullYear())
-  const [month,    setMonth]    = useState(() => new Date().getMonth())
-  const [selected, setSelected] = useState<string | null>(null)
-  const [form,     setForm]     = useState<Omit<CalEvent, 'id'> | null>(null)
-  const [editing,  setEditing]  = useState<CalEvent | null>(null)
+  const [events,        setEvents]        = useState<CalEvent[]>(load)
+  const [year,          setYear]          = useState(() => new Date().getFullYear())
+  const [month,         setMonth]         = useState(() => new Date().getMonth())
+  const [selected,      setSelected]      = useState<string | null>(null)
+  const [form,          setForm]          = useState<Omit<CalEvent, 'id'> | null>(null)
+  const [editing,       setEditing]       = useState<CalEvent | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   const todayStr = (() => {
     const t = new Date()
@@ -206,12 +207,10 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
     const label = new Date(selected + 'T12:00:00').toLocaleDateString('en-US', {
       weekday: 'long', month: 'long', day: 'numeric',
     })
-    const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-
     return (
       <div className="flex flex-col h-full">
         <div className="bg-navy-800 border-b border-white/10 px-4 py-3 flex items-center shrink-0">
-          <button onClick={() => setSelected(null)} className="tap-btn text-gray-400 text-sm">← Calendar</button>
+          <button onClick={() => { setSelected(null); setConfirmDelete(null) }} className="tap-btn text-gray-400 text-sm">← Calendar</button>
           <p className="flex-1 text-center text-white font-bold text-sm truncate px-2">{label}</p>
           <button onClick={() => setForm(blank(selected))}
             className="tap-btn text-vr-300 font-bold text-sm">+ Add</button>
