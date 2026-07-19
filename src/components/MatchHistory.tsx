@@ -2,7 +2,6 @@ import { useState } from 'react'
 import type { Match, Player } from '../types'
 import { killPct, passAvg, mergeStats } from '../utils/statsHelpers'
 import { EMPTY_STATS } from '../types'
-import PracticeSuggestions from './PracticeSuggestions'
 
 import { SEED_MATCHES } from '../utils/seedData'
 
@@ -20,7 +19,6 @@ interface Props {
 export default function MatchHistory({ matches, players, onDelete, onEdit, onLoadDemo, onClearDemo, isPro = false, onUpgrade }: Props) {
   const hasDemoData = matches.some(m => SEED_MATCHES.some(s => s.id === m.id))
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [aiMatch, setAiMatch] = useState<Match | null>(null)
   const [editingMatch, setEditingMatch] = useState<Match | null>(null)
   // Draft set scores while editing — array of {our, their} strings for controlled inputs
   const [draftScores, setDraftScores] = useState<{our: string, their: string}[]>([])
@@ -49,10 +47,6 @@ export default function MatchHistory({ matches, players, onDelete, onEdit, onLoa
     const setsLost = setScores.filter(s => s.their > s.our).length
     onEdit({ ...editingMatch, setScores, ourScore: String(setsWon), theirScore: String(setsLost) })
     setEditingMatch(null)
-  }
-
-  if (aiMatch) {
-    return <PracticeSuggestions match={aiMatch} players={players} onBack={() => setAiMatch(null)} />
   }
 
   if (matches.length === 0) {
@@ -332,14 +326,6 @@ export default function MatchHistory({ matches, players, onDelete, onEdit, onLoa
                 </details>
 
                 <div className="flex gap-3">
-                  <button
-                    onClick={() => isPro ? setAiMatch(match) : onUpgrade?.()}
-                    className={`tap-btn flex-1 font-semibold py-3 rounded-xl text-sm ${
-                      isPro ? 'bg-vr-700 text-white' : 'bg-navy-700 border border-vr-600/40 text-vr-400'
-                    }`}
-                  >
-                    {isPro ? 'AI Practice Suggestions' : '🔒 AI Suggestions (Pro)'}
-                  </button>
                   <button
                     onClick={() => { if (confirm('Delete this match?')) onDelete(match.id) }}
                     className="tap-btn px-4 py-3 rounded-xl border border-red-500/30 text-red-400 text-sm"
