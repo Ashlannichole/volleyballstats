@@ -6,10 +6,14 @@ interface Props { matches: Match[] }
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
+function isWin(m: Match) {
+  return parseInt(m.ourScore) > parseInt(m.theirScore)
+}
+
 export default function Calendar({ matches }: Props) {
   const today = new Date()
-  const [year,  setYear]  = useState(today.getFullYear())
-  const [month, setMonth] = useState(today.getMonth())
+  const [year,     setYear]     = useState(today.getFullYear())
+  const [month,    setMonth]    = useState(today.getMonth())
   const [selected, setSelected] = useState<string | null>(null)
 
   function prevMonth() {
@@ -23,7 +27,6 @@ export default function Calendar({ matches }: Props) {
     setSelected(null)
   }
 
-  // Build date → matches index
   const matchByDate = new Map<string, Match[]>()
   for (const m of matches) {
     const list = matchByDate.get(m.date) ?? []
@@ -31,14 +34,12 @@ export default function Calendar({ matches }: Props) {
     matchByDate.set(m.date, list)
   }
 
-  // Calendar grid
-  const firstDay = new Date(year, month, 1).getDay()
+  const firstDay    = new Date(year, month, 1).getDay()
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const cells: (number | null)[] = [
     ...Array(firstDay).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ]
-  // Pad to full weeks
   while (cells.length % 7 !== 0) cells.push(null)
 
   function dateStr(day: number) {
@@ -46,10 +47,7 @@ export default function Calendar({ matches }: Props) {
   }
 
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
-
   const selectedMatches = selected ? (matchByDate.get(selected) ?? []) : []
-
-  // Months that have matches (for quick jump dots at bottom)
   const matchMonths = new Set(matches.map(m => m.date.slice(0,7)))
 
   return (
@@ -75,16 +73,13 @@ export default function Calendar({ matches }: Props) {
       <div className="grid grid-cols-7 px-3 gap-y-1">
         {cells.map((day, i) => {
           if (!day) return <div key={i} />
-          const ds = dateStr(day)
+          const ds         = dateStr(day)
           const dayMatches = matchByDate.get(ds) ?? []
           const isToday    = ds === todayStr
           const isSelected = ds === selected
           const hasMatch   = dayMatches.length > 0
-          const won = dayMatches.filter(m => {
-            const [ms, os] = [m.ourSets ?? 0, m.opponentSets ?? 0]
-            return ms > os
-          }).length
-          const lost = dayMatches.length - won
+          const wins       = dayMatches.filter(isWin).length
+          const losses     = dayMatches.length - wins
 
           return (
             <button key={i}
@@ -95,15 +90,12 @@ export default function Calendar({ matches }: Props) {
                              'border border-transparent'
               }`}>
               <span className={`text-sm font-bold ${
-                isSelected ? 'text-white' :
-                isToday    ? 'text-white' :
-                hasMatch   ? 'text-white' :
-                             'text-gray-500'
+                isSelected || isToday || hasMatch ? 'text-white' : 'text-gray-500'
               }`}>{day}</span>
               {hasMatch && (
                 <div className="flex gap-0.5 mt-0.5">
-                  {won  > 0 && <span className="w-1.5 h-1.5 rounded-full bg-green-400" />}
-                  {lost > 0 && <span className="w-1.5 h-1.5 rounded-full bg-red-400"   />}
+                  {wins   > 0 && <span className="w-1.5 h-1.5 rounded-full bg-green-400" />}
+                  {losses > 0 && <span className="w-1.5 h-1.5 rounded-full bg-red-400"   />}
                 </div>
               )}
             </button>
@@ -113,18 +105,16 @@ export default function Calendar({ matches }: Props) {
 
       {/* Legend */}
       <div className="flex items-center gap-4 justify-center mt-3 mb-1">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-400" />
-          <span className="text-gray-500 text-[10px]">Win</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-red-400" />
-          <span className="text-gray-500 text-[10px]">Loss</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full border border-white/20 bg-navy-700" />
-          <span className="text-gray-500 text-[10px]">Today</span>
-        </div>
+        {[
+          { color: 'bg-green-400', label: 'Win' },
+          { color: 'bg-red-400',   label: 'Loss' },
+          { color: 'bg-navy-700 border border-white/20', label: 'Today' },
+        ].map(l => (
+          <div key={l.label} className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${l.color}`} />
+            <span className="text-gray-500 text-[10px]">{l.label}</span>
+          </div>
+        ))}
       </div>
 
       <div className="mx-3 my-2 border-t border-white/8" />
@@ -138,9 +128,7 @@ export default function Calendar({ matches }: Props) {
           {selectedMatches.length === 0 ? (
             <p className="text-gray-600 text-sm">No matches on this date.</p>
           ) : selectedMatches.map(m => {
-            const ourSets = m.ourSets ?? 0
-            const oppSets = m.opponentSets ?? 0
-            const won = ourSets > oppSets
+            const won = isWin(m)
             return (
               <div key={m.id} className="bg-navy-800 border border-white/10 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -150,19 +138,23 @@ export default function Calendar({ matches }: Props) {
                   }`}>{won ? 'WIN' : 'LOSS'}</span>
                 </div>
                 <p className="text-gray-400 text-2xl font-black tracking-wide">
-                  {ourSets} – {oppSets}
+                  {m.ourScore} – {m.theirScore}
                 </p>
-                {m.location && <p className="text-gray-600 text-xs mt-1">📍 {m.location}</p>}
-                {/* Per-set scores */}
-                {m.sets && m.sets.length > 0 && (
+                {m.tournament && (
+                  <p className="text-gray-600 text-xs mt-1">🏆 {m.tournament}</p>
+                )}
+                {m.setScores && m.setScores.length > 0 && (
                   <div className="flex gap-2 mt-2 flex-wrap">
-                    {m.sets.map((s, i) => (
+                    {m.setScores.map((s, i) => (
                       <div key={i} className="bg-navy-700 rounded-lg px-2 py-1 text-center">
                         <p className="text-gray-500 text-[9px]">Set {i+1}</p>
-                        <p className="text-white text-xs font-bold">{s.us}–{s.them}</p>
+                        <p className="text-white text-xs font-bold">{s.our}–{s.their}</p>
                       </div>
                     ))}
                   </div>
+                )}
+                {m.notes && (
+                  <p className="text-gray-600 text-xs mt-2 italic">"{m.notes}"</p>
                 )}
               </div>
             )
@@ -173,11 +165,13 @@ export default function Calendar({ matches }: Props) {
         <div className="px-4 flex flex-col gap-3">
           <p className="text-gray-500 text-xs font-bold uppercase tracking-wide">{MONTHS[month]} {year}</p>
           {(() => {
-            const monthMatches = matches.filter(m => m.date.startsWith(`${year}-${String(month+1).padStart(2,'0')}`))
+            const monthMatches = matches.filter(m =>
+              m.date.startsWith(`${year}-${String(month+1).padStart(2,'0')}`)
+            )
             if (monthMatches.length === 0) return (
               <p className="text-gray-600 text-sm">No matches this month.</p>
             )
-            const wins   = monthMatches.filter(m => (m.ourSets ?? 0) > (m.opponentSets ?? 0)).length
+            const wins   = monthMatches.filter(isWin).length
             const losses = monthMatches.length - wins
             return (
               <>
@@ -193,21 +187,21 @@ export default function Calendar({ matches }: Props) {
                     </div>
                   ))}
                 </div>
-                {monthMatches.sort((a,b) => a.date.localeCompare(b.date)).map(m => {
-                  const won = (m.ourSets ?? 0) > (m.opponentSets ?? 0)
-                  return (
-                    <button key={m.id}
-                      onClick={() => setSelected(m.date)}
-                      className="tap-btn bg-navy-800 border border-white/10 rounded-xl px-4 py-3 flex items-center gap-3 text-left">
-                      <div className={`w-1.5 self-stretch rounded-full ${won ? 'bg-green-400' : 'bg-red-400'}`} />
-                      <div className="flex-1">
-                        <p className="text-white text-sm font-bold">vs {m.opponent}</p>
-                        <p className="text-gray-500 text-xs">{new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-                      </div>
-                      <p className="text-white font-black text-sm">{m.ourSets ?? 0}–{m.opponentSets ?? 0}</p>
-                    </button>
-                  )
-                })}
+                {[...monthMatches].sort((a,b) => a.date.localeCompare(b.date)).map(m => (
+                  <button key={m.id}
+                    onClick={() => setSelected(m.date)}
+                    className="tap-btn bg-navy-800 border border-white/10 rounded-xl px-4 py-3 flex items-center gap-3 text-left">
+                    <div className={`w-1.5 self-stretch rounded-full ${isWin(m) ? 'bg-green-400' : 'bg-red-400'}`} />
+                    <div className="flex-1">
+                      <p className="text-white text-sm font-bold">vs {m.opponent}</p>
+                      <p className="text-gray-500 text-xs">
+                        {new Date(m.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {m.tournament ? ` · ${m.tournament}` : ''}
+                      </p>
+                    </div>
+                    <p className="text-white font-black text-sm">{m.ourScore}–{m.theirScore}</p>
+                  </button>
+                ))}
               </>
             )
           })()}
@@ -220,15 +214,15 @@ export default function Calendar({ matches }: Props) {
           <p className="text-gray-600 text-[10px] uppercase tracking-wide mb-2">Months with matches</p>
           <div className="flex flex-wrap gap-2">
             {[...matchMonths].sort().map(ym => {
-              const [y, m] = ym.split('-').map(Number)
-              const isActive = y === year && m - 1 === month
+              const [y, mo] = ym.split('-').map(Number)
+              const isActive = y === year && mo - 1 === month
               return (
                 <button key={ym}
-                  onClick={() => { setYear(y); setMonth(m - 1); setSelected(null) }}
+                  onClick={() => { setYear(y); setMonth(mo - 1); setSelected(null) }}
                   className={`tap-btn text-xs font-bold px-2.5 py-1 rounded-full border transition-all ${
                     isActive ? 'bg-vr-700 border-vr-500 text-white' : 'border-white/10 text-gray-500'
                   }`}>
-                  {MONTHS[m-1].slice(0,3)} {y}
+                  {MONTHS[mo-1].slice(0,3)} {y}
                 </button>
               )
             })}
