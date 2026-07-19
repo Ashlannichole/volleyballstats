@@ -211,6 +211,7 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
     const block = blockFromDrill(drill)
     const updated = { ...activePlan, blocks: [...activePlan.blocks, block] }
     upsertPlan(updated)
+    setShowLibrary(false)
   }
 
   // ── Home ──────────────────────────────────────────────────────────────────
@@ -389,7 +390,7 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
         {/* Header */}
         <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0">
           <div className="flex items-center gap-2 mb-2">
-            <button onClick={() => { setShowLibrary(false); setEditBlock(null); setView('home') }}
+            <button onClick={() => { setShowLibrary(false); setEditBlock(null); setShowPlanEdit(false); setView('home') }}
               className="tap-btn text-gray-400 text-sm">← Plans</button>
             <div className="flex-1 flex items-center justify-center gap-2">
               {planNameEdit ? (
@@ -403,58 +404,16 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
               )}
               {plan.isTemplate && <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-vr-900/50 border border-vr-600/40 text-vr-400">TEMPLATE</span>}
             </div>
-            <div className="flex gap-1.5">
-              <button onClick={() => setShowPlanEdit(e => !e)}
-                className="tap-btn text-gray-500 text-xs px-2 py-1 border border-white/10 rounded-lg">⚙</button>
-              <button onClick={() => upsertPlan({ ...plan, isTemplate: !plan.isTemplate })}
-                className="tap-btn text-gray-600 text-xs">
-                {plan.isTemplate ? '📋' : '⭐'}
-              </button>
-            </div>
+            <button
+              onClick={() => { setShowPlanEdit(e => !e); setEditBlock(null) }}
+              className={`tap-btn text-xs font-bold px-3 py-1.5 rounded-xl border transition-all ${
+                showPlanEdit
+                  ? 'bg-vr-700/50 border-vr-500/60 text-white'
+                  : 'border-white/10 text-gray-400'
+              }`}>
+              {showPlanEdit ? 'Done' : 'Edit'}
+            </button>
           </div>
-          {/* Plan settings edit panel */}
-          {showPlanEdit && (
-            <div className="mt-2 bg-navy-700/60 border border-white/10 rounded-xl p-3 flex flex-col gap-2">
-              <div className="flex gap-2">
-                {!plan.isTemplate && (
-                  <div className="flex-1 flex flex-col gap-0.5">
-                    <label className="text-gray-600 text-[9px] uppercase tracking-wide">Date</label>
-                    <input type="date" value={plan.date}
-                      onChange={e => upsertPlan({ ...plan, date: e.target.value })}
-                      className="bg-navy-700 border border-white/15 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none" />
-                  </div>
-                )}
-                <div className="flex-1 flex flex-col gap-0.5">
-                  <label className="text-gray-600 text-[9px] uppercase tracking-wide">Start Time</label>
-                  <input type="time" value={plan.startTime}
-                    onChange={e => upsertPlan({ ...plan, startTime: e.target.value })}
-                    className="bg-navy-700 border border-white/15 rounded-lg px-2 py-1.5 text-white text-xs focus:outline-none" />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1 flex flex-col gap-0.5">
-                  <label className="text-gray-600 text-[9px] uppercase tracking-wide">Duration</label>
-                  <div className="flex items-center gap-1 bg-navy-700 border border-white/15 rounded-lg px-2 py-1.5">
-                    <button onClick={() => upsertPlan({ ...plan, totalMinutes: Math.max(30, plan.totalMinutes - 15) })}
-                      className="tap-btn text-gray-400 text-sm">−</button>
-                    <span className="flex-1 text-center text-white text-xs font-bold">{fmt(plan.totalMinutes)}</span>
-                    <button onClick={() => upsertPlan({ ...plan, totalMinutes: Math.min(240, plan.totalMinutes + 15) })}
-                      className="tap-btn text-gray-400 text-sm">+</button>
-                  </div>
-                </div>
-                <div className="flex-1 flex flex-col gap-0.5">
-                  <label className="text-gray-600 text-[9px] uppercase tracking-wide">Players</label>
-                  <div className="flex items-center gap-1 bg-navy-700 border border-white/15 rounded-lg px-2 py-1.5">
-                    <button onClick={() => upsertPlan({ ...plan, playerCount: Math.max(2, plan.playerCount - 1) })}
-                      className="tap-btn text-gray-400 text-sm">−</button>
-                    <span className="flex-1 text-center text-white text-xs font-bold">{plan.playerCount}</span>
-                    <button onClick={() => upsertPlan({ ...plan, playerCount: Math.min(30, plan.playerCount + 1) })}
-                      className="tap-btn text-gray-400 text-sm">+</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
           {/* Time bar */}
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-gray-500 text-[11px]">{displayTime(plan.startTime)}</span>
@@ -500,26 +459,21 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
             return plan.blocks.map((block, i) => {
               const blockStart = t
               t = addMins(t, block.duration)
-              const blockEnd = t
-              const isEditing = editBlock === block.id
-              return (
-                <div key={block.id} className={`bg-navy-800 border rounded-2xl overflow-hidden transition-all ${isEditing ? 'border-vr-500/60' : 'border-white/10'}`}>
-                  {/* Time bar */}
-                  <div className="px-4 pt-3 pb-2 flex items-start gap-3">
-                    <div className="flex flex-col items-center shrink-0">
+              const blockEnd   = t
+              const isExpanded = editBlock === block.id
+
+              if (!showPlanEdit) {
+                // ── Clean read-only view ─────────────────────────────────────
+                return (
+                  <div key={block.id} className="bg-navy-800 border border-white/10 rounded-2xl px-4 py-3 flex items-start gap-3">
+                    <div className="flex flex-col items-center shrink-0 pt-0.5">
                       <span className="text-gray-500 text-[10px] font-mono">{displayTime(blockStart)}</span>
-                      <div className="w-px flex-1 bg-white/10 my-1 min-h-[20px]" />
+                      <div className="w-px flex-1 bg-white/10 my-1 min-h-[18px]" />
                       <span className="text-gray-600 text-[10px] font-mono">{displayTime(blockEnd)}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      {isEditing ? (
-                        <input value={block.name}
-                          onChange={e => updateBlock(plan.id, { ...block, name: e.target.value })}
-                          className="bg-transparent text-white font-bold text-sm focus:outline-none border-b border-white/20 w-full mb-1" />
-                      ) : (
-                        <p className="text-white font-bold text-sm">{block.name}</p>
-                      )}
-                      <div className="flex flex-wrap gap-1 mt-1">
+                      <p className="text-white font-bold text-sm">{block.name}</p>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
                         {block.tags.map(t2 => (
                           <span key={t2} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${TAG_STYLES[t2].bg} ${TAG_STYLES[t2].color}`}>
                             {TAG_STYLES[t2].label}
@@ -531,39 +485,63 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
                           {block.stations === 'full' ? '⚡ Full team' : '🔀 Stations'}
                         </span>
                       </div>
-                      {/* Duration adjuster */}
-                      <div className="flex items-center gap-2 mt-2">
+                      {block.notes && <p className="text-gray-600 text-xs italic mt-1.5">{block.notes}</p>}
+                    </div>
+                    <span className="text-gray-600 text-xs font-bold shrink-0 mt-0.5">{fmt(block.duration)}</span>
+                  </div>
+                )
+              }
+
+              // ── Edit mode view ───────────────────────────────────────────
+              return (
+                <div key={block.id} className={`bg-navy-800 border rounded-2xl overflow-hidden transition-all ${isExpanded ? 'border-vr-500/50' : 'border-white/15'}`}>
+                  <div className="px-4 pt-3 pb-2 flex items-start gap-3">
+                    <div className="flex flex-col items-center shrink-0 pt-0.5">
+                      <span className="text-gray-500 text-[10px] font-mono">{displayTime(blockStart)}</span>
+                      <div className="w-px flex-1 bg-white/10 my-1 min-h-[18px]" />
+                      <span className="text-gray-600 text-[10px] font-mono">{displayTime(blockEnd)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-bold text-sm mb-1.5">{block.name}</p>
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {block.tags.map(t2 => (
+                          <span key={t2} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${TAG_STYLES[t2].bg} ${TAG_STYLES[t2].color}`}>
+                            {TAG_STYLES[t2].label}
+                          </span>
+                        ))}
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                          block.stations === 'full' ? 'bg-navy-700 border-white/10 text-gray-500' : 'bg-vr-900/30 border-vr-600/30 text-vr-400'
+                        }`}>
+                          {block.stations === 'full' ? '⚡ Full team' : '🔀 Stations'}
+                        </span>
+                      </div>
+                      {/* Controls row */}
+                      <div className="flex items-center gap-2">
                         <button onClick={() => updateBlock(plan.id, { ...block, duration: Math.max(5, block.duration - 5) })}
-                          className="tap-btn w-7 h-7 rounded-lg bg-navy-700 border border-white/10 text-white text-sm flex items-center justify-center">−</button>
-                        <span className="text-white font-bold text-sm w-12 text-center">{fmt(block.duration)}</span>
+                          className="tap-btn w-8 h-8 rounded-lg bg-navy-700 border border-white/10 text-white text-base flex items-center justify-center">−</button>
+                        <span className="text-white font-bold text-sm w-10 text-center">{fmt(block.duration)}</span>
                         <button onClick={() => updateBlock(plan.id, { ...block, duration: block.duration + 5 })}
-                          className="tap-btn w-7 h-7 rounded-lg bg-navy-700 border border-white/10 text-white text-sm flex items-center justify-center">+</button>
+                          className="tap-btn w-8 h-8 rounded-lg bg-navy-700 border border-white/10 text-white text-base flex items-center justify-center">+</button>
                         <div className="flex-1" />
-                        <button onClick={() => setEditBlock(isEditing ? null : block.id)}
-                          className="tap-btn text-gray-600 text-xs px-2 py-1 border border-white/10 rounded-lg">
-                          {isEditing ? 'Done' : 'Notes'}
+                        <button onClick={() => setEditBlock(isExpanded ? null : block.id)}
+                          className={`tap-btn text-xs px-2 py-1.5 rounded-lg border ${isExpanded ? 'border-vr-500/50 text-vr-300' : 'border-white/10 text-gray-500'}`}>
+                          Notes
                         </button>
                         <button onClick={() => moveBlock(plan.id, block.id, -1)} disabled={i === 0}
-                          className="tap-btn w-7 h-7 rounded-lg bg-navy-700/50 border border-white/8 text-gray-500 text-xs flex items-center justify-center disabled:opacity-20">↑</button>
+                          className="tap-btn w-8 h-8 rounded-lg bg-navy-700/50 border border-white/8 text-gray-400 text-sm flex items-center justify-center disabled:opacity-20">↑</button>
                         <button onClick={() => moveBlock(plan.id, block.id, 1)} disabled={i === plan.blocks.length - 1}
-                          className="tap-btn w-7 h-7 rounded-lg bg-navy-700/50 border border-white/8 text-gray-500 text-xs flex items-center justify-center disabled:opacity-20">↓</button>
+                          className="tap-btn w-8 h-8 rounded-lg bg-navy-700/50 border border-white/8 text-gray-400 text-sm flex items-center justify-center disabled:opacity-20">↓</button>
                         <button onClick={() => removeBlock(plan.id, block.id)}
-                          className="tap-btn w-7 h-7 rounded-lg bg-red-900/20 border border-red-800/30 text-red-600 text-xs flex items-center justify-center">✕</button>
+                          className="tap-btn w-8 h-8 rounded-lg bg-red-900/20 border border-red-800/30 text-red-500 text-sm flex items-center justify-center">✕</button>
                       </div>
                     </div>
                   </div>
-                  {/* Notes (expanded) */}
-                  {isEditing && (
+                  {isExpanded && (
                     <div className="px-4 pb-3">
                       <textarea value={block.notes}
                         onChange={e => updateBlock(plan.id, { ...block, notes: e.target.value })}
                         placeholder="Coaching notes, cues, modifications…" rows={2}
-                        className="w-full bg-navy-700 border border-white/10 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-600 focus:outline-none resize-none text-xs" />
-                    </div>
-                  )}
-                  {!isEditing && block.notes && (
-                    <div className="px-4 pb-3">
-                      <p className="text-gray-600 text-xs italic">{block.notes}</p>
+                        className="w-full bg-navy-700 border border-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder-gray-600 focus:outline-none resize-none" />
                     </div>
                   )}
                 </div>
