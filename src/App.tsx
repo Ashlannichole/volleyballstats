@@ -16,22 +16,22 @@ import Roster from './components/Roster'
 import LiveGame from './components/LiveGame'
 import MatchHistory from './components/MatchHistory'
 import SeasonStats from './components/SeasonStats'
-import Practice from './components/Practice'
 import SettingsPage from './components/Settings'
 import AdBanner from './components/AdBanner'
 import Onboarding from './components/Onboarding'
-import Scouting from './components/Scouting'
 import { useUpgradeModal } from './components/UpgradePrompt'
+import Tools from './components/Tools'
 import type { PracticeSession } from './types'
 
-type Tab = 'roster' | 'live' | 'history' | 'season' | 'practice' | 'scout' | 'settings'
+type Tab = 'roster' | 'live' | 'history' | 'season' | 'tools'
 
 export default function App() {
   const [session, setSession]     = useState<Session | null>(loadSession)
   const [syncing, setSyncing]     = useState(false)
   const [syncError, setSyncError] = useState('')
 
-  const [tab, setTab] = useState<Tab>('live')
+  const [tab, setTab]           = useState<Tab>('live')
+  const [showSettings, setShowSettings] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('vb_onboarded'))
   const [tier, setTier] = useState<Tier>(loadTier)
   const [teamSettings, setTeamSettings] = useState<TeamSettings>(() => {
@@ -327,20 +327,18 @@ export default function App() {
     )
   }
 
-  const TABS: { id: Tab; label: string; icon: string; proOnly?: boolean }[] = [
-    { id: 'roster',   label: 'Roster',   icon: '👥' },
-    { id: 'live',     label: 'Live',     icon: '🏐' },
-    { id: 'history',  label: 'History',  icon: '📋' },
-    { id: 'season',   label: 'Season',   icon: '📊' },
-    { id: 'practice', label: 'Practice', icon: '🎽', proOnly: true },
-    { id: 'scout',    label: 'Scout',    icon: '🔍', proOnly: true },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
+  const TABS: { id: Tab; label: string; icon: string }[] = [
+    { id: 'roster',  label: 'Roster',  icon: '👥' },
+    { id: 'live',    label: 'Live',    icon: '🏐' },
+    { id: 'history', label: 'History', icon: '📋' },
+    { id: 'season',  label: 'Season',  icon: '📊' },
+    { id: 'tools',   label: 'Tools',   icon: '🛠️' },
   ]
 
   const hasTeam2 = isPro && (players2.length > 0 || teamSettings.team2Name !== 'Team 2')
 
   return (
-    <div className="flex flex-col h-dvh bg-navy-900 overflow-hidden">
+    <div className="relative flex flex-col h-dvh bg-navy-900 overflow-hidden">
       {/* Header */}
       <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0 flex items-center gap-3">
         {isPro && logo ? (
@@ -376,16 +374,22 @@ export default function App() {
             }
           </p>
         </div>
-        {isPro ? (
-          <span className="text-xs font-bold px-2 py-1 rounded-full bg-vr-800 border border-vr-500/40 text-vr-300 shrink-0">
-            ⚡ Pro
-          </span>
-        ) : (
-          <button onClick={openModal}
-            className="tap-btn text-xs font-bold px-3 py-1.5 rounded-full bg-vr-700 text-white border border-vr-500 shrink-0">
-            Upgrade ⚡
+        <div className="flex items-center gap-2 shrink-0">
+          {isPro ? (
+            <span className="text-xs font-bold px-2 py-1 rounded-full bg-vr-800 border border-vr-500/40 text-vr-300">
+              ⚡ Pro
+            </span>
+          ) : (
+            <button onClick={openModal}
+              className="tap-btn text-xs font-bold px-3 py-1.5 rounded-full bg-vr-700 text-white border border-vr-500">
+              Upgrade ⚡
+            </button>
+          )}
+          <button onClick={() => setShowSettings(true)}
+            className="tap-btn w-8 h-8 rounded-full bg-navy-700 border border-white/10 flex items-center justify-center text-gray-400 text-base">
+            ⚙
           </button>
-        )}
+        </div>
       </div>
 
       {/* Content */}
@@ -421,60 +425,65 @@ export default function App() {
         <div className={tab === 'season' ? '' : 'hidden'}>
           <SeasonStats matches={activeMatches} players={activePlayers} isPro={isPro} onUpgrade={openModal} />
         </div>
-        <div className={tab === 'practice' ? 'h-full flex flex-col' : 'hidden'}>
-          <Practice
-            players={activePlayers}
-            sessions={activePractices}
-            onSave={s => setActivePractices(prev => [...prev, s])}
-            onDelete={id => setActivePractices(prev => prev.filter(p => p.id !== id))}
-          />
-        </div>
-        <div className={tab === 'scout' ? 'h-full flex flex-col' : 'hidden'}>
-          <Scouting isPro={isPro} onUpgrade={openModal} />
-        </div>
-        <div className={tab === 'settings' ? '' : 'hidden'}>
-          <SettingsPage
-            settings={teamSettings}
-            onSettingsChange={handleSettingsChange}
+        <div className={tab === 'tools' ? 'h-full flex flex-col' : 'hidden'}>
+          <Tools
             isPro={isPro}
             onUpgrade={openModal}
-            coachTeam={coachTeam}
-            onCoachTeamChange={handleCoachTeamChange}
-            matches={activeMatches}
             players={activePlayers}
-            onSyncTeamData={handleSyncTeamData}
-            session={session}
-            onSignOut={handleSignOut}
-            onSyncNow={handleSyncNow}
-            logo={logo}
-            onLogoChange={handleLogoChange}
-            onTutorial={handleOpenTutorial}
+            matches={activeMatches}
+            practices={activePractices}
+            onSavePractice={s => setActivePractices(prev => [...prev, s])}
+            onDeletePractice={id => setActivePractices(prev => prev.filter(p => p.id !== id))}
           />
         </div>
       </div>
 
+      {/* Settings overlay */}
+      {showSettings && (
+        <div className="absolute inset-0 z-50 bg-navy-900 flex flex-col">
+          <div className="bg-navy-800 border-b border-white/10 px-4 py-3 flex items-center shrink-0">
+            <button onClick={() => setShowSettings(false)} className="tap-btn text-gray-400 text-sm">← Back</button>
+            <p className="flex-1 text-center text-white font-bold text-sm">Settings</p>
+            <div className="w-14" />
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <SettingsPage
+              settings={teamSettings}
+              onSettingsChange={handleSettingsChange}
+              isPro={isPro}
+              onUpgrade={openModal}
+              coachTeam={coachTeam}
+              onCoachTeamChange={handleCoachTeamChange}
+              matches={activeMatches}
+              players={activePlayers}
+              onSyncTeamData={handleSyncTeamData}
+              session={session}
+              onSignOut={handleSignOut}
+              onSyncNow={handleSyncNow}
+              logo={logo}
+              onLogoChange={handleLogoChange}
+              onTutorial={handleOpenTutorial}
+            />
+          </div>
+        </div>
+      )}
+
       {showAd && <AdBanner />}
 
       <nav className="bg-navy-800 border-t border-white/10 flex shrink-0">
-        {TABS.map(t => {
-          const locked = t.proOnly && !isPro
-          return (
-            <button key={t.id}
-              onClick={() => locked ? openModal() : setTab(t.id)}
-              className={`tap-btn flex-1 flex flex-col items-center gap-1 py-3 transition-colors ${
-                locked ? 'text-gray-600' : tab === t.id ? '' : 'text-gray-500'
-              }`}
-              style={tab === t.id && !locked ? { color: isPro ? teamSettings.primaryColor : DEFAULT_SETTINGS.primaryColor } : {}}
-            >
-              <span className="text-xl">{t.icon}</span>
-              <span className="text-[10px] font-medium">{t.label}</span>
-              {locked
-                ? <span className="text-[9px] text-vr-500 font-bold">PRO</span>
-                : tab === t.id && <span className="w-4 h-0.5 rounded-full mt-0.5" style={{ backgroundColor: isPro ? teamSettings.primaryColor : DEFAULT_SETTINGS.primaryColor }} />
-              }
-            </button>
-          )
-        })}
+        {TABS.map(t => (
+          <button key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`tap-btn flex-1 flex flex-col items-center gap-1 py-3 transition-colors ${tab === t.id ? '' : 'text-gray-500'}`}
+            style={tab === t.id ? { color: isPro ? teamSettings.primaryColor : DEFAULT_SETTINGS.primaryColor } : {}}
+          >
+            <span className="text-xl">{t.icon}</span>
+            <span className="text-[10px] font-medium">{t.label}</span>
+            {tab === t.id && (
+              <span className="w-4 h-0.5 rounded-full mt-0.5" style={{ backgroundColor: isPro ? teamSettings.primaryColor : DEFAULT_SETTINGS.primaryColor }} />
+            )}
+          </button>
+        ))}
       </nav>
 
       {modal}
