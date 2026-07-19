@@ -1,4 +1,13 @@
 import { useState } from 'react'
+import {
+  DndContext, closestCenter, PointerSensor, TouchSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, verticalListSortingStrategy,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -137,6 +146,108 @@ function blockFromDrill(d: Drill): PlanBlock {
   return { id: uid(), drillId: d.id, name: d.name, duration: d.defaultDuration, tags: d.tags, stations: d.stations, notes: d.coachNotes ?? '' }
 }
 
+// ── SortableBlock ─────────────────────────────────────────────────────────────
+
+interface SortableBlockProps {
+  block: PlanBlock
+  blockStart: string
+  blockEnd: string
+  isEditMode: boolean
+  isExpanded: boolean
+  onToggleNotes: () => void
+  onDurationChange: (delta: number) => void
+  onNotesChange: (notes: string) => void
+  onRemove: () => void
+}
+
+function SortableBlock({ block, blockStart, blockEnd, isEditMode, isExpanded, onToggleNotes, onDurationChange, onNotesChange, onRemove }: SortableBlockProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+
+  if (!isEditMode) {
+    return (
+      <div ref={setNodeRef} style={style} className="bg-navy-800 border border-white/10 rounded-2xl px-4 py-3 flex items-start gap-3">
+        <div className="flex flex-col items-center shrink-0 pt-0.5">
+          <span className="text-gray-500 text-[10px] font-mono">{displayTime(blockStart)}</span>
+          <div className="w-px flex-1 bg-white/10 my-1 min-h-[18px]" />
+          <span className="text-gray-600 text-[10px] font-mono">{displayTime(blockEnd)}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-bold text-sm">{block.name}</p>
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {block.tags.map(t => (
+              <span key={t} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${TAG_STYLES[t].bg} ${TAG_STYLES[t].color}`}>
+                {TAG_STYLES[t].label}
+              </span>
+            ))}
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+              block.stations === 'full' ? 'bg-navy-700 border-white/10 text-gray-500' : 'bg-vr-900/30 border-vr-600/30 text-vr-400'
+            }`}>
+              {block.stations === 'full' ? '⚡ Full team' : '🔀 Stations'}
+            </span>
+          </div>
+          {block.notes && <p className="text-gray-600 text-xs italic mt-1.5">{block.notes}</p>}
+        </div>
+        <span className="text-gray-600 text-xs font-bold shrink-0 mt-0.5">{fmt(block.duration)}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div ref={setNodeRef} style={style} className={`bg-navy-800 border rounded-2xl overflow-hidden transition-colors ${isExpanded ? 'border-vr-500/50' : 'border-white/15'}`}>
+      <div className="px-4 pt-3 pb-2 flex items-start gap-3">
+        {/* Drag handle */}
+        <button {...attributes} {...listeners}
+          className="shrink-0 mt-1 touch-none text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing px-0.5 py-1">
+          ⠿
+        </button>
+        <div className="flex flex-col items-center shrink-0 pt-0.5">
+          <span className="text-gray-500 text-[10px] font-mono">{displayTime(blockStart)}</span>
+          <div className="w-px flex-1 bg-white/10 my-1 min-h-[18px]" />
+          <span className="text-gray-600 text-[10px] font-mono">{displayTime(blockEnd)}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-bold text-sm mb-1.5">{block.name}</p>
+          <div className="flex flex-wrap gap-1 mb-2">
+            {block.tags.map(t => (
+              <span key={t} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${TAG_STYLES[t].bg} ${TAG_STYLES[t].color}`}>
+                {TAG_STYLES[t].label}
+              </span>
+            ))}
+            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+              block.stations === 'full' ? 'bg-navy-700 border-white/10 text-gray-500' : 'bg-vr-900/30 border-vr-600/30 text-vr-400'
+            }`}>
+              {block.stations === 'full' ? '⚡ Full team' : '🔀 Stations'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => onDurationChange(-5)}
+              className="tap-btn w-8 h-8 rounded-lg bg-navy-700 border border-white/10 text-white text-base flex items-center justify-center">−</button>
+            <span className="text-white font-bold text-sm w-10 text-center">{fmt(block.duration)}</span>
+            <button onClick={() => onDurationChange(5)}
+              className="tap-btn w-8 h-8 rounded-lg bg-navy-700 border border-white/10 text-white text-base flex items-center justify-center">+</button>
+            <div className="flex-1" />
+            <button onClick={onToggleNotes}
+              className={`tap-btn text-xs px-2 py-1.5 rounded-lg border ${isExpanded ? 'border-vr-500/50 text-vr-300' : 'border-white/10 text-gray-500'}`}>
+              Notes
+            </button>
+            <button onClick={onRemove}
+              className="tap-btn w-8 h-8 rounded-lg bg-red-900/20 border border-red-800/30 text-red-500 text-sm flex items-center justify-center">✕</button>
+          </div>
+        </div>
+      </div>
+      {isExpanded && (
+        <div className="px-4 pb-3">
+          <textarea value={block.notes}
+            onChange={e => onNotesChange(e.target.value)}
+            placeholder="Coaching notes, cues, modifications…" rows={2}
+            className="w-full bg-navy-700 border border-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder-gray-600 focus:outline-none resize-none" />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 type View = 'home' | 'setup' | 'build' | 'custom'
@@ -151,6 +262,10 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
   const [tagFilter,    setTagFilter]    = useState<SkillTag[]>([])
   const [editBlock,    setEditBlock]    = useState<string | null>(null)
   const [confirmDel,   setConfirmDel]   = useState<string | null>(null)
+  const dndSensors = useSensors(
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  )
   const [planNameEdit, setPlanNameEdit] = useState(false)
 
   // Setup form state
@@ -196,14 +311,10 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
     if (editBlock === blockId) setEditBlock(null)
   }
 
-  function moveBlock(planId: string, blockId: string, dir: -1 | 1) {
+  function reorderBlocks(planId: string, fromIndex: number, toIndex: number) {
     const plan = plans.find(p => p.id === planId)
     if (!plan) return
-    const i = plan.blocks.findIndex(b => b.id === blockId)
-    if (i + dir < 0 || i + dir >= plan.blocks.length) return
-    const bs = [...plan.blocks]
-    ;[bs[i], bs[i + dir]] = [bs[i + dir], bs[i]]
-    upsertPlan({ ...plan, blocks: bs })
+    upsertPlan({ ...plan, blocks: arrayMove(plan.blocks, fromIndex, toIndex) })
   }
 
   function addDrillToPlan(drill: Drill) {
@@ -455,98 +566,44 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
               <p className="text-gray-600 text-xs mt-1">Tap "Add Drills" below to build your plan.</p>
             </div>
           ) : (() => {
+            // Pre-compute time ranges before sortable rendering
+            const timeRanges: { start: string; end: string }[] = []
             let t = plan.startTime
-            return plan.blocks.map((block, i) => {
-              const blockStart = t
+            for (const block of plan.blocks) {
+              const s = t
               t = addMins(t, block.duration)
-              const blockEnd   = t
-              const isExpanded = editBlock === block.id
-
-              if (!showPlanEdit) {
-                // ── Clean read-only view ─────────────────────────────────────
-                return (
-                  <div key={block.id} className="bg-navy-800 border border-white/10 rounded-2xl px-4 py-3 flex items-start gap-3">
-                    <div className="flex flex-col items-center shrink-0 pt-0.5">
-                      <span className="text-gray-500 text-[10px] font-mono">{displayTime(blockStart)}</span>
-                      <div className="w-px flex-1 bg-white/10 my-1 min-h-[18px]" />
-                      <span className="text-gray-600 text-[10px] font-mono">{displayTime(blockEnd)}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-sm">{block.name}</p>
-                      <div className="flex flex-wrap gap-1 mt-1.5">
-                        {block.tags.map(t2 => (
-                          <span key={t2} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${TAG_STYLES[t2].bg} ${TAG_STYLES[t2].color}`}>
-                            {TAG_STYLES[t2].label}
-                          </span>
-                        ))}
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
-                          block.stations === 'full' ? 'bg-navy-700 border-white/10 text-gray-500' : 'bg-vr-900/30 border-vr-600/30 text-vr-400'
-                        }`}>
-                          {block.stations === 'full' ? '⚡ Full team' : '🔀 Stations'}
-                        </span>
-                      </div>
-                      {block.notes && <p className="text-gray-600 text-xs italic mt-1.5">{block.notes}</p>}
-                    </div>
-                    <span className="text-gray-600 text-xs font-bold shrink-0 mt-0.5">{fmt(block.duration)}</span>
-                  </div>
-                )
-              }
-
-              // ── Edit mode view ───────────────────────────────────────────
-              return (
-                <div key={block.id} className={`bg-navy-800 border rounded-2xl overflow-hidden transition-all ${isExpanded ? 'border-vr-500/50' : 'border-white/15'}`}>
-                  <div className="px-4 pt-3 pb-2 flex items-start gap-3">
-                    <div className="flex flex-col items-center shrink-0 pt-0.5">
-                      <span className="text-gray-500 text-[10px] font-mono">{displayTime(blockStart)}</span>
-                      <div className="w-px flex-1 bg-white/10 my-1 min-h-[18px]" />
-                      <span className="text-gray-600 text-[10px] font-mono">{displayTime(blockEnd)}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-bold text-sm mb-1.5">{block.name}</p>
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {block.tags.map(t2 => (
-                          <span key={t2} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${TAG_STYLES[t2].bg} ${TAG_STYLES[t2].color}`}>
-                            {TAG_STYLES[t2].label}
-                          </span>
-                        ))}
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
-                          block.stations === 'full' ? 'bg-navy-700 border-white/10 text-gray-500' : 'bg-vr-900/30 border-vr-600/30 text-vr-400'
-                        }`}>
-                          {block.stations === 'full' ? '⚡ Full team' : '🔀 Stations'}
-                        </span>
-                      </div>
-                      {/* Controls row */}
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => updateBlock(plan.id, { ...block, duration: Math.max(5, block.duration - 5) })}
-                          className="tap-btn w-8 h-8 rounded-lg bg-navy-700 border border-white/10 text-white text-base flex items-center justify-center">−</button>
-                        <span className="text-white font-bold text-sm w-10 text-center">{fmt(block.duration)}</span>
-                        <button onClick={() => updateBlock(plan.id, { ...block, duration: block.duration + 5 })}
-                          className="tap-btn w-8 h-8 rounded-lg bg-navy-700 border border-white/10 text-white text-base flex items-center justify-center">+</button>
-                        <div className="flex-1" />
-                        <button onClick={() => setEditBlock(isExpanded ? null : block.id)}
-                          className={`tap-btn text-xs px-2 py-1.5 rounded-lg border ${isExpanded ? 'border-vr-500/50 text-vr-300' : 'border-white/10 text-gray-500'}`}>
-                          Notes
-                        </button>
-                        <button onClick={() => moveBlock(plan.id, block.id, -1)} disabled={i === 0}
-                          className="tap-btn w-8 h-8 rounded-lg bg-navy-700/50 border border-white/8 text-gray-400 text-sm flex items-center justify-center disabled:opacity-20">↑</button>
-                        <button onClick={() => moveBlock(plan.id, block.id, 1)} disabled={i === plan.blocks.length - 1}
-                          className="tap-btn w-8 h-8 rounded-lg bg-navy-700/50 border border-white/8 text-gray-400 text-sm flex items-center justify-center disabled:opacity-20">↓</button>
-                        <button onClick={() => removeBlock(plan.id, block.id)}
-                          className="tap-btn w-8 h-8 rounded-lg bg-red-900/20 border border-red-800/30 text-red-500 text-sm flex items-center justify-center">✕</button>
-                      </div>
-                    </div>
-                  </div>
-                  {isExpanded && (
-                    <div className="px-4 pb-3">
-                      <textarea value={block.notes}
-                        onChange={e => updateBlock(plan.id, { ...block, notes: e.target.value })}
-                        placeholder="Coaching notes, cues, modifications…" rows={2}
-                        className="w-full bg-navy-700 border border-white/10 rounded-xl px-3 py-2 text-white text-xs placeholder-gray-600 focus:outline-none resize-none" />
-                    </div>
-                  )}
-                </div>
-              )
-            })
+              timeRanges.push({ start: s, end: t })
+            }
+            return (
+              <DndContext
+                sensors={dndSensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event: DragEndEvent) => {
+                  const { active, over } = event
+                  if (!over || active.id === over.id) return
+                  const from = plan.blocks.findIndex(b => b.id === active.id)
+                  const to   = plan.blocks.findIndex(b => b.id === over.id)
+                  reorderBlocks(plan.id, from, to)
+                }}
+              >
+                <SortableContext items={plan.blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                  {plan.blocks.map((block, i) => (
+                    <SortableBlock
+                      key={block.id}
+                      block={block}
+                      blockStart={timeRanges[i].start}
+                      blockEnd={timeRanges[i].end}
+                      isEditMode={showPlanEdit}
+                      isExpanded={editBlock === block.id}
+                      onToggleNotes={() => setEditBlock(editBlock === block.id ? null : block.id)}
+                      onDurationChange={delta => updateBlock(plan.id, { ...block, duration: Math.max(5, block.duration + delta) })}
+                      onNotesChange={notes => updateBlock(plan.id, { ...block, notes })}
+                      onRemove={() => removeBlock(plan.id, block.id)}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            )
           })()}
         </div>
 
