@@ -424,6 +424,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setSubCount(0)
     setLiberoPair(null)
     setScoreRun(null)
+    prevScoresRef.current = { our: 0, their: 0 }
     setServeLocked(weAreServing === true)
     setLastTimeout(null)
     setServingRun(0)
@@ -557,11 +558,17 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setWeAreServing(null)
     setCurrentSet(0)
     setSets([buildSetStats(players)])
+    setCompletedSetScores([])
     setRotation([null,null,null,null,null,null])
     setPreLineup([null,null,null,null,null,null])
     setHistory([])
     setSubCount(0)
     setLiberoPair(null)
+    setScoreRun(null)
+    setStreakAlert(null)
+    setSetCompleteAlert(false)
+    prevScoresRef.current = { our: 0, their: 0 }
+    setServingRun(0)
     setShowEndDialog(false)
   }
 
@@ -823,7 +830,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         {/* ── PLAYER PICKER SHEET ──────────────────────────────────────────── */}
         {pickingSlot !== null && (
           <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setPickingSlot(null)}>
-            <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4 max-h-[70vh] overflow-y-auto overscroll-y-contain" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-white font-bold text-lg">Assign to P{pickingSlot + 1}</h3>
                 <button onClick={() => setPickingSlot(null)} className="text-gray-400 text-2xl tap-btn">×</button>
@@ -1314,7 +1321,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       {/* ── ROTATION EDITOR ──────────────────────────────────────────────── */}
       {showRotationEditor && (
         <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => { setShowRotationEditor(false); setAssigningSlot(null) }}>
-          <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4 max-h-[60vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4 max-h-[60vh] overflow-y-auto overscroll-y-contain" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-white font-bold text-lg">
                 {assigningSlot !== null ? `Assign player to ${POSITION_NUMS[assigningSlot]}` : 'Rotation / Subs'}
@@ -1375,7 +1382,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         const eligible  = players.filter(p => !onCourtIds.has(p.id))
         return (
           <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setSubbingOutSlot(null)}>
-            <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4 max-h-[65vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4 max-h-[65vh] overflow-y-auto overscroll-y-contain" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-white font-bold text-lg">Sub In For</h3>
                 <button onClick={() => setSubbingOutSlot(null)} className="text-gray-400 text-2xl tap-btn">×</button>
