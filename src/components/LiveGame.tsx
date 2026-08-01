@@ -84,6 +84,7 @@ interface Snapshot {
   weAreServing: boolean | null
   rotation: (string | null)[]
   servingRun: number
+  serveLocked: boolean
 }
 
 export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice }: Props) {
@@ -233,7 +234,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Save current state before any mutation so we can undo it
   function snapshot() {
     setHistory(prev => [...prev.slice(-19), {
-      sets, ourScore, theirScore, weAreServing, rotation, servingRun
+      sets, ourScore, theirScore, weAreServing, rotation, servingRun, serveLocked
     }])
   }
 
@@ -247,6 +248,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       setWeAreServing(snap.weAreServing)
       setRotation(snap.rotation)
       setServingRun(snap.servingRun)
+      setServeLocked(snap.serveLocked)
       return prev.slice(0, -1)
     })
   }
@@ -280,6 +282,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   function doRotate(currentRotation: (string | null)[]) {
     const n = [...currentRotation]
     n.push(n.shift()!)
+    return n
+  }
+
+  // Inverse of doRotate — used to send the girls back to their previous spots
+  // when a mistaken point that triggered a side-out gets corrected.
+  function undoRotate(currentRotation: (string | null)[]) {
+    const n = [...currentRotation]
+    n.unshift(n.pop()!)
     return n
   }
 
@@ -364,8 +374,22 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       }
     } else if (delta < 0) {
       // Undo score on minus (corrections)
-      if (SCORES_OUR_POINT.has(key))   setOurScore(s => Math.max(0, s - 1))
-      if (SCORES_THEIR_POINT.has(key)) setTheirScore(s => Math.max(0, s - 1))
+      if (SCORES_OUR_POINT.has(key)) {
+        setOurScore(s => Math.max(0, s - 1))
+        // If this correction is reversing the very point that just won us the
+        // serve via side-out (no points scored on this run yet), send the
+        // rotation back to where it was before that side-out.
+        if (weAreServing === true && servingRun === 0) {
+          setRotation(prev => undoRotate(prev))
+          setWeAreServing(false)
+        }
+      }
+      if (SCORES_THEIR_POINT.has(key)) {
+        setTheirScore(s => Math.max(0, s - 1))
+        if (weAreServing === false && servingRun === 0) {
+          setWeAreServing(true)
+        }
+      }
     }
   }
 
@@ -428,6 +452,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setServeLocked(weAreServing === true)
     setLastTimeout(null)
     setServingRun(0)
+    setHistory([])
   }
 
   function doSub(outSlot: number, inPlayerId: string) {
@@ -506,6 +531,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   }
 
   function assignPlayerToSlot(slot: number, playerId: string | null) {
+    snapshot()
     setRotation(prev => {
       const next = [...prev]
       if (playerId) {
@@ -914,7 +940,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                 className="tap-btn text-4xl font-black text-white leading-none w-14 text-center">
                 {String(ourScore).padStart(2, '0')}
               </button>
-              <button onClick={() => { snapshot(); setOurScore(s => Math.max(0, s - 1)) }}
+              <button onClick={() => {
+                snapshot()
+                setOurScore(s => Math.max(0, s - 1))
+                if (weAreServing === true && servingRun === 0) {
+                  setRotation(prev => undoRotate(prev))
+                  setWeAreServing(false)
+                }
+              }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
             </div>
           </div>
@@ -947,7 +980,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <button onClick={() => { snapshot(); setTheirScore(s => Math.max(0, s - 1)) }}
+              <button onClick={() => {
+                snapshot()
+                setTheirScore(s => Math.max(0, s - 1))
+                if (weAreServing === false && servingRun === 0) {
+                  setWeAreServing(true)
+                }
+              }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
               <button onClick={addTheirPoint}
                 className="tap-btn text-4xl font-black text-white leading-none w-14 text-center">
@@ -999,7 +1038,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           {weAreServing ? '🏐 Our Serve' : '🏐 Their Serve'}
         </button>
 
-        <button onClick={() => { setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair)) }}
+        <button onClick={() => { snapshot(); setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair)) }}
           className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold">
           ⟳ Rotate
         </button>
