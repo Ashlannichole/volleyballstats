@@ -346,7 +346,12 @@ export default function App() {
   }
 
   const [liveGameStarted, setLiveGameStarted] = useState(false)
+  const [toolActive, setToolActive] = useState(false)
   const showAd = !isPro && !(tab === 'live' && liveGameStarted)
+  // Live game (in progress) and an open Tool manage their own internal
+  // scrolling to fit the viewport exactly — letting the outer content
+  // wrapper scroll too causes a few pixels of stray "slop" scroll.
+  const contentScrollLocked = (tab === 'live' && liveGameStarted) || (tab === 'tools' && toolActive)
 
   // --- Auth gate ---
   if (showOnboarding) return <Onboarding onDone={handleFinishOnboarding} />
@@ -428,7 +433,7 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto relative min-h-0">
+      <div className={`flex-1 relative min-h-0 ${contentScrollLocked ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         <div className={tab === 'roster' ? '' : 'hidden'}>
           <Roster players={activePlayers} onChange={setActivePlayers} />
         </div>
@@ -468,6 +473,7 @@ export default function App() {
             onSavePractice={s => setActivePractices(prev => [...prev, s])}
             onDeletePractice={id => setActivePractices(prev => prev.filter(p => p.id !== id))}
             onToolSync={onToolSync}
+            onActiveChange={setToolActive}
           />
         </div>
       </div>
