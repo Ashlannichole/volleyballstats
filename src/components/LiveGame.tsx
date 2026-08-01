@@ -16,6 +16,8 @@ interface Props {
   // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
   practiceMode?: boolean
   onSavePractice?: (session: PracticeSession) => void
+  // On Fire! / Jinx! full-screen run popups — on by default
+  celebrationAnimations?: boolean
 }
 
 const COURT_LAYOUT = [
@@ -84,9 +86,10 @@ interface Snapshot {
   weAreServing: boolean | null
   rotation: (string | null)[]
   servingRun: number
+  serveLocked: boolean
 }
 
-export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice }: Props) {
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice, celebrationAnimations = true }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -127,6 +130,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Auto set-end banner
   const [setCompleteAlert, setSetCompleteAlert] = useState(false)
 
+  // Lineup choice shown before a new set starts
+  const [showSetLineupChoice, setShowSetLineupChoice] = useState(false)
+
   // Serve-lock: true when it's our serve and no attempt has been recorded yet
   const [serveLocked, setServeLocked] = useState(false)
 
@@ -135,6 +141,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
   // Serving streak celebration
   const [streakAlert, setStreakAlert] = useState<{ name: string; count: number } | null>(null)
+
+  // Opponent run celebration (the fun "uh oh" counterpart to streakAlert)
+  const [jinxAlert, setJinxAlert] = useState<{ count: number } | null>(null)
 
   // Current consecutive serving run for the active server
   const [servingRun, setServingRun] = useState(0)
@@ -188,6 +197,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     return () => clearTimeout(t)
   }, [streakAlert])
 
+  // Auto-dismiss jinx celebration
+  useEffect(() => {
+    if (!jinxAlert) return
+    const t = setTimeout(() => setJinxAlert(null), 3500)
+    return () => clearTimeout(t)
+  }, [jinxAlert])
+
   // Push immediately when a timeout is called so spectators see it right away
   useEffect(() => {
     if (spectatorCode && gameStarted && !practiceMode && lastTimeout) {
@@ -204,17 +220,23 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     if (hi >= limit && hi - lo >= 2) setSetCompleteAlert(true)
   }, [ourScore, theirScore, currentSet, bestOf5])
 
-  // Score run tracking
+  // Score run tracking — the opponent hitting a 5-point run pops the Jinx! celebration
   useEffect(() => {
     if (!gameStarted) return
     const prev = prevScoresRef.current
     if (ourScore > prev.our) {
       setScoreRun(r => r?.team === 'us' ? { team: 'us', count: r.count + 1 } : { team: 'us', count: 1 })
     } else if (theirScore > prev.their) {
-      setScoreRun(r => r?.team === 'them' ? { team: 'them', count: r.count + 1 } : { team: 'them', count: 1 })
+      setScoreRun(r => {
+        const newCount = r?.team === 'them' ? r.count + 1 : 1
+        if (celebrationAnimations && newCount >= 5 && newCount % 5 === 0) {
+          setJinxAlert({ count: newCount })
+        }
+        return { team: 'them', count: newCount }
+      })
     }
     prevScoresRef.current = { our: ourScore, their: theirScore }
-  }, [ourScore, theirScore])
+  }, [ourScore, theirScore, celebrationAnimations])
 
   function startSpectatorShare() {
     const code = Math.random().toString(36).slice(2, 8).toUpperCase()
@@ -233,7 +255,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Save current state before any mutation so we can undo it
   function snapshot() {
     setHistory(prev => [...prev.slice(-19), {
-      sets, ourScore, theirScore, weAreServing, rotation, servingRun
+      sets, ourScore, theirScore, weAreServing, rotation, servingRun, serveLocked
     }])
   }
 
@@ -247,6 +269,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       setWeAreServing(snap.weAreServing)
       setRotation(snap.rotation)
       setServingRun(snap.servingRun)
+      setServeLocked(snap.serveLocked)
       return prev.slice(0, -1)
     })
   }
@@ -265,7 +288,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         }
         return s
       }))
-      if (newRun >= 5 && newRun % 5 === 0) {
+      if (celebrationAnimations && newRun >= 5 && newRun % 5 === 0) {
         const server = players.find(p => p.id === serverId)
         if (server) setStreakAlert({ name: server.name.split(' ')[0], count: newRun })
       }
@@ -280,6 +303,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   function doRotate(currentRotation: (string | null)[]) {
     const n = [...currentRotation]
     n.push(n.shift()!)
+    return n
+  }
+
+  // Inverse of doRotate — used to send the girls back to their previous spots
+  // when a mistaken point that triggered a side-out gets corrected.
+  function undoRotate(currentRotation: (string | null)[]) {
+    const n = [...currentRotation]
+    n.unshift(n.pop()!)
     return n
   }
 
@@ -364,8 +395,22 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       }
     } else if (delta < 0) {
       // Undo score on minus (corrections)
-      if (SCORES_OUR_POINT.has(key))   setOurScore(s => Math.max(0, s - 1))
-      if (SCORES_THEIR_POINT.has(key)) setTheirScore(s => Math.max(0, s - 1))
+      if (SCORES_OUR_POINT.has(key)) {
+        setOurScore(s => Math.max(0, s - 1))
+        // If this correction is reversing the very point that just won us the
+        // serve via side-out (no points scored on this run yet), send the
+        // rotation back to where it was before that side-out.
+        if (weAreServing === true && servingRun === 0) {
+          setRotation(prev => undoRotate(prev))
+          setWeAreServing(false)
+        }
+      }
+      if (SCORES_THEIR_POINT.has(key)) {
+        setTheirScore(s => Math.max(0, s - 1))
+        if (weAreServing === false && servingRun === 0) {
+          setWeAreServing(true)
+        }
+      }
     }
   }
 
@@ -428,6 +473,19 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setServeLocked(weAreServing === true)
     setLastTimeout(null)
     setServingRun(0)
+    setHistory([])
+  }
+
+  // Applies the coach's lineup choice (kept from last set / cleared / a saved
+  // lineup) after advancing to the new set.
+  function goToNextSet(lineupChoice: 'keep' | 'clear' | SavedLineup) {
+    nextSet()
+    if (lineupChoice === 'clear') {
+      setRotation([null, null, null, null, null, null])
+    } else if (lineupChoice !== 'keep') {
+      setRotation([...lineupChoice.slots])
+    }
+    setShowSetLineupChoice(false)
   }
 
   function doSub(outSlot: number, inPlayerId: string) {
@@ -506,6 +564,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   }
 
   function assignPlayerToSlot(slot: number, playerId: string | null) {
+    snapshot()
     setRotation(prev => {
       const next = [...prev]
       if (playerId) {
@@ -566,6 +625,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setLiberoPair(null)
     setScoreRun(null)
     setStreakAlert(null)
+    setJinxAlert(null)
     setSetCompleteAlert(false)
     prevScoresRef.current = { our: 0, their: 0 }
     setServingRun(0)
@@ -914,7 +974,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                 className="tap-btn text-4xl font-black text-white leading-none w-14 text-center">
                 {String(ourScore).padStart(2, '0')}
               </button>
-              <button onClick={() => { snapshot(); setOurScore(s => Math.max(0, s - 1)) }}
+              <button onClick={() => {
+                snapshot()
+                setOurScore(s => Math.max(0, s - 1))
+                if (weAreServing === true && servingRun === 0) {
+                  setRotation(prev => undoRotate(prev))
+                  setWeAreServing(false)
+                }
+              }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
             </div>
           </div>
@@ -928,7 +995,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                   S{i+1}
                 </button>
               ))}
-              <button onClick={nextSet} className="tap-btn w-7 h-7 rounded-lg text-xs font-bold bg-navy-600 text-gray-400 border border-white/10">+</button>
+              <button onClick={() => setShowSetLineupChoice(true)} className="tap-btn w-7 h-7 rounded-lg text-xs font-bold bg-navy-600 text-gray-400 border border-white/10">+</button>
             </div>
             <span className="text-gray-500 text-base font-bold leading-none">VS</span>
           </div>
@@ -947,7 +1014,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <button onClick={() => { snapshot(); setTheirScore(s => Math.max(0, s - 1)) }}
+              <button onClick={() => {
+                snapshot()
+                setTheirScore(s => Math.max(0, s - 1))
+                if (weAreServing === false && servingRun === 0) {
+                  setWeAreServing(true)
+                }
+              }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
               <button onClick={addTheirPoint}
                 className="tap-btn text-4xl font-black text-white leading-none w-14 text-center">
@@ -999,9 +1072,15 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           {weAreServing ? '🏐 Our Serve' : '🏐 Their Serve'}
         </button>
 
-        <button onClick={() => { setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair)) }}
+        <button onClick={() => { snapshot(); setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair)) }}
           className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold">
           ⟳ Rotate
+        </button>
+
+        <button onClick={() => { snapshot(); setRotation(prev => undoRotate(prev)) }}
+          title="Rotate the lineup back one position — e.g. to line up your first server when receiving"
+          className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold">
+          ⟲ Rotate Back
         </button>
 
         <button onClick={() => setShowRotationEditor(r => !r)}
@@ -1050,7 +1129,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       </div>
 
       {/* ── COURT GRID ────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-2">
         <div className="grid grid-rows-2 gap-2 mb-2">
           {COURT_LAYOUT.map((row, rowIdx) => (
             <div key={rowIdx} className="grid grid-cols-3 gap-2">
@@ -1499,7 +1578,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                       className="tap-btn flex-1 py-3 rounded-xl border border-white/20 text-gray-300 font-semibold text-sm">
                       Keep Playing
                     </button>
-                    <button onClick={() => { setSetCompleteAlert(false); nextSet() }}
+                    <button onClick={() => { setSetCompleteAlert(false); setShowSetLineupChoice(true) }}
                       className="tap-btn flex-1 py-3 rounded-xl bg-vr-600 text-white font-bold text-sm">
                       Start Set {currentSet + 2}
                     </button>
@@ -1510,6 +1589,46 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           </div>
         )
       })()}
+
+      {/* ── NEXT-SET LINEUP CHOICE ───────────────────────────────────────── */}
+      {showSetLineupChoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-navy-800 border border-vr-700/50 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-xl font-bold text-white mb-1 text-center">Set {currentSet + 2} Lineup</h3>
+            <p className="text-gray-400 text-sm mb-4 text-center">How should the lineup start this set?</p>
+
+            <div className="flex flex-col gap-2">
+              <button onClick={() => goToNextSet('keep')}
+                className="tap-btn w-full py-3 rounded-xl bg-vr-600 text-white font-bold text-sm">
+                Keep Current Lineup
+              </button>
+              <button onClick={() => goToNextSet('clear')}
+                className="tap-btn w-full py-3 rounded-xl border border-white/20 text-gray-300 font-semibold text-sm">
+                Clear Lineup — Start Fresh
+              </button>
+            </div>
+
+            {savedLineups.length > 0 && (
+              <div className="mt-4">
+                <p className="text-gray-500 text-xs mb-1.5">Or load a saved lineup</p>
+                <div className="flex flex-wrap gap-2">
+                  {savedLineups.map(l => (
+                    <button key={l.id} onClick={() => goToNextSet(l)}
+                      className="tap-btn bg-navy-700 border border-vr-600/40 text-vr-300 text-xs font-semibold px-3 py-1.5 rounded-xl">
+                      {l.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button onClick={() => setShowSetLineupChoice(false)}
+              className="tap-btn w-full mt-4 text-gray-500 text-xs">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── LIVE STATS PANEL ─────────────────────────────────────────────── */}
       {showLiveStats && (() => {
@@ -1678,6 +1797,100 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                   {streakAlert.count} serves in a row!
                 </p>
                 <p className="text-gray-600 text-xs mt-4">tap to dismiss</p>
+              </div>
+            </div>
+          </>
+        )
+      })()}
+
+      {/* ── OPPONENT RUN "JINX!" POPUP ───────────────────────────────────── */}
+      {jinxAlert && (() => {
+        // Puffs of purple smoke curling up from behind the card
+        const SMOKE = [
+          { color: '#a855f7', left: '12%', size: 60, delay: 0.00 },
+          { color: '#c026d3', left: '30%', size: 80, delay: 0.12 },
+          { color: '#7c3aed', left: '50%', size: 95, delay: 0.24 },
+          { color: '#d946ef', left: '68%', size: 75, delay: 0.36 },
+          { color: '#9333ea', left: '85%', size: 65, delay: 0.48 },
+          { color: '#a855f7', left: '40%', size: 55, delay: 0.60 },
+          { color: '#c026d3', left: '60%', size: 60, delay: 0.72 },
+        ]
+        return (
+          <>
+            <style>{`
+              @keyframes jx-pop {
+                0%   { transform: scale(0.4) rotate(-8deg); opacity: 0 }
+                60%  { transform: scale(1.08) rotate(3deg); opacity: 1 }
+                100% { transform: scale(1) rotate(0deg); opacity: 1 }
+              }
+              @keyframes jx-smoke {
+                0%   { transform: translateY(10px) scale(0.3); opacity: 0 }
+                20%  { opacity: 0.75 }
+                100% { transform: translateY(-110px) scale(1.9); opacity: 0 }
+              }
+              @keyframes jx-aura {
+                0%, 100% { opacity: 0.45; transform: scale(1) }
+                50%       { opacity: 0.75; transform: scale(1.12) }
+              }
+              @keyframes jx-glow {
+                0%, 100% { box-shadow: 0 0 30px 4px rgba(168,85,247,0.45), 0 0 70px 10px rgba(192,38,211,0.25) }
+                50%       { box-shadow: 0 0 45px 8px rgba(192,38,211,0.6), 0 0 90px 16px rgba(147,51,234,0.35) }
+              }
+              @keyframes jx-wiggle {
+                0%, 100% { transform: rotate(-8deg) }
+                50%       { transform: rotate(8deg) }
+              }
+            `}</style>
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
+              onClick={() => setJinxAlert(null)}
+            >
+              {/* Ambient purple aura behind everything */}
+              <div className="absolute w-64 h-64 rounded-full pointer-events-none"
+                style={{
+                  background: 'radial-gradient(circle, rgba(192,38,211,0.55) 0%, rgba(126,34,206,0.25) 45%, transparent 75%)',
+                  filter: 'blur(18px)',
+                  animation: 'jx-aura 1.8s ease-in-out infinite',
+                }} />
+
+              <div style={{
+                animation: 'jx-pop 0.35s ease-out forwards, jx-glow 1.6s ease-in-out 0.35s infinite',
+                background: 'radial-gradient(circle at 50% 0%, rgba(126,34,206,0.35), transparent 60%), #150a24',
+              }}
+                className="relative border-2 border-fuchsia-500/60 rounded-3xl px-10 py-8 text-center mx-6 overflow-hidden">
+
+                {/* Smoke puffs curling up from the card */}
+                <div className="absolute inset-x-0 bottom-0 h-full pointer-events-none">
+                  {SMOKE.map(({ color, left, size, delay }, i) => (
+                    <div key={i} className="absolute bottom-0 rounded-full"
+                      style={{
+                        left,
+                        width: size,
+                        height: size,
+                        marginLeft: -size / 2,
+                        background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+                        filter: 'blur(6px)',
+                        opacity: 0,
+                        animation: `jx-smoke 1.8s ease-out ${delay}s infinite`,
+                      }} />
+                  ))}
+                </div>
+
+                {/* Jinx emoji */}
+                <div className="relative text-6xl mb-3 leading-none"
+                  style={{ animation: 'jx-wiggle 0.6s ease-in-out infinite' }}>
+                  😵‍💫
+                </div>
+
+                <p className="relative text-fuchsia-300 font-black text-xl tracking-widest uppercase mb-1"
+                  style={{ textShadow: '0 0 12px rgba(217,70,239,0.8)' }}>
+                  ✨ Jinx! ✨
+                </p>
+                <p className="relative text-white font-bold text-2xl mb-0.5">{opponent || 'They'}</p>
+                <p className="relative text-purple-200 text-base">
+                  {jinxAlert.count} in a row — time to break it!
+                </p>
+                <p className="relative text-purple-400/60 text-xs mt-4">tap to dismiss</p>
               </div>
             </div>
           </>

@@ -346,7 +346,12 @@ export default function App() {
   }
 
   const [liveGameStarted, setLiveGameStarted] = useState(false)
+  const [toolActive, setToolActive] = useState(false)
   const showAd = !isPro && !(tab === 'live' && liveGameStarted)
+  // Live game (in progress) and an open Tool manage their own internal
+  // scrolling to fit the viewport exactly — letting the outer content
+  // wrapper scroll too causes a few pixels of stray "slop" scroll.
+  const contentScrollLocked = (tab === 'live' && liveGameStarted) || (tab === 'tools' && toolActive)
 
   // --- Auth gate ---
   if (showOnboarding) return <Onboarding onDone={handleFinishOnboarding} />
@@ -373,7 +378,7 @@ export default function App() {
   const hasTeam2 = isPro && (players2.length > 0 || teamSettings.team2Name !== 'Team 2')
 
   return (
-    <div className="relative flex flex-col h-dvh bg-navy-900 overflow-hidden">
+    <div className="relative flex flex-col h-dvh bg-navy-900 overflow-hidden overscroll-none">
       {/* Header */}
       <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0 flex items-center gap-3">
         {isPro && logo ? (
@@ -428,7 +433,7 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto relative min-h-0">
+      <div className={`flex-1 relative min-h-0 overscroll-contain ${contentScrollLocked ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         <div className={tab === 'roster' ? '' : 'hidden'}>
           <Roster players={activePlayers} onChange={setActivePlayers} />
         </div>
@@ -441,6 +446,7 @@ export default function App() {
             teamName={activeTeamName}
             recMode={recMode}
             bestOf5={teamSettings.bestOf5}
+            celebrationAnimations={teamSettings.celebrationAnimations}
             sponsors={isPro ? (activeTeam === 2 ? teamSettings.team2Sponsors : teamSettings.sponsors) : []}
             showSponsors={isPro && teamSettings.showSponsors}
           />
@@ -467,6 +473,7 @@ export default function App() {
             onSavePractice={s => setActivePractices(prev => [...prev, s])}
             onDeletePractice={id => setActivePractices(prev => prev.filter(p => p.id !== id))}
             onToolSync={onToolSync}
+            onActiveChange={setToolActive}
           />
         </div>
       </div>

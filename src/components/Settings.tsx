@@ -252,6 +252,28 @@ export default function Settings({
         )}
       </section>
 
+      {/* Celebration Animations */}
+      <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
+        <div className="px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-white font-bold text-sm">Celebration Animations</p>
+            <p className="text-gray-500 text-[11px] mt-0.5">🔥 On Fire! and 🙈 Jinx! popups on 5-point runs</p>
+          </div>
+          <button
+            onClick={() => commit({ celebrationAnimations: !settings.celebrationAnimations })}
+            className={`tap-btn relative w-12 h-6 rounded-full border transition-colors shrink-0 ${
+              settings.celebrationAnimations
+                ? 'bg-green-600 border-green-500'
+                : 'bg-navy-600 border-white/20'
+            }`}
+          >
+            <span className={`absolute top-[2px] w-5 h-5 rounded-full bg-white shadow transition-all duration-200 ${
+              settings.celebrationAnimations ? 'left-[26px]' : 'left-[2px]'
+            }`} />
+          </button>
+        </div>
+      </section>
+
       {/* Match Format */}
       <section className="bg-navy-800 border border-white/10 rounded-2xl overflow-hidden">
         <div className="px-4 py-3 flex items-center justify-between">

@@ -157,7 +157,7 @@ export default function Scouting({ isPro, onUpgrade, onBack, onSync }: Props) {
       <p className="flex-1 text-center text-white font-bold text-sm">Opponents</p>
       <div className="w-16" />
     </div>
-    <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 pb-10">
+    <div className="flex-1 overflow-y-auto overscroll-contain p-4 flex flex-col gap-4 pb-10">
 
       {showForm ? (
         <div className="bg-navy-800 border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
@@ -566,7 +566,7 @@ function ReportView({ session, onViewChart, onDone }: {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5 pb-10">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-4 flex flex-col gap-5 pb-10">
         {/* Quick stats */}
         <div className="grid grid-cols-3 gap-2">
           {[
@@ -698,7 +698,7 @@ function ReviewView({ session, onBack, onResume, onDelete }: {
         <button onClick={onResume} className="tap-btn text-vr-300 text-sm font-bold">+ Add</button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overscroll-contain">
         {/* Filters */}
         <div className="px-4 py-3 flex flex-col gap-2 border-b border-white/5">
           {allPlayers.length > 0 && (
