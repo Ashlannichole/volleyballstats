@@ -128,6 +128,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Auto set-end banner
   const [setCompleteAlert, setSetCompleteAlert] = useState(false)
 
+  // Lineup choice shown before a new set starts
+  const [showSetLineupChoice, setShowSetLineupChoice] = useState(false)
+
   // Serve-lock: true when it's our serve and no attempt has been recorded yet
   const [serveLocked, setServeLocked] = useState(false)
 
@@ -453,6 +456,18 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setLastTimeout(null)
     setServingRun(0)
     setHistory([])
+  }
+
+  // Applies the coach's lineup choice (kept from last set / cleared / a saved
+  // lineup) after advancing to the new set.
+  function goToNextSet(lineupChoice: 'keep' | 'clear' | SavedLineup) {
+    nextSet()
+    if (lineupChoice === 'clear') {
+      setRotation([null, null, null, null, null, null])
+    } else if (lineupChoice !== 'keep') {
+      setRotation([...lineupChoice.slots])
+    }
+    setShowSetLineupChoice(false)
   }
 
   function doSub(outSlot: number, inPlayerId: string) {
@@ -961,7 +976,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                   S{i+1}
                 </button>
               ))}
-              <button onClick={nextSet} className="tap-btn w-7 h-7 rounded-lg text-xs font-bold bg-navy-600 text-gray-400 border border-white/10">+</button>
+              <button onClick={() => setShowSetLineupChoice(true)} className="tap-btn w-7 h-7 rounded-lg text-xs font-bold bg-navy-600 text-gray-400 border border-white/10">+</button>
             </div>
             <span className="text-gray-500 text-base font-bold leading-none">VS</span>
           </div>
@@ -1041,6 +1056,12 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         <button onClick={() => { snapshot(); setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair)) }}
           className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold">
           ⟳ Rotate
+        </button>
+
+        <button onClick={() => { snapshot(); setRotation(prev => undoRotate(prev)) }}
+          title="Rotate the lineup back one position — e.g. to line up your first server when receiving"
+          className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold">
+          ⟲ Rotate Back
         </button>
 
         <button onClick={() => setShowRotationEditor(r => !r)}
@@ -1538,7 +1559,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                       className="tap-btn flex-1 py-3 rounded-xl border border-white/20 text-gray-300 font-semibold text-sm">
                       Keep Playing
                     </button>
-                    <button onClick={() => { setSetCompleteAlert(false); nextSet() }}
+                    <button onClick={() => { setSetCompleteAlert(false); setShowSetLineupChoice(true) }}
                       className="tap-btn flex-1 py-3 rounded-xl bg-vr-600 text-white font-bold text-sm">
                       Start Set {currentSet + 2}
                     </button>
@@ -1549,6 +1570,46 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           </div>
         )
       })()}
+
+      {/* ── NEXT-SET LINEUP CHOICE ───────────────────────────────────────── */}
+      {showSetLineupChoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-navy-800 border border-vr-700/50 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-xl font-bold text-white mb-1 text-center">Set {currentSet + 2} Lineup</h3>
+            <p className="text-gray-400 text-sm mb-4 text-center">How should the lineup start this set?</p>
+
+            <div className="flex flex-col gap-2">
+              <button onClick={() => goToNextSet('keep')}
+                className="tap-btn w-full py-3 rounded-xl bg-vr-600 text-white font-bold text-sm">
+                Keep Current Lineup
+              </button>
+              <button onClick={() => goToNextSet('clear')}
+                className="tap-btn w-full py-3 rounded-xl border border-white/20 text-gray-300 font-semibold text-sm">
+                Clear Lineup — Start Fresh
+              </button>
+            </div>
+
+            {savedLineups.length > 0 && (
+              <div className="mt-4">
+                <p className="text-gray-500 text-xs mb-1.5">Or load a saved lineup</p>
+                <div className="flex flex-wrap gap-2">
+                  {savedLineups.map(l => (
+                    <button key={l.id} onClick={() => goToNextSet(l)}
+                      className="tap-btn bg-navy-700 border border-vr-600/40 text-vr-300 text-xs font-semibold px-3 py-1.5 rounded-xl">
+                      {l.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button onClick={() => setShowSetLineupChoice(false)}
+              className="tap-btn w-full mt-4 text-gray-500 text-xs">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── LIVE STATS PANEL ─────────────────────────────────────────────── */}
       {showLiveStats && (() => {
