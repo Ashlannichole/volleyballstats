@@ -378,7 +378,7 @@ export default function App() {
   const hasTeam2 = isPro && (players2.length > 0 || teamSettings.team2Name !== 'Team 2')
 
   return (
-    <div className="relative flex flex-col h-dvh bg-navy-900 overflow-hidden">
+    <div className="relative flex flex-col h-dvh bg-navy-900 overflow-hidden overscroll-none">
       {/* Header */}
       <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0 flex items-center gap-3">
         {isPro && logo ? (
@@ -433,7 +433,7 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div className={`flex-1 relative min-h-0 ${contentScrollLocked ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+      <div className={`flex-1 relative min-h-0 overscroll-contain ${contentScrollLocked ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         <div className={tab === 'roster' ? '' : 'hidden'}>
           <Roster players={activePlayers} onChange={setActivePlayers} />
         </div>

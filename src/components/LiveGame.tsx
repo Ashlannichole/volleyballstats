@@ -1129,7 +1129,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       </div>
 
       {/* ── COURT GRID ────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-2">
         <div className="grid grid-rows-2 gap-2 mb-2">
           {COURT_LAYOUT.map((row, rowIdx) => (
             <div key={rowIdx} className="grid grid-cols-3 gap-2">

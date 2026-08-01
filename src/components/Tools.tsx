@@ -45,7 +45,7 @@ export default function Tools({ isPro, onUpgrade, players, practices, onSavePrac
   if (active === 'practice') return (
     <div className="h-full flex flex-col">
       <ToolHeader label="Practice Tracker" onBack={back} />
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overscroll-contain">
         <Practice players={players} sessions={practices} onSave={onSavePractice} onDelete={onDeletePractice} />
       </div>
     </div>
@@ -60,7 +60,7 @@ export default function Tools({ isPro, onUpgrade, players, practices, onSavePrac
   if (active === 'calendar') return (
     <div className="h-full flex flex-col">
       <ToolHeader label="Team Calendar" onBack={back} />
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overscroll-contain">
         <Calendar onSync={onToolSync} />
       </div>
     </div>
