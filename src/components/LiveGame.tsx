@@ -1805,10 +1805,15 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
       {/* ── OPPONENT RUN "JINX!" POPUP ───────────────────────────────────── */}
       {jinxAlert && (() => {
-        const SPARKLES = [
-          { emoji: '✨', angle: 0   }, { emoji: '💫', angle: 40  }, { emoji: '⭐', angle: 80  },
-          { emoji: '✨', angle: 120 }, { emoji: '💫', angle: 160 }, { emoji: '⭐', angle: 200 },
-          { emoji: '✨', angle: 240 }, { emoji: '💫', angle: 280 }, { emoji: '⭐', angle: 320 },
+        // Puffs of purple smoke curling up from behind the card
+        const SMOKE = [
+          { color: '#a855f7', left: '12%', size: 60, delay: 0.00 },
+          { color: '#c026d3', left: '30%', size: 80, delay: 0.12 },
+          { color: '#7c3aed', left: '50%', size: 95, delay: 0.24 },
+          { color: '#d946ef', left: '68%', size: 75, delay: 0.36 },
+          { color: '#9333ea', left: '85%', size: 65, delay: 0.48 },
+          { color: '#a855f7', left: '40%', size: 55, delay: 0.60 },
+          { color: '#c026d3', left: '60%', size: 60, delay: 0.72 },
         ]
         return (
           <>
@@ -1818,10 +1823,18 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                 60%  { transform: scale(1.08) rotate(3deg); opacity: 1 }
                 100% { transform: scale(1) rotate(0deg); opacity: 1 }
               }
-              @keyframes jx-float {
-                0%   { transform: rotate(var(--a)) translateY(0)     scale(0.6); opacity: 0 }
-                30%  { opacity: 1 }
-                100% { transform: rotate(var(--a)) translateY(-70px) scale(1.1); opacity: 0 }
+              @keyframes jx-smoke {
+                0%   { transform: translateY(10px) scale(0.3); opacity: 0 }
+                20%  { opacity: 0.75 }
+                100% { transform: translateY(-110px) scale(1.9); opacity: 0 }
+              }
+              @keyframes jx-aura {
+                0%, 100% { opacity: 0.45; transform: scale(1) }
+                50%       { opacity: 0.75; transform: scale(1.12) }
+              }
+              @keyframes jx-glow {
+                0%, 100% { box-shadow: 0 0 30px 4px rgba(168,85,247,0.45), 0 0 70px 10px rgba(192,38,211,0.25) }
+                50%       { box-shadow: 0 0 45px 8px rgba(192,38,211,0.6), 0 0 90px 16px rgba(147,51,234,0.35) }
               }
               @keyframes jx-wiggle {
                 0%, 100% { transform: rotate(-8deg) }
@@ -1829,39 +1842,55 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               }
             `}</style>
             <div
-              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
               onClick={() => setJinxAlert(null)}
             >
-              <div style={{ animation: 'jx-pop 0.35s ease-out forwards' }}
-                className="relative bg-navy-900 border-2 border-purple-500/60 rounded-3xl px-10 py-8 text-center shadow-2xl mx-6">
+              {/* Ambient purple aura behind everything */}
+              <div className="absolute w-64 h-64 rounded-full pointer-events-none"
+                style={{
+                  background: 'radial-gradient(circle, rgba(192,38,211,0.55) 0%, rgba(126,34,206,0.25) 45%, transparent 75%)',
+                  filter: 'blur(18px)',
+                  animation: 'jx-aura 1.8s ease-in-out infinite',
+                }} />
 
-                {/* Sparkle particles */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  {SPARKLES.map(({ emoji, angle }, i) => (
-                    <div key={i} className="absolute text-xl"
+              <div style={{
+                animation: 'jx-pop 0.35s ease-out forwards, jx-glow 1.6s ease-in-out 0.35s infinite',
+                background: 'radial-gradient(circle at 50% 0%, rgba(126,34,206,0.35), transparent 60%), #150a24',
+              }}
+                className="relative border-2 border-fuchsia-500/60 rounded-3xl px-10 py-8 text-center mx-6 overflow-hidden">
+
+                {/* Smoke puffs curling up from the card */}
+                <div className="absolute inset-x-0 bottom-0 h-full pointer-events-none">
+                  {SMOKE.map(({ color, left, size, delay }, i) => (
+                    <div key={i} className="absolute bottom-0 rounded-full"
                       style={{
-                        '--a': `${angle}deg`,
-                        animation: `jx-float 1s ease-out ${0.15 + i * 0.05}s both`,
-                      } as React.CSSProperties}>
-                      {emoji}
-                    </div>
+                        left,
+                        width: size,
+                        height: size,
+                        marginLeft: -size / 2,
+                        background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+                        filter: 'blur(6px)',
+                        opacity: 0,
+                        animation: `jx-smoke 1.8s ease-out ${delay}s infinite`,
+                      }} />
                   ))}
                 </div>
 
                 {/* Jinx emoji */}
-                <div className="text-6xl mb-3 leading-none"
+                <div className="relative text-6xl mb-3 leading-none"
                   style={{ animation: 'jx-wiggle 0.6s ease-in-out infinite' }}>
-                  🙈
+                  😵‍💫
                 </div>
 
-                <p className="text-purple-300 font-black text-xl tracking-wide uppercase mb-1">
-                  Jinx!
+                <p className="relative text-fuchsia-300 font-black text-xl tracking-widest uppercase mb-1"
+                  style={{ textShadow: '0 0 12px rgba(217,70,239,0.8)' }}>
+                  ✨ Jinx! ✨
                 </p>
-                <p className="text-white font-bold text-2xl mb-0.5">{opponent || 'They'}</p>
-                <p className="text-gray-300 text-base">
+                <p className="relative text-white font-bold text-2xl mb-0.5">{opponent || 'They'}</p>
+                <p className="relative text-purple-200 text-base">
                   {jinxAlert.count} in a row — time to break it!
                 </p>
-                <p className="text-gray-600 text-xs mt-4">tap to dismiss</p>
+                <p className="relative text-purple-400/60 text-xs mt-4">tap to dismiss</p>
               </div>
             </div>
           </>
