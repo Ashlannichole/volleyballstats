@@ -16,6 +16,8 @@ interface Props {
   // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
   practiceMode?: boolean
   onSavePractice?: (session: PracticeSession) => void
+  // On Fire! / Jinx! full-screen run popups — on by default
+  celebrationAnimations?: boolean
 }
 
 const COURT_LAYOUT = [
@@ -87,7 +89,7 @@ interface Snapshot {
   serveLocked: boolean
 }
 
-export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice }: Props) {
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice, celebrationAnimations = true }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -139,6 +141,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
   // Serving streak celebration
   const [streakAlert, setStreakAlert] = useState<{ name: string; count: number } | null>(null)
+
+  // Opponent run celebration (the fun "uh oh" counterpart to streakAlert)
+  const [jinxAlert, setJinxAlert] = useState<{ count: number } | null>(null)
 
   // Current consecutive serving run for the active server
   const [servingRun, setServingRun] = useState(0)
@@ -192,6 +197,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     return () => clearTimeout(t)
   }, [streakAlert])
 
+  // Auto-dismiss jinx celebration
+  useEffect(() => {
+    if (!jinxAlert) return
+    const t = setTimeout(() => setJinxAlert(null), 3500)
+    return () => clearTimeout(t)
+  }, [jinxAlert])
+
   // Push immediately when a timeout is called so spectators see it right away
   useEffect(() => {
     if (spectatorCode && gameStarted && !practiceMode && lastTimeout) {
@@ -208,17 +220,23 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     if (hi >= limit && hi - lo >= 2) setSetCompleteAlert(true)
   }, [ourScore, theirScore, currentSet, bestOf5])
 
-  // Score run tracking
+  // Score run tracking — the opponent hitting a 5-point run pops the Jinx! celebration
   useEffect(() => {
     if (!gameStarted) return
     const prev = prevScoresRef.current
     if (ourScore > prev.our) {
       setScoreRun(r => r?.team === 'us' ? { team: 'us', count: r.count + 1 } : { team: 'us', count: 1 })
     } else if (theirScore > prev.their) {
-      setScoreRun(r => r?.team === 'them' ? { team: 'them', count: r.count + 1 } : { team: 'them', count: 1 })
+      setScoreRun(r => {
+        const newCount = r?.team === 'them' ? r.count + 1 : 1
+        if (celebrationAnimations && newCount >= 5 && newCount % 5 === 0) {
+          setJinxAlert({ count: newCount })
+        }
+        return { team: 'them', count: newCount }
+      })
     }
     prevScoresRef.current = { our: ourScore, their: theirScore }
-  }, [ourScore, theirScore])
+  }, [ourScore, theirScore, celebrationAnimations])
 
   function startSpectatorShare() {
     const code = Math.random().toString(36).slice(2, 8).toUpperCase()
@@ -270,7 +288,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         }
         return s
       }))
-      if (newRun >= 5 && newRun % 5 === 0) {
+      if (celebrationAnimations && newRun >= 5 && newRun % 5 === 0) {
         const server = players.find(p => p.id === serverId)
         if (server) setStreakAlert({ name: server.name.split(' ')[0], count: newRun })
       }
@@ -607,6 +625,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setLiberoPair(null)
     setScoreRun(null)
     setStreakAlert(null)
+    setJinxAlert(null)
     setSetCompleteAlert(false)
     prevScoresRef.current = { our: 0, their: 0 }
     setServingRun(0)
@@ -1776,6 +1795,71 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                 <p className="text-white font-bold text-2xl mb-0.5">{streakAlert.name}</p>
                 <p className="text-gray-300 text-base">
                   {streakAlert.count} serves in a row!
+                </p>
+                <p className="text-gray-600 text-xs mt-4">tap to dismiss</p>
+              </div>
+            </div>
+          </>
+        )
+      })()}
+
+      {/* ── OPPONENT RUN "JINX!" POPUP ───────────────────────────────────── */}
+      {jinxAlert && (() => {
+        const SPARKLES = [
+          { emoji: '✨', angle: 0   }, { emoji: '💫', angle: 40  }, { emoji: '⭐', angle: 80  },
+          { emoji: '✨', angle: 120 }, { emoji: '💫', angle: 160 }, { emoji: '⭐', angle: 200 },
+          { emoji: '✨', angle: 240 }, { emoji: '💫', angle: 280 }, { emoji: '⭐', angle: 320 },
+        ]
+        return (
+          <>
+            <style>{`
+              @keyframes jx-pop {
+                0%   { transform: scale(0.4) rotate(-8deg); opacity: 0 }
+                60%  { transform: scale(1.08) rotate(3deg); opacity: 1 }
+                100% { transform: scale(1) rotate(0deg); opacity: 1 }
+              }
+              @keyframes jx-float {
+                0%   { transform: rotate(var(--a)) translateY(0)     scale(0.6); opacity: 0 }
+                30%  { opacity: 1 }
+                100% { transform: rotate(var(--a)) translateY(-70px) scale(1.1); opacity: 0 }
+              }
+              @keyframes jx-wiggle {
+                0%, 100% { transform: rotate(-8deg) }
+                50%       { transform: rotate(8deg) }
+              }
+            `}</style>
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
+              onClick={() => setJinxAlert(null)}
+            >
+              <div style={{ animation: 'jx-pop 0.35s ease-out forwards' }}
+                className="relative bg-navy-900 border-2 border-purple-500/60 rounded-3xl px-10 py-8 text-center shadow-2xl mx-6">
+
+                {/* Sparkle particles */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  {SPARKLES.map(({ emoji, angle }, i) => (
+                    <div key={i} className="absolute text-xl"
+                      style={{
+                        '--a': `${angle}deg`,
+                        animation: `jx-float 1s ease-out ${0.15 + i * 0.05}s both`,
+                      } as React.CSSProperties}>
+                      {emoji}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Jinx emoji */}
+                <div className="text-6xl mb-3 leading-none"
+                  style={{ animation: 'jx-wiggle 0.6s ease-in-out infinite' }}>
+                  🙈
+                </div>
+
+                <p className="text-purple-300 font-black text-xl tracking-wide uppercase mb-1">
+                  Jinx!
+                </p>
+                <p className="text-white font-bold text-2xl mb-0.5">{opponent || 'They'}</p>
+                <p className="text-gray-300 text-base">
+                  {jinxAlert.count} in a row — time to break it!
                 </p>
                 <p className="text-gray-600 text-xs mt-4">tap to dismiss</p>
               </div>
