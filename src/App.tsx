@@ -447,6 +447,7 @@ export default function App() {
             recMode={recMode}
             bestOf5={teamSettings.bestOf5}
             celebrationAnimations={teamSettings.celebrationAnimations}
+            autoAssist={teamSettings.autoAssist}
             sponsors={isPro ? (activeTeam === 2 ? teamSettings.team2Sponsors : teamSettings.sponsors) : []}
             showSponsors={isPro && teamSettings.showSponsors}
           />

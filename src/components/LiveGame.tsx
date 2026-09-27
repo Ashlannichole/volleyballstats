@@ -18,6 +18,8 @@ interface Props {
   onSavePractice?: (session: PracticeSession) => void
   // On Fire! / Jinx! full-screen run popups — on by default
   celebrationAnimations?: boolean
+  // Auto-credit the on-court setter with an assist on every kill — on by default
+  autoAssist?: boolean
 }
 
 const COURT_LAYOUT = [
@@ -116,7 +118,7 @@ interface Snapshot {
   serveLocked: boolean
 }
 
-export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice, celebrationAnimations = true }: Props) {
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice, celebrationAnimations = true, autoAssist = true }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -171,6 +173,11 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
   // Opponent run celebration (the fun "uh oh" counterpart to streakAlert)
   const [jinxAlert, setJinxAlert] = useState<{ count: number } | null>(null)
+
+  // Most recent auto-credited assist (drives the quick-swap toast below the
+  // court grid, and lets the very next correction on that same kill also
+  // reverse the assist it produced)
+  const [lastAutoAssist, setLastAutoAssist] = useState<{ hitterId: string; assisterId: string } | null>(null)
 
   // Current consecutive serving run for the active server
   const [servingRun, setServingRun] = useState(0)
@@ -230,6 +237,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     const t = setTimeout(() => setJinxAlert(null), 3500)
     return () => clearTimeout(t)
   }, [jinxAlert])
+
+  // Auto-dismiss the assist quick-swap toast
+  useEffect(() => {
+    if (!lastAutoAssist) return
+    const t = setTimeout(() => setLastAutoAssist(null), 4000)
+    return () => clearTimeout(t)
+  }, [lastAutoAssist])
 
   // Push immediately when a timeout is called so spectators see it right away
   useEffect(() => {
@@ -389,14 +403,25 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     }
   }
 
-  function adjust(playerId: string, key: keyof PlayerStats, delta: number) {
-    snapshot()
+  // Raw per-player stat bump, shared by adjust() and the auto-assist credit
+  function bumpStat(playerId: string, key: keyof PlayerStats, delta: number) {
     setSets(prev => prev.map((s, i) => {
       if (i !== currentSet) return s
       const ps = { ...s[playerId] }
       const val = Math.max(0, (ps[key] as number) + delta)
       return { ...s, [playerId]: { ...ps, [key]: val } }
     }))
+  }
+
+  // Whoever is currently on court tagged as the setter — used to auto-credit
+  // the assist on a kill unless the coach reassigns it via the quick-swap toast.
+  function findOnCourtSetter(excludeId?: string): Player | undefined {
+    return players.find(p => p.id !== excludeId && p.position === 'setter' && rotation.includes(p.id))
+  }
+
+  function adjust(playerId: string, key: keyof PlayerStats, delta: number) {
+    snapshot()
+    bumpStat(playerId, key, delta)
 
     if (delta > 0) {
       if (SCORES_OUR_POINT.has(key)) {
@@ -420,6 +445,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           resetServingRun()
         }
       }
+      // Auto-credit the on-court setter with the assist on every kill
+      if (key === 'kills' && autoAssist) {
+        const setter = findOnCourtSetter(playerId)
+        if (setter) {
+          bumpStat(setter.id, 'settingAssists', 1)
+          setLastAutoAssist({ hitterId: playerId, assisterId: setter.id })
+        }
+      }
     } else if (delta < 0) {
       // Undo score on minus (corrections)
       if (SCORES_OUR_POINT.has(key)) {
@@ -438,7 +471,23 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           setWeAreServing(true)
         }
       }
+      // Reverse the auto-credited assist too, if this correction is undoing
+      // the exact kill that produced it
+      if (key === 'kills' && lastAutoAssist?.hitterId === playerId) {
+        bumpStat(lastAutoAssist.assisterId, 'settingAssists', -1)
+        setLastAutoAssist(null)
+      }
     }
+  }
+
+  // Quick-swap: move the auto-credited assist from the toast onto a
+  // different on-court player, in one tap.
+  function reassignAssist(newAssisterId: string) {
+    if (!lastAutoAssist) return
+    snapshot()
+    bumpStat(lastAutoAssist.assisterId, 'settingAssists', -1)
+    bumpStat(newAssisterId, 'settingAssists', 1)
+    setLastAutoAssist(null)
   }
 
   function adjustPass(playerId: string, rating: number, autoScore = true) {
@@ -501,6 +550,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setLastTimeout(null)
     setServingRun(0)
     setHistory([])
+    setLastAutoAssist(null)
   }
 
   // Applies the coach's lineup choice (kept from last set / cleared / a saved
@@ -653,6 +703,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setScoreRun(null)
     setStreakAlert(null)
     setJinxAlert(null)
+    setLastAutoAssist(null)
     setSetCompleteAlert(false)
     prevScoresRef.current = { our: 0, their: 0 }
     setServingRun(0)
@@ -1173,6 +1224,36 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           {showBasePositions ? '⛹ Base' : '🔢 Rotation'}
         </span>
       </div>
+
+      {/* ── AUTO-ASSIST QUICK-SWAP TOAST ──────────────────────────────────── */}
+      {lastAutoAssist && (() => {
+        const hitter = players.find(p => p.id === lastAutoAssist.hitterId)
+        const assister = players.find(p => p.id === lastAutoAssist.assisterId)
+        const alternates = players.filter(p =>
+          rotation.includes(p.id) && p.id !== lastAutoAssist.hitterId && p.id !== lastAutoAssist.assisterId
+        )
+        return (
+          <div className="bg-vr-900/60 border-b border-vr-600/30 px-3 py-1.5 flex items-center gap-2 text-xs shrink-0 overflow-x-auto">
+            <span className="text-gray-400 shrink-0">Kill #{hitter?.number}</span>
+            <span className="text-gray-600 shrink-0">→</span>
+            <span className="text-white font-bold shrink-0">Assist #{assister?.number}</span>
+            {alternates.length > 0 && (
+              <>
+                <span className="text-gray-600 shrink-0">not right?</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {alternates.map(p => (
+                    <button key={p.id} onClick={() => reassignAssist(p.id)}
+                      className="tap-btn bg-navy-700 border border-white/10 rounded-lg px-2 py-0.5 text-gray-300 text-[11px] font-semibold">
+                      #{p.number}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            <button onClick={() => setLastAutoAssist(null)} className="tap-btn ml-auto text-gray-600 shrink-0">✕</button>
+          </div>
+        )
+      })()}
 
       {/* ── COURT GRID ────────────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto overscroll-contain p-2">

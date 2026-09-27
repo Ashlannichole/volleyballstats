@@ -11,6 +11,7 @@ export interface TeamSettings {
   sponsors: string[]     // Pro: team 1 sponsor names
   team2Sponsors: string[] // Pro: team 2 sponsor names
   celebrationAnimations: boolean // On Fire! / Jinx! full-screen run popups
+  autoAssist: boolean // auto-credit the on-court setter with an assist on every kill
 }
 
 const KEY = 'vb_team_settings'
@@ -28,6 +29,7 @@ export const DEFAULTS: TeamSettings = {
   sponsors: [],
   team2Sponsors: [],
   celebrationAnimations: true,
+  autoAssist: true,
 }
 
 export function loadSettings(): TeamSettings {
