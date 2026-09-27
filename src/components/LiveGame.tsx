@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { Player, PlayerStats, SetStats, Match, SavedLineup, PracticeSession } from '../types'
+import type { Player, PlayerStats, SetStats, Match, SavedLineup, PracticeSession, Position } from '../types'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { loadLineups, saveLineups } from '../utils/storage'
 
@@ -25,6 +25,33 @@ const COURT_LAYOUT = [
   [4, 5, 0], // back row:  P5 P6 P1
 ]
 const POSITION_NUMS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']
+const FRONT_ROW_SLOTS = new Set(COURT_LAYOUT[0])
+
+// Base/functional defensive position each rotational slot releases to once
+// the serve is live — keyed off the current occupant's own tagged position.
+// Front row: outside → P4, middle → P3, setter/opposite (whichever is up) → P2.
+// Back row: outside/DS → middle back (P6), middle/libero → left back (P5),
+// setter/opposite (whichever is back) → right back (P1).
+function getBaseSlot(position: Position, isFrontRow: boolean): number | null {
+  if (isFrontRow) {
+    switch (position) {
+      case 'outside':  return 3 // P4
+      case 'middle':   return 2 // P3
+      case 'setter':
+      case 'opposite': return 1 // P2
+      default:         return null // libero/ds shouldn't be front row
+    }
+  }
+  switch (position) {
+    case 'outside':
+    case 'ds':        return 5 // P6
+    case 'middle':
+    case 'libero':    return 4 // P5
+    case 'setter':
+    case 'opposite':  return 0 // P1
+    default:          return null
+  }
+}
 
 interface StatChipDef {
   key: keyof PlayerStats
@@ -636,6 +663,23 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   const onCourtIds = new Set(rotation.filter(Boolean) as string[])
   const benchPlayers = players.filter(p => !onCourtIds.has(p.id))
 
+  // Show base/functional positions once the serve is live; show strict
+  // rotational order only in the brief pre-serve window so legality is
+  // easy to verify right before the server taps SERVE.
+  const showBasePositions = !(serveLocked && weAreServing === true)
+  const displaySlots: (number | null)[] = [null, null, null, null, null, null]
+  if (showBasePositions) {
+    rotation.forEach((playerId, trueSlot) => {
+      if (!playerId) return
+      const player = players.find(p => p.id === playerId)
+      const base = player ? getBaseSlot(player.position, FRONT_ROW_SLOTS.has(trueSlot)) : null
+      const gridSlot = base !== null ? base : trueSlot
+      displaySlots[gridSlot] = trueSlot
+    })
+  } else {
+    for (let i = 0; i < 6; i++) displaySlots[i] = i
+  }
+
   // ── Pre-match screen ──────────────────────────────────────────────────────
   const preOnCourtIds = new Set(preLineup.filter(Boolean) as string[])
   const preOnCourtCount = preOnCourtIds.size
@@ -1125,7 +1169,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         <span className="text-gray-600">Auto:</span>
         <span className="text-green-400">KILL/ACE/BS → +1 us</span>
         <span className="text-red-400">ERR/SE/Pass 0 → +1 them</span>
-        <span className="text-vr-400 ml-auto">Side-out → auto rotate</span>
+        <span className={`ml-auto font-bold whitespace-nowrap ${showBasePositions ? 'text-pb-400' : 'text-vr-400'}`}>
+          {showBasePositions ? '⛹ Base' : '🔢 Rotation'}
+        </span>
       </div>
 
       {/* ── COURT GRID ────────────────────────────────────────────────────── */}
@@ -1133,7 +1179,8 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         <div className="grid grid-rows-2 gap-2 mb-2">
           {COURT_LAYOUT.map((row, rowIdx) => (
             <div key={rowIdx} className="grid grid-cols-3 gap-2">
-              {row.map((slotIdx) => {
+              {row.map((gridSlot) => {
+                const slotIdx = displaySlots[gridSlot] ?? gridSlot
                 const playerId = rotation[slotIdx]
                 const player = players.find(p => p.id === playerId)
                 const ps = playerId ? setStats[playerId] : null
@@ -1143,7 +1190,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
                 if (!playerId || !player || !ps) {
                   return (
-                    <button key={slotIdx}
+                    <button key={gridSlot}
                       onClick={() => { setAssigningSlot(slotIdx); setShowRotationEditor(true) }}
                       className="tap-btn bg-navy-800/60 border-2 border-dashed border-white/10 rounded-2xl p-3 flex flex-col items-center justify-center min-h-[160px]">
                       <span className="text-white/20 text-2xl mb-1">+</span>
@@ -1156,7 +1203,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                 const isLocked = isServeLocked && !isServer
 
                 return (
-                  <div key={slotIdx}
+                  <div key={gridSlot}
                     className={`border rounded-2xl overflow-hidden flex flex-col transition-opacity ${
                       isLocked ? 'opacity-40' : ''
                     } ${
