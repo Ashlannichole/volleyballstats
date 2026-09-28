@@ -116,6 +116,7 @@ interface Snapshot {
   rotation: (string | null)[]
   servingRun: number
   serveLocked: boolean
+  awaitingReceive: boolean
 }
 
 export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice, celebrationAnimations = true, autoAssist = true }: Props) {
@@ -131,6 +132,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   const [ourTimeouts, setOurTimeouts]       = useState(0)
   const [theirTimeouts, setTheirTimeouts]   = useState(0)
   const [weAreServing, setWeAreServing]     = useState<boolean | null>(null)
+  // True from the moment we lose serve until the first pass rating is
+  // recorded this rally — drives the enlarged serve-receive pass buttons.
+  const [awaitingReceive, setAwaitingReceive] = useState(false)
   const [rotation, setRotation]             = useState<(string | null)[]>([null,null,null,null,null,null])
   const [showRotationEditor, setShowRotationEditor] = useState(false)
   const [assigningSlot, setAssigningSlot]   = useState<number | null>(null)
@@ -296,7 +300,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Save current state before any mutation so we can undo it
   function snapshot() {
     setHistory(prev => [...prev.slice(-19), {
-      sets, ourScore, theirScore, weAreServing, rotation, servingRun, serveLocked
+      sets, ourScore, theirScore, weAreServing, rotation, servingRun, serveLocked, awaitingReceive
     }])
   }
 
@@ -311,6 +315,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       setRotation(snap.rotation)
       setServingRun(snap.servingRun)
       setServeLocked(snap.serveLocked)
+      setAwaitingReceive(snap.awaitingReceive)
       return prev.slice(0, -1)
     })
   }
@@ -385,6 +390,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     if (weAreServing === false) {
       setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair))
       setWeAreServing(true)
+      setAwaitingReceive(false)
       resetServingRun()
       showRotationToastBriefly()
     } else {
@@ -396,6 +402,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   function addTheirPoint() {
     snapshot()
     setTheirScore(s => s + 1)
+    // A new serve is coming from them either way — re-arm the receive window
+    // even if they were already serving (i.e. this isn't a fresh side-out).
+    setAwaitingReceive(true)
     if (weAreServing === true) {
       setWeAreServing(false)
       setServeLocked(false)
@@ -430,6 +439,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           // Side-out: we scored while receiving → rotate + take serve
           setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair))
           setWeAreServing(true)
+          setAwaitingReceive(false)
           resetServingRun()
           showRotationToastBriefly()
         } else {
@@ -439,6 +449,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       }
       if (SCORES_THEIR_POINT.has(key)) {
         setTheirScore(s => s + 1)
+        // A new serve is coming from them either way — re-arm the receive
+        // window even if they were already serving.
+        setAwaitingReceive(true)
         if (weAreServing === true) {
           setWeAreServing(false)
           setServeLocked(false)
@@ -463,12 +476,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         if (weAreServing === true && servingRun === 0) {
           setRotation(prev => undoRotate(prev))
           setWeAreServing(false)
+          setAwaitingReceive(true)
         }
       }
       if (SCORES_THEIR_POINT.has(key)) {
         setTheirScore(s => Math.max(0, s - 1))
         if (weAreServing === false && servingRun === 0) {
           setWeAreServing(true)
+          setAwaitingReceive(false)
         }
       }
       // Reverse the auto-credited assist too, if this correction is undoing
@@ -533,8 +548,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       const ps = { ...s[playerId] }
       return { ...s, [playerId]: { ...ps, passRatingTotal: ps.passRatingTotal + rating, passAttempts: ps.passAttempts + 1 } }
     }))
+    // A pass has now been recorded this rally — the enlarged serve-receive
+    // buttons go back to normal size until we're next receiving.
+    setAwaitingReceive(false)
     if (rating === 0 && autoScore) {
       setTheirScore(s => s + 1)
+      // They keep (or regain) serve, so the next rally is another receive.
+      setAwaitingReceive(true)
       if (weAreServing === true) {
         setWeAreServing(false)
         setServeLocked(false)
@@ -583,6 +603,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setScoreRun(null)
     prevScoresRef.current = { our: 0, their: 0 }
     setServeLocked(weAreServing === true)
+    setAwaitingReceive(weAreServing === false)
     setLastTimeout(null)
     setServingRun(0)
     setHistory([])
@@ -635,6 +656,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setSets([buildSetStats(players)])
     setHistory([])
     setServeLocked(weAreServing === true)
+    setAwaitingReceive(weAreServing === false)
     setGameStarted(true)
     onGameStartedChange?.(true)
   }
@@ -728,6 +750,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setOurScore(0); setTheirScore(0)
     setOurTimeouts(0); setTheirTimeouts(0)
     setWeAreServing(null)
+    setAwaitingReceive(false)
     setCurrentSet(0)
     setSets([buildSetStats(players)])
     setCompletedSetScores([])
@@ -1111,6 +1134,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                 if (weAreServing === true && servingRun === 0) {
                   setRotation(prev => undoRotate(prev))
                   setWeAreServing(false)
+                  setAwaitingReceive(true)
                 }
               }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
@@ -1150,6 +1174,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                 setTheirScore(s => Math.max(0, s - 1))
                 if (weAreServing === false && servingRun === 0) {
                   setWeAreServing(true)
+                  setAwaitingReceive(false)
                 }
               }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
@@ -1195,6 +1220,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
             const next = !weAreServing
             setWeAreServing(next)
             setServeLocked(next)
+            setAwaitingReceive(!next)
           }}
           className={`tap-btn px-3 py-1 rounded-lg text-xs font-bold border ${
             weAreServing ? 'bg-vr-700 border-vr-500 text-white' : 'bg-navy-600 border-white/10 text-gray-400'
@@ -1415,18 +1441,20 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                           ))}
                         </div>
 
-                        {/* Pass rating — enlarged touch targets since these get tapped on nearly every rally */}
+                        {/* Pass rating — enlarged only while awaiting serve receive; back to normal size the moment anyone passes */}
                         <div className={`px-2 pb-2 ${isLocked ? 'pointer-events-none' : ''}`}>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-gray-600 text-xs w-6 shrink-0">PA</span>
-                            <span className="text-pb-400 text-sm font-bold w-8">
+                          <div className={`flex items-center ${awaitingReceive ? 'gap-1.5' : 'gap-1'}`}>
+                            <span className={`text-gray-600 w-6 shrink-0 ${awaitingReceive ? 'text-xs' : 'text-[10px]'}`}>PA</span>
+                            <span className={`text-pb-400 font-bold w-8 ${awaitingReceive ? 'text-sm' : 'text-xs'}`}>
                               {ps.passAttempts > 0 ? (ps.passRatingTotal / ps.passAttempts).toFixed(1) : '—'}
                             </span>
-                            <div className="flex gap-1.5 flex-1">
+                            <div className={`flex flex-1 ${awaitingReceive ? 'gap-1.5' : 'gap-1'}`}>
                               {[0,1,2,3].map(r => (
                                 <button key={r}
                                   onClick={() => r === 0 ? setPendingError({ playerId, type: 'pass' }) : adjustPass(playerId, r)}
-                                  className={`tap-btn flex-1 rounded-lg text-base font-black py-2 border ${
+                                  className={`tap-btn flex-1 border font-bold ${
+                                    awaitingReceive ? 'rounded-lg text-base font-black py-2' : 'rounded text-xs py-1'
+                                  } ${
                                     r === 0 ? 'border-red-600/60 bg-red-900/30 text-red-300' :
                                     r === 1 ? 'border-orange-700/50 bg-orange-900/20 text-orange-300' :
                                     r === 2 ? 'border-yellow-700/50 bg-yellow-900/20 text-yellow-300' :
