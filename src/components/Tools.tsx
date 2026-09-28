@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Player, PracticeSession } from '../types'
 import Practice from './Practice'
 import Scouting from './Scouting'
@@ -15,6 +15,7 @@ interface Props {
   onSavePractice: (s: PracticeSession) => void
   onDeletePractice: (id: string) => void
   onToolSync: () => void
+  onActiveChange?: (active: boolean) => void
 }
 
 const TOOLS: {
@@ -32,15 +33,19 @@ const TOOLS: {
   { id: 'ai',       icon: '🤖', label: 'AI Suggestions',    description: 'Personalized drills based on your stats',      available: false, proOnly: true  },
 ]
 
-export default function Tools({ isPro, onUpgrade, players, practices, onSavePractice, onDeletePractice, onToolSync }: Props) {
+export default function Tools({ isPro, onUpgrade, players, practices, onSavePractice, onDeletePractice, onToolSync, onActiveChange }: Props) {
   const [active, setActive] = useState<ToolId | null>(null)
+
+  useEffect(() => {
+    onActiveChange?.(active !== null)
+  }, [active, onActiveChange])
 
   function back() { setActive(null) }
 
   if (active === 'practice') return (
     <div className="h-full flex flex-col">
       <ToolHeader label="Practice Tracker" onBack={back} />
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overscroll-contain">
         <Practice players={players} sessions={practices} onSave={onSavePractice} onDelete={onDeletePractice} />
       </div>
     </div>
@@ -55,7 +60,7 @@ export default function Tools({ isPro, onUpgrade, players, practices, onSavePrac
   if (active === 'calendar') return (
     <div className="h-full flex flex-col">
       <ToolHeader label="Team Calendar" onBack={back} />
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overscroll-contain">
         <Calendar onSync={onToolSync} />
       </div>
     </div>

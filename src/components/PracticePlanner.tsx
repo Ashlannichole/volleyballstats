@@ -342,7 +342,7 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
         <p className="flex-1 text-center text-white font-bold text-sm">Practice Planner</p>
         <div className="w-16" />
       </div>
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 pb-10">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-4 flex flex-col gap-4 pb-10">
 
         <button onClick={() => { setSetupIsTemplate(false); setSetupName(''); setView('setup') }}
           className="tap-btn w-full bg-vr-700 border border-vr-500 rounded-2xl py-3.5 text-white font-bold text-sm">
@@ -425,7 +425,7 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
           <button onClick={create} disabled={!setupName.trim()}
             className="tap-btn text-vr-300 font-bold text-sm disabled:opacity-40">Create</button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label className="text-gray-500 text-xs uppercase tracking-wide">Plan Name *</label>
             <input value={setupName} onChange={e => setSetupName(e.target.value)} autoFocus
@@ -561,7 +561,7 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
         )}
 
         {/* Plan blocks */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 pb-28">
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 flex flex-col gap-2 pb-28">
           {plan.blocks.length === 0 ? (
             <div className="text-center py-10">
               <p className="text-3xl mb-2">📋</p>
@@ -650,7 +650,7 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
                 Showing drills for {plan.playerCount} players
               </p>
               {/* Drill list */}
-              <div className="overflow-y-auto flex-1 px-4 pb-4 flex flex-col gap-1">
+              <div className="overflow-y-auto overscroll-contain flex-1 px-4 pb-4 flex flex-col gap-1">
                 {groupOrder.filter(g => grouped[g]?.length).map(g => (
                   <div key={g}>
                     <p className={`text-[10px] font-black uppercase tracking-wide py-2 ${TAG_STYLES[g].color}`}>{TAG_STYLES[g].label}</p>
@@ -713,7 +713,7 @@ export default function PracticePlanner({ onBack, onSync }: { onBack?: () => voi
           <button onClick={saveCustomDrill} disabled={!cdName.trim() || cdTags.length === 0}
             className="tap-btn text-vr-300 font-bold text-sm disabled:opacity-40">Save</button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 pb-10">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 flex flex-col gap-4 pb-10">
           <div className="flex flex-col gap-1">
             <label className="text-gray-500 text-xs uppercase tracking-wide">Drill Name *</label>
             <input value={cdName} onChange={e => setCdName(e.target.value)} placeholder="e.g. Queen of the Court"

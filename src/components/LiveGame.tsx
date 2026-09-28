@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { Player, PlayerStats, SetStats, Match, SavedLineup, PracticeSession } from '../types'
+import type { Player, PlayerStats, SetStats, Match, SavedLineup, PracticeSession, Position } from '../types'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { loadLineups, saveLineups } from '../utils/storage'
 
@@ -16,6 +16,10 @@ interface Props {
   // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
   practiceMode?: boolean
   onSavePractice?: (session: PracticeSession) => void
+  // On Fire! / Jinx! full-screen run popups — on by default
+  celebrationAnimations?: boolean
+  // Auto-credit the on-court setter with an assist on every kill — on by default
+  autoAssist?: boolean
 }
 
 const COURT_LAYOUT = [
@@ -23,6 +27,33 @@ const COURT_LAYOUT = [
   [4, 5, 0], // back row:  P5 P6 P1
 ]
 const POSITION_NUMS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']
+const FRONT_ROW_SLOTS = new Set(COURT_LAYOUT[0])
+
+// Base/functional defensive position each rotational slot releases to once
+// the serve is live — keyed off the current occupant's own tagged position.
+// Front row: outside → P4, middle → P3, setter/opposite (whichever is up) → P2.
+// Back row: outside/DS → middle back (P6), middle/libero → left back (P5),
+// setter/opposite (whichever is back) → right back (P1).
+function getBaseSlot(position: Position, isFrontRow: boolean): number | null {
+  if (isFrontRow) {
+    switch (position) {
+      case 'outside':  return 3 // P4
+      case 'middle':   return 2 // P3
+      case 'setter':
+      case 'opposite': return 1 // P2
+      default:         return null // libero/ds shouldn't be front row
+    }
+  }
+  switch (position) {
+    case 'outside':
+    case 'ds':        return 5 // P6
+    case 'middle':
+    case 'libero':    return 4 // P5
+    case 'setter':
+    case 'opposite':  return 0 // P1
+    default:          return null
+  }
+}
 
 interface StatChipDef {
   key: keyof PlayerStats
@@ -41,6 +72,7 @@ const CHIP_ROWS: StatChipDef[][] = [
   ],
   [
     { key: 'digs',           label: 'DIG',  color: 'text-cyan-300',   bg: 'bg-cyan-900/30 border-cyan-600/30' },
+    { key: 'digErrors',      label: 'DE',   color: 'text-red-400',    bg: 'bg-red-900/30 border-red-700/30' },
     { key: 'settingAssists', label: 'AST',  color: 'text-orange-300', bg: 'bg-orange-900/30 border-orange-600/30' },
     { key: 'serveErrors',    label: 'SE',   color: 'text-red-400',    bg: 'bg-red-900/30 border-red-700/30',    isErrorTrigger: true },
   ],
@@ -51,7 +83,7 @@ const CHIP_ROWS: StatChipDef[][] = [
 ]
 
 const SCORES_OUR_POINT   = new Set<keyof PlayerStats>(['kills', 'aces', 'soloBlocks', 'blockAssists'])
-const SCORES_THEIR_POINT = new Set<keyof PlayerStats>(['attackErrors', 'serveErrors'])
+const SCORES_THEIR_POINT = new Set<keyof PlayerStats>(['attackErrors', 'serveErrors', 'digErrors'])
 
 interface PendingError {
   playerId: string
@@ -84,9 +116,11 @@ interface Snapshot {
   weAreServing: boolean | null
   rotation: (string | null)[]
   servingRun: number
+  serveLocked: boolean
+  awaitingReceive: boolean
 }
 
-export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice }: Props) {
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice, celebrationAnimations = true, autoAssist = true }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -99,6 +133,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   const [ourTimeouts, setOurTimeouts]       = useState(0)
   const [theirTimeouts, setTheirTimeouts]   = useState(0)
   const [weAreServing, setWeAreServing]     = useState<boolean | null>(null)
+  // True from the moment we lose serve until the first pass rating is
+  // recorded this rally — drives the enlarged serve-receive pass buttons.
+  const [awaitingReceive, setAwaitingReceive] = useState(false)
   const [rotation, setRotation]             = useState<(string | null)[]>([null,null,null,null,null,null])
   const [showRotationEditor, setShowRotationEditor] = useState(false)
   const [assigningSlot, setAssigningSlot]   = useState<number | null>(null)
@@ -127,6 +164,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Auto set-end banner
   const [setCompleteAlert, setSetCompleteAlert] = useState(false)
 
+  // Lineup choice shown before a new set starts
+  const [showSetLineupChoice, setShowSetLineupChoice] = useState(false)
+
   // Serve-lock: true when it's our serve and no attempt has been recorded yet
   const [serveLocked, setServeLocked] = useState(false)
 
@@ -135,6 +175,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
   // Serving streak celebration
   const [streakAlert, setStreakAlert] = useState<{ name: string; count: number } | null>(null)
+
+  // Opponent run celebration (the fun "uh oh" counterpart to streakAlert)
+  const [jinxAlert, setJinxAlert] = useState<{ count: number } | null>(null)
+
+  // Most recent auto-credited assist (drives the quick-swap toast below the
+  // court grid, and lets the very next correction on that same kill also
+  // reverse the assist it produced)
+  const [lastAutoAssist, setLastAutoAssist] = useState<{ hitterId: string; assisterId: string } | null>(null)
 
   // Current consecutive serving run for the active server
   const [servingRun, setServingRun] = useState(0)
@@ -188,6 +236,20 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     return () => clearTimeout(t)
   }, [streakAlert])
 
+  // Auto-dismiss jinx celebration
+  useEffect(() => {
+    if (!jinxAlert) return
+    const t = setTimeout(() => setJinxAlert(null), 3500)
+    return () => clearTimeout(t)
+  }, [jinxAlert])
+
+  // Auto-dismiss the assist quick-swap toast
+  useEffect(() => {
+    if (!lastAutoAssist) return
+    const t = setTimeout(() => setLastAutoAssist(null), 4000)
+    return () => clearTimeout(t)
+  }, [lastAutoAssist])
+
   // Push immediately when a timeout is called so spectators see it right away
   useEffect(() => {
     if (spectatorCode && gameStarted && !practiceMode && lastTimeout) {
@@ -204,17 +266,23 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     if (hi >= limit && hi - lo >= 2) setSetCompleteAlert(true)
   }, [ourScore, theirScore, currentSet, bestOf5])
 
-  // Score run tracking
+  // Score run tracking — the opponent hitting a 5-point run pops the Jinx! celebration
   useEffect(() => {
     if (!gameStarted) return
     const prev = prevScoresRef.current
     if (ourScore > prev.our) {
       setScoreRun(r => r?.team === 'us' ? { team: 'us', count: r.count + 1 } : { team: 'us', count: 1 })
     } else if (theirScore > prev.their) {
-      setScoreRun(r => r?.team === 'them' ? { team: 'them', count: r.count + 1 } : { team: 'them', count: 1 })
+      setScoreRun(r => {
+        const newCount = r?.team === 'them' ? r.count + 1 : 1
+        if (celebrationAnimations && newCount >= 5 && newCount % 5 === 0) {
+          setJinxAlert({ count: newCount })
+        }
+        return { team: 'them', count: newCount }
+      })
     }
     prevScoresRef.current = { our: ourScore, their: theirScore }
-  }, [ourScore, theirScore])
+  }, [ourScore, theirScore, celebrationAnimations])
 
   function startSpectatorShare() {
     const code = Math.random().toString(36).slice(2, 8).toUpperCase()
@@ -233,7 +301,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Save current state before any mutation so we can undo it
   function snapshot() {
     setHistory(prev => [...prev.slice(-19), {
-      sets, ourScore, theirScore, weAreServing, rotation, servingRun
+      sets, ourScore, theirScore, weAreServing, rotation, servingRun, serveLocked, awaitingReceive
     }])
   }
 
@@ -247,6 +315,8 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       setWeAreServing(snap.weAreServing)
       setRotation(snap.rotation)
       setServingRun(snap.servingRun)
+      setServeLocked(snap.serveLocked)
+      setAwaitingReceive(snap.awaitingReceive)
       return prev.slice(0, -1)
     })
   }
@@ -265,7 +335,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         }
         return s
       }))
-      if (newRun >= 5 && newRun % 5 === 0) {
+      if (celebrationAnimations && newRun >= 5 && newRun % 5 === 0) {
         const server = players.find(p => p.id === serverId)
         if (server) setStreakAlert({ name: server.name.split(' ')[0], count: newRun })
       }
@@ -280,6 +350,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   function doRotate(currentRotation: (string | null)[]) {
     const n = [...currentRotation]
     n.push(n.shift()!)
+    return n
+  }
+
+  // Inverse of doRotate — used to send the girls back to their previous spots
+  // when a mistaken point that triggered a side-out gets corrected.
+  function undoRotate(currentRotation: (string | null)[]) {
+    const n = [...currentRotation]
+    n.unshift(n.pop()!)
     return n
   }
 
@@ -313,6 +391,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     if (weAreServing === false) {
       setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair))
       setWeAreServing(true)
+      setAwaitingReceive(false)
       resetServingRun()
       showRotationToastBriefly()
     } else {
@@ -324,6 +403,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   function addTheirPoint() {
     snapshot()
     setTheirScore(s => s + 1)
+    // A new serve is coming from them either way — re-arm the receive window
+    // even if they were already serving (i.e. this isn't a fresh side-out).
+    setAwaitingReceive(true)
     if (weAreServing === true) {
       setWeAreServing(false)
       setServeLocked(false)
@@ -331,14 +413,25 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     }
   }
 
-  function adjust(playerId: string, key: keyof PlayerStats, delta: number) {
-    snapshot()
+  // Raw per-player stat bump, shared by adjust() and the auto-assist credit
+  function bumpStat(playerId: string, key: keyof PlayerStats, delta: number) {
     setSets(prev => prev.map((s, i) => {
       if (i !== currentSet) return s
       const ps = { ...s[playerId] }
       const val = Math.max(0, (ps[key] as number) + delta)
       return { ...s, [playerId]: { ...ps, [key]: val } }
     }))
+  }
+
+  // Whoever is currently on court tagged as the setter — used to auto-credit
+  // the assist on a kill unless the coach reassigns it via the quick-swap toast.
+  function findOnCourtSetter(excludeId?: string): Player | undefined {
+    return players.find(p => p.id !== excludeId && p.position === 'setter' && rotation.includes(p.id))
+  }
+
+  function adjust(playerId: string, key: keyof PlayerStats, delta: number) {
+    snapshot()
+    bumpStat(playerId, key, delta)
 
     if (delta > 0) {
       if (SCORES_OUR_POINT.has(key)) {
@@ -347,6 +440,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           // Side-out: we scored while receiving → rotate + take serve
           setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair))
           setWeAreServing(true)
+          setAwaitingReceive(false)
           resetServingRun()
           showRotationToastBriefly()
         } else {
@@ -356,16 +450,103 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       }
       if (SCORES_THEIR_POINT.has(key)) {
         setTheirScore(s => s + 1)
+        // A new serve is coming from them either way — re-arm the receive
+        // window even if they were already serving.
+        setAwaitingReceive(true)
         if (weAreServing === true) {
           setWeAreServing(false)
           setServeLocked(false)
           resetServingRun()
         }
       }
+      // Auto-credit the on-court setter with the assist on every kill
+      if (key === 'kills' && autoAssist) {
+        const setter = findOnCourtSetter(playerId)
+        if (setter) {
+          bumpStat(setter.id, 'settingAssists', 1)
+          setLastAutoAssist({ hitterId: playerId, assisterId: setter.id })
+        }
+      }
     } else if (delta < 0) {
       // Undo score on minus (corrections)
-      if (SCORES_OUR_POINT.has(key))   setOurScore(s => Math.max(0, s - 1))
-      if (SCORES_THEIR_POINT.has(key)) setTheirScore(s => Math.max(0, s - 1))
+      if (SCORES_OUR_POINT.has(key)) {
+        setOurScore(s => Math.max(0, s - 1))
+        // If this correction is reversing the very point that just won us the
+        // serve via side-out (no points scored on this run yet), send the
+        // rotation back to where it was before that side-out.
+        if (weAreServing === true && servingRun === 0) {
+          setRotation(prev => undoRotate(prev))
+          setWeAreServing(false)
+          setAwaitingReceive(true)
+        }
+      }
+      if (SCORES_THEIR_POINT.has(key)) {
+        setTheirScore(s => Math.max(0, s - 1))
+        if (weAreServing === false && servingRun === 0) {
+          setWeAreServing(true)
+          setAwaitingReceive(false)
+        }
+      }
+      // Reverse the auto-credited assist too, if this correction is undoing
+      // the exact kill that produced it
+      if (key === 'kills' && lastAutoAssist?.hitterId === playerId) {
+        bumpStat(lastAutoAssist.assisterId, 'settingAssists', -1)
+        setLastAutoAssist(null)
+      }
+    }
+  }
+
+  // Quick-swap: move the auto-credited assist from the toast onto a
+  // different on-court player, in one tap.
+  function reassignAssist(newAssisterId: string) {
+    if (!lastAutoAssist) return
+    snapshot()
+    bumpStat(lastAutoAssist.assisterId, 'settingAssists', -1)
+    bumpStat(newAssisterId, 'settingAssists', 1)
+    setLastAutoAssist(null)
+  }
+
+  // Swipe-to-record on a player's card — right = kill, left = attack error.
+  // Horizontal (not vertical) so it never fights the court grid's own
+  // vertical scrolling.
+  const SWIPE_THRESHOLD = 70
+  const SWIPE_MAX = 110
+  const swipeStartRef = useRef<{ x: number; y: number; playerId: string; dragging: boolean } | null>(null)
+  const [swipeState, setSwipeState] = useState<{ playerId: string; dx: number } | null>(null)
+
+  function handleSwipeStart(e: React.PointerEvent, playerId: string) {
+    swipeStartRef.current = { x: e.clientX, y: e.clientY, playerId, dragging: false }
+  }
+  function handleSwipeMove(e: React.PointerEvent, playerId: string) {
+    const start = swipeStartRef.current
+    if (!start || start.playerId !== playerId) return
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    if (!start.dragging) {
+      if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) return
+      start.dragging = true
+      e.currentTarget.setPointerCapture(e.pointerId)
+    }
+    e.preventDefault()
+    setSwipeState({ playerId, dx: Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, dx)) })
+  }
+  function handleSwipeEnd(playerId: string) {
+    const start = swipeStartRef.current
+    swipeStartRef.current = null
+    const dx = start?.dragging && swipeState?.playerId === playerId ? swipeState.dx : 0
+    setSwipeState(null)
+    if (dx >= SWIPE_THRESHOLD) {
+      adjust(playerId, 'kills', 1)
+    } else if (dx <= -SWIPE_THRESHOLD) {
+      const trueSlot = rotation.indexOf(playerId)
+      const isBackRow = trueSlot !== -1 && !FRONT_ROW_SLOTS.has(trueSlot)
+      if (isBackRow) {
+        // Back row on defense — record the dig error directly, no picker,
+        // to keep pace with the swipe-right kill shortcut.
+        adjust(playerId, 'digErrors', 1)
+      } else {
+        setPendingError({ playerId, type: 'attack' })
+      }
     }
   }
 
@@ -376,8 +557,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       const ps = { ...s[playerId] }
       return { ...s, [playerId]: { ...ps, passRatingTotal: ps.passRatingTotal + rating, passAttempts: ps.passAttempts + 1 } }
     }))
+    // A pass has now been recorded this rally — the enlarged serve-receive
+    // buttons go back to normal size until we're next receiving.
+    setAwaitingReceive(false)
     if (rating === 0 && autoScore) {
       setTheirScore(s => s + 1)
+      // They keep (or regain) serve, so the next rally is another receive.
+      setAwaitingReceive(true)
       if (weAreServing === true) {
         setWeAreServing(false)
         setServeLocked(false)
@@ -426,8 +612,23 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setScoreRun(null)
     prevScoresRef.current = { our: 0, their: 0 }
     setServeLocked(weAreServing === true)
+    setAwaitingReceive(weAreServing === false)
     setLastTimeout(null)
     setServingRun(0)
+    setHistory([])
+    setLastAutoAssist(null)
+  }
+
+  // Applies the coach's lineup choice (kept from last set / cleared / a saved
+  // lineup) after advancing to the new set.
+  function goToNextSet(lineupChoice: 'keep' | 'clear' | SavedLineup) {
+    nextSet()
+    if (lineupChoice === 'clear') {
+      setRotation([null, null, null, null, null, null])
+    } else if (lineupChoice !== 'keep') {
+      setRotation([...lineupChoice.slots])
+    }
+    setShowSetLineupChoice(false)
   }
 
   function doSub(outSlot: number, inPlayerId: string) {
@@ -464,6 +665,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setSets([buildSetStats(players)])
     setHistory([])
     setServeLocked(weAreServing === true)
+    setAwaitingReceive(weAreServing === false)
     setGameStarted(true)
     onGameStartedChange?.(true)
   }
@@ -506,6 +708,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   }
 
   function assignPlayerToSlot(slot: number, playerId: string | null) {
+    snapshot()
     setRotation(prev => {
       const next = [...prev]
       if (playerId) {
@@ -556,6 +759,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setOurScore(0); setTheirScore(0)
     setOurTimeouts(0); setTheirTimeouts(0)
     setWeAreServing(null)
+    setAwaitingReceive(false)
     setCurrentSet(0)
     setSets([buildSetStats(players)])
     setCompletedSetScores([])
@@ -566,6 +770,8 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setLiberoPair(null)
     setScoreRun(null)
     setStreakAlert(null)
+    setJinxAlert(null)
+    setLastAutoAssist(null)
     setSetCompleteAlert(false)
     prevScoresRef.current = { our: 0, their: 0 }
     setServingRun(0)
@@ -575,6 +781,23 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   const setStats = sets[currentSet]
   const onCourtIds = new Set(rotation.filter(Boolean) as string[])
   const benchPlayers = players.filter(p => !onCourtIds.has(p.id))
+
+  // Show base/functional positions once the serve is live; show strict
+  // rotational order only in the brief pre-serve window so legality is
+  // easy to verify right before the server taps SERVE.
+  const showBasePositions = !(serveLocked && weAreServing === true)
+  const displaySlots: (number | null)[] = [null, null, null, null, null, null]
+  if (showBasePositions) {
+    rotation.forEach((playerId, trueSlot) => {
+      if (!playerId) return
+      const player = players.find(p => p.id === playerId)
+      const base = player ? getBaseSlot(player.position, FRONT_ROW_SLOTS.has(trueSlot)) : null
+      const gridSlot = base !== null ? base : trueSlot
+      displaySlots[gridSlot] = trueSlot
+    })
+  } else {
+    for (let i = 0; i < 6; i++) displaySlots[i] = i
+  }
 
   // ── Pre-match screen ──────────────────────────────────────────────────────
   const preOnCourtIds = new Set(preLineup.filter(Boolean) as string[])
@@ -914,7 +1137,15 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                 className="tap-btn text-4xl font-black text-white leading-none w-14 text-center">
                 {String(ourScore).padStart(2, '0')}
               </button>
-              <button onClick={() => { snapshot(); setOurScore(s => Math.max(0, s - 1)) }}
+              <button onClick={() => {
+                snapshot()
+                setOurScore(s => Math.max(0, s - 1))
+                if (weAreServing === true && servingRun === 0) {
+                  setRotation(prev => undoRotate(prev))
+                  setWeAreServing(false)
+                  setAwaitingReceive(true)
+                }
+              }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
             </div>
           </div>
@@ -928,7 +1159,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                   S{i+1}
                 </button>
               ))}
-              <button onClick={nextSet} className="tap-btn w-7 h-7 rounded-lg text-xs font-bold bg-navy-600 text-gray-400 border border-white/10">+</button>
+              <button onClick={() => setShowSetLineupChoice(true)} className="tap-btn w-7 h-7 rounded-lg text-xs font-bold bg-navy-600 text-gray-400 border border-white/10">+</button>
             </div>
             <span className="text-gray-500 text-base font-bold leading-none">VS</span>
           </div>
@@ -947,7 +1178,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               )}
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <button onClick={() => { snapshot(); setTheirScore(s => Math.max(0, s - 1)) }}
+              <button onClick={() => {
+                snapshot()
+                setTheirScore(s => Math.max(0, s - 1))
+                if (weAreServing === false && servingRun === 0) {
+                  setWeAreServing(true)
+                  setAwaitingReceive(false)
+                }
+              }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
               <button onClick={addTheirPoint}
                 className="tap-btn text-4xl font-black text-white leading-none w-14 text-center">
@@ -991,6 +1229,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
             const next = !weAreServing
             setWeAreServing(next)
             setServeLocked(next)
+            setAwaitingReceive(!next)
           }}
           className={`tap-btn px-3 py-1 rounded-lg text-xs font-bold border ${
             weAreServing ? 'bg-vr-700 border-vr-500 text-white' : 'bg-navy-600 border-white/10 text-gray-400'
@@ -999,9 +1238,15 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           {weAreServing ? '🏐 Our Serve' : '🏐 Their Serve'}
         </button>
 
-        <button onClick={() => { setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair)) }}
+        <button onClick={() => { snapshot(); setRotation(prev => checkLiberoRotation(doRotate(prev), liberoPair)) }}
           className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold">
           ⟳ Rotate
+        </button>
+
+        <button onClick={() => { snapshot(); setRotation(prev => undoRotate(prev)) }}
+          title="Rotate the lineup back one position — e.g. to line up your first server when receiving"
+          className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold">
+          ⟲ Rotate Back
         </button>
 
         <button onClick={() => setShowRotationEditor(r => !r)}
@@ -1045,16 +1290,49 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       <div className="bg-navy-900 border-b border-white/5 px-3 py-1 flex items-center gap-3 text-[10px] shrink-0">
         <span className="text-gray-600">Auto:</span>
         <span className="text-green-400">KILL/ACE/BS → +1 us</span>
-        <span className="text-red-400">ERR/SE/Pass 0 → +1 them</span>
-        <span className="text-vr-400 ml-auto">Side-out → auto rotate</span>
+        <span className="text-red-400">ERR/SE/DE/Pass 0 → +1 them</span>
+        <span className={`ml-auto font-bold whitespace-nowrap ${showBasePositions ? 'text-pb-400' : 'text-vr-400'}`}>
+          {showBasePositions ? '⛹ Base' : '🔢 Rotation'}
+        </span>
       </div>
 
+      {/* ── AUTO-ASSIST QUICK-SWAP TOAST ──────────────────────────────────── */}
+      {lastAutoAssist && (() => {
+        const hitter = players.find(p => p.id === lastAutoAssist.hitterId)
+        const assister = players.find(p => p.id === lastAutoAssist.assisterId)
+        const alternates = players.filter(p =>
+          rotation.includes(p.id) && p.id !== lastAutoAssist.hitterId && p.id !== lastAutoAssist.assisterId
+        )
+        return (
+          <div className="bg-vr-900/60 border-b border-vr-600/30 px-3 py-1.5 flex items-center gap-2 text-xs shrink-0 overflow-x-auto">
+            <span className="text-gray-400 shrink-0">Kill #{hitter?.number}</span>
+            <span className="text-gray-600 shrink-0">→</span>
+            <span className="text-white font-bold shrink-0">Assist #{assister?.number}</span>
+            {alternates.length > 0 && (
+              <>
+                <span className="text-gray-600 shrink-0">not right?</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {alternates.map(p => (
+                    <button key={p.id} onClick={() => reassignAssist(p.id)}
+                      className="tap-btn bg-navy-700 border border-white/10 rounded-lg px-2 py-0.5 text-gray-300 text-[11px] font-semibold">
+                      #{p.number}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            <button onClick={() => setLastAutoAssist(null)} className="tap-btn ml-auto text-gray-600 shrink-0">✕</button>
+          </div>
+        )
+      })()}
+
       {/* ── COURT GRID ────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto overscroll-contain p-2">
         <div className="grid grid-rows-2 gap-2 mb-2">
           {COURT_LAYOUT.map((row, rowIdx) => (
             <div key={rowIdx} className="grid grid-cols-3 gap-2">
-              {row.map((slotIdx) => {
+              {row.map((gridSlot) => {
+                const slotIdx = displaySlots[gridSlot] ?? gridSlot
                 const playerId = rotation[slotIdx]
                 const player = players.find(p => p.id === playerId)
                 const ps = playerId ? setStats[playerId] : null
@@ -1064,7 +1342,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
                 if (!playerId || !player || !ps) {
                   return (
-                    <button key={slotIdx}
+                    <button key={gridSlot}
                       onClick={() => { setAssigningSlot(slotIdx); setShowRotationEditor(true) }}
                       className="tap-btn bg-navy-800/60 border-2 border-dashed border-white/10 rounded-2xl p-3 flex flex-col items-center justify-center min-h-[160px]">
                       <span className="text-white/20 text-2xl mb-1">+</span>
@@ -1075,10 +1353,12 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
                 const isServeLocked = serveLocked && weAreServing === true
                 const isLocked = isServeLocked && !isServer
+                const swipeEnabled = !isLocked && !(isServer && isServeLocked)
+                const dragDx = swipeState?.playerId === playerId ? swipeState.dx : 0
 
                 return (
-                  <div key={slotIdx}
-                    className={`border rounded-2xl overflow-hidden flex flex-col transition-opacity ${
+                  <div key={gridSlot}
+                    className={`relative border rounded-2xl overflow-hidden flex flex-col transition-opacity ${
                       isLocked ? 'opacity-40' : ''
                     } ${
                       isServer
@@ -1086,7 +1366,28 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                         : isExpanded
                           ? 'bg-navy-700 border-vr-500/40'
                           : 'bg-navy-700 border-white/10'
-                    }`}>
+                    }`}
+                    style={swipeEnabled ? { touchAction: 'pan-y' } : undefined}
+                    onPointerDown={swipeEnabled ? e => handleSwipeStart(e, playerId) : undefined}
+                    onPointerMove={swipeEnabled ? e => handleSwipeMove(e, playerId) : undefined}
+                    onPointerUp={swipeEnabled ? () => handleSwipeEnd(playerId) : undefined}
+                    onPointerCancel={swipeEnabled ? () => handleSwipeEnd(playerId) : undefined}>
+
+                    {/* Swipe reveal — right = KILL, left = attack ERROR (front row) or DIG ERROR (back row) */}
+                    {swipeEnabled && dragDx !== 0 && (
+                      <div className={`absolute inset-0 flex items-center ${dragDx > 0 ? 'justify-start bg-green-800/70' : 'justify-end bg-red-900/70'}`}>
+                        <span className={`text-white font-black text-xs px-3 ${dragDx > 0 ? '' : 'ml-auto'}`}
+                          style={{ opacity: Math.min(1, Math.abs(dragDx) / SWIPE_THRESHOLD) }}>
+                          {dragDx > 0 ? '✓ KILL' : FRONT_ROW_SLOTS.has(slotIdx) ? 'ATK ERR ✗' : 'DIG ERR ✗'}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col"
+                      style={{
+                        transform: `translateX(${dragDx}px)`,
+                        transition: dragDx === 0 ? 'transform 0.2s ease-out' : 'none',
+                      }}>
 
                     {/* Card header */}
                     <div className={`flex items-center gap-2 px-2.5 pt-2 pb-1.5 border-b border-white/5 ${isServer ? 'bg-vr-800/40' : ''}`}>
@@ -1149,18 +1450,20 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                           ))}
                         </div>
 
-                        {/* Pass rating */}
+                        {/* Pass rating — enlarged only while awaiting serve receive; back to normal size the moment anyone passes */}
                         <div className={`px-2 pb-2 ${isLocked ? 'pointer-events-none' : ''}`}>
-                          <div className="flex items-center gap-1">
-                            <span className="text-gray-600 text-[10px] w-6 shrink-0">PA</span>
-                            <span className="text-pb-400 text-xs font-bold w-8">
+                          <div className={`flex items-center ${awaitingReceive ? 'gap-1.5' : 'gap-1'}`}>
+                            <span className={`text-gray-600 w-6 shrink-0 ${awaitingReceive ? 'text-xs' : 'text-[10px]'}`}>PA</span>
+                            <span className={`text-pb-400 font-bold w-8 ${awaitingReceive ? 'text-sm' : 'text-xs'}`}>
                               {ps.passAttempts > 0 ? (ps.passRatingTotal / ps.passAttempts).toFixed(1) : '—'}
                             </span>
-                            <div className="flex gap-1 flex-1">
+                            <div className={`flex flex-1 ${awaitingReceive ? 'gap-1.5' : 'gap-1'}`}>
                               {[0,1,2,3].map(r => (
                                 <button key={r}
                                   onClick={() => r === 0 ? setPendingError({ playerId, type: 'pass' }) : adjustPass(playerId, r)}
-                                  className={`tap-btn flex-1 rounded text-xs font-bold py-1 border ${
+                                  className={`tap-btn flex-1 border font-bold ${
+                                    awaitingReceive ? 'rounded-lg text-base font-black py-2' : 'rounded text-xs py-1'
+                                  } ${
                                     r === 0 ? 'border-red-600/60 bg-red-900/30 text-red-300' :
                                     r === 1 ? 'border-orange-700/50 bg-orange-900/20 text-orange-300' :
                                     r === 2 ? 'border-yellow-700/50 bg-yellow-900/20 text-yellow-300' :
@@ -1238,6 +1541,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                         </button>
                       </div>
                     )}
+                    </div>
                   </div>
                 )
               })}
@@ -1499,7 +1803,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                       className="tap-btn flex-1 py-3 rounded-xl border border-white/20 text-gray-300 font-semibold text-sm">
                       Keep Playing
                     </button>
-                    <button onClick={() => { setSetCompleteAlert(false); nextSet() }}
+                    <button onClick={() => { setSetCompleteAlert(false); setShowSetLineupChoice(true) }}
                       className="tap-btn flex-1 py-3 rounded-xl bg-vr-600 text-white font-bold text-sm">
                       Start Set {currentSet + 2}
                     </button>
@@ -1510,6 +1814,46 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           </div>
         )
       })()}
+
+      {/* ── NEXT-SET LINEUP CHOICE ───────────────────────────────────────── */}
+      {showSetLineupChoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-navy-800 border border-vr-700/50 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-xl font-bold text-white mb-1 text-center">Set {currentSet + 2} Lineup</h3>
+            <p className="text-gray-400 text-sm mb-4 text-center">How should the lineup start this set?</p>
+
+            <div className="flex flex-col gap-2">
+              <button onClick={() => goToNextSet('keep')}
+                className="tap-btn w-full py-3 rounded-xl bg-vr-600 text-white font-bold text-sm">
+                Keep Current Lineup
+              </button>
+              <button onClick={() => goToNextSet('clear')}
+                className="tap-btn w-full py-3 rounded-xl border border-white/20 text-gray-300 font-semibold text-sm">
+                Clear Lineup — Start Fresh
+              </button>
+            </div>
+
+            {savedLineups.length > 0 && (
+              <div className="mt-4">
+                <p className="text-gray-500 text-xs mb-1.5">Or load a saved lineup</p>
+                <div className="flex flex-wrap gap-2">
+                  {savedLineups.map(l => (
+                    <button key={l.id} onClick={() => goToNextSet(l)}
+                      className="tap-btn bg-navy-700 border border-vr-600/40 text-vr-300 text-xs font-semibold px-3 py-1.5 rounded-xl">
+                      {l.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button onClick={() => setShowSetLineupChoice(false)}
+              className="tap-btn w-full mt-4 text-gray-500 text-xs">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── LIVE STATS PANEL ─────────────────────────────────────────────── */}
       {showLiveStats && (() => {
@@ -1678,6 +2022,100 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                   {streakAlert.count} serves in a row!
                 </p>
                 <p className="text-gray-600 text-xs mt-4">tap to dismiss</p>
+              </div>
+            </div>
+          </>
+        )
+      })()}
+
+      {/* ── OPPONENT RUN "JINX!" POPUP ───────────────────────────────────── */}
+      {jinxAlert && (() => {
+        // Puffs of purple smoke curling up from behind the card
+        const SMOKE = [
+          { color: '#a855f7', left: '12%', size: 60, delay: 0.00 },
+          { color: '#c026d3', left: '30%', size: 80, delay: 0.12 },
+          { color: '#7c3aed', left: '50%', size: 95, delay: 0.24 },
+          { color: '#d946ef', left: '68%', size: 75, delay: 0.36 },
+          { color: '#9333ea', left: '85%', size: 65, delay: 0.48 },
+          { color: '#a855f7', left: '40%', size: 55, delay: 0.60 },
+          { color: '#c026d3', left: '60%', size: 60, delay: 0.72 },
+        ]
+        return (
+          <>
+            <style>{`
+              @keyframes jx-pop {
+                0%   { transform: scale(0.4) rotate(-8deg); opacity: 0 }
+                60%  { transform: scale(1.08) rotate(3deg); opacity: 1 }
+                100% { transform: scale(1) rotate(0deg); opacity: 1 }
+              }
+              @keyframes jx-smoke {
+                0%   { transform: translateY(10px) scale(0.3); opacity: 0 }
+                20%  { opacity: 0.75 }
+                100% { transform: translateY(-110px) scale(1.9); opacity: 0 }
+              }
+              @keyframes jx-aura {
+                0%, 100% { opacity: 0.45; transform: scale(1) }
+                50%       { opacity: 0.75; transform: scale(1.12) }
+              }
+              @keyframes jx-glow {
+                0%, 100% { box-shadow: 0 0 30px 4px rgba(168,85,247,0.45), 0 0 70px 10px rgba(192,38,211,0.25) }
+                50%       { box-shadow: 0 0 45px 8px rgba(192,38,211,0.6), 0 0 90px 16px rgba(147,51,234,0.35) }
+              }
+              @keyframes jx-wiggle {
+                0%, 100% { transform: rotate(-8deg) }
+                50%       { transform: rotate(8deg) }
+              }
+            `}</style>
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60"
+              onClick={() => setJinxAlert(null)}
+            >
+              {/* Ambient purple aura behind everything */}
+              <div className="absolute w-64 h-64 rounded-full pointer-events-none"
+                style={{
+                  background: 'radial-gradient(circle, rgba(192,38,211,0.55) 0%, rgba(126,34,206,0.25) 45%, transparent 75%)',
+                  filter: 'blur(18px)',
+                  animation: 'jx-aura 1.8s ease-in-out infinite',
+                }} />
+
+              <div style={{
+                animation: 'jx-pop 0.35s ease-out forwards, jx-glow 1.6s ease-in-out 0.35s infinite',
+                background: 'radial-gradient(circle at 50% 0%, rgba(126,34,206,0.35), transparent 60%), #150a24',
+              }}
+                className="relative border-2 border-fuchsia-500/60 rounded-3xl px-10 py-8 text-center mx-6 overflow-hidden">
+
+                {/* Smoke puffs curling up from the card */}
+                <div className="absolute inset-x-0 bottom-0 h-full pointer-events-none">
+                  {SMOKE.map(({ color, left, size, delay }, i) => (
+                    <div key={i} className="absolute bottom-0 rounded-full"
+                      style={{
+                        left,
+                        width: size,
+                        height: size,
+                        marginLeft: -size / 2,
+                        background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+                        filter: 'blur(6px)',
+                        opacity: 0,
+                        animation: `jx-smoke 1.8s ease-out ${delay}s infinite`,
+                      }} />
+                  ))}
+                </div>
+
+                {/* Jinx emoji */}
+                <div className="relative text-6xl mb-3 leading-none"
+                  style={{ animation: 'jx-wiggle 0.6s ease-in-out infinite' }}>
+                  😵‍💫
+                </div>
+
+                <p className="relative text-fuchsia-300 font-black text-xl tracking-widest uppercase mb-1"
+                  style={{ textShadow: '0 0 12px rgba(217,70,239,0.8)' }}>
+                  ✨ Jinx! ✨
+                </p>
+                <p className="relative text-white font-bold text-2xl mb-0.5">{opponent || 'They'}</p>
+                <p className="relative text-purple-200 text-base">
+                  {jinxAlert.count} in a row — time to break it!
+                </p>
+                <p className="relative text-purple-400/60 text-xs mt-4">tap to dismiss</p>
               </div>
             </div>
           </>

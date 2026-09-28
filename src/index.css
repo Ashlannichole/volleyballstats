@@ -5,6 +5,12 @@
 @layer base {
   html, body, #root {
     height: 100%;
+    /* Lock the page itself from scrolling/rubber-banding — every screen
+       manages its own internal scroll region(s) instead. Without this,
+       mobile browsers allow a few pixels of elastic bounce on the body
+       even when there's nothing left to actually scroll. */
+    overflow: hidden;
+    overscroll-behavior: none;
     background-color: #0a0f1e;
     color: white;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
