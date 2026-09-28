@@ -490,6 +490,42 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setLastAutoAssist(null)
   }
 
+  // Swipe-to-record on a player's card — right = kill, left = attack error.
+  // Horizontal (not vertical) so it never fights the court grid's own
+  // vertical scrolling.
+  const SWIPE_THRESHOLD = 70
+  const SWIPE_MAX = 110
+  const swipeStartRef = useRef<{ x: number; y: number; playerId: string; dragging: boolean } | null>(null)
+  const [swipeState, setSwipeState] = useState<{ playerId: string; dx: number } | null>(null)
+
+  function handleSwipeStart(e: React.PointerEvent, playerId: string) {
+    swipeStartRef.current = { x: e.clientX, y: e.clientY, playerId, dragging: false }
+  }
+  function handleSwipeMove(e: React.PointerEvent, playerId: string) {
+    const start = swipeStartRef.current
+    if (!start || start.playerId !== playerId) return
+    const dx = e.clientX - start.x
+    const dy = e.clientY - start.y
+    if (!start.dragging) {
+      if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) return
+      start.dragging = true
+      e.currentTarget.setPointerCapture(e.pointerId)
+    }
+    e.preventDefault()
+    setSwipeState({ playerId, dx: Math.max(-SWIPE_MAX, Math.min(SWIPE_MAX, dx)) })
+  }
+  function handleSwipeEnd(playerId: string) {
+    const start = swipeStartRef.current
+    swipeStartRef.current = null
+    const dx = start?.dragging && swipeState?.playerId === playerId ? swipeState.dx : 0
+    setSwipeState(null)
+    if (dx >= SWIPE_THRESHOLD) {
+      adjust(playerId, 'kills', 1)
+    } else if (dx <= -SWIPE_THRESHOLD) {
+      setPendingError({ playerId, type: 'attack' })
+    }
+  }
+
   function adjustPass(playerId: string, rating: number, autoScore = true) {
     snapshot()
     setSets(prev => prev.map((s, i) => {
@@ -1282,10 +1318,12 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
                 const isServeLocked = serveLocked && weAreServing === true
                 const isLocked = isServeLocked && !isServer
+                const swipeEnabled = !isLocked && !(isServer && isServeLocked)
+                const dragDx = swipeState?.playerId === playerId ? swipeState.dx : 0
 
                 return (
                   <div key={gridSlot}
-                    className={`border rounded-2xl overflow-hidden flex flex-col transition-opacity ${
+                    className={`relative border rounded-2xl overflow-hidden flex flex-col transition-opacity ${
                       isLocked ? 'opacity-40' : ''
                     } ${
                       isServer
@@ -1293,7 +1331,28 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                         : isExpanded
                           ? 'bg-navy-700 border-vr-500/40'
                           : 'bg-navy-700 border-white/10'
-                    }`}>
+                    }`}
+                    style={swipeEnabled ? { touchAction: 'pan-y' } : undefined}
+                    onPointerDown={swipeEnabled ? e => handleSwipeStart(e, playerId) : undefined}
+                    onPointerMove={swipeEnabled ? e => handleSwipeMove(e, playerId) : undefined}
+                    onPointerUp={swipeEnabled ? () => handleSwipeEnd(playerId) : undefined}
+                    onPointerCancel={swipeEnabled ? () => handleSwipeEnd(playerId) : undefined}>
+
+                    {/* Swipe reveal — right = KILL, left = attack ERROR */}
+                    {swipeEnabled && dragDx !== 0 && (
+                      <div className={`absolute inset-0 flex items-center ${dragDx > 0 ? 'justify-start bg-green-800/70' : 'justify-end bg-red-900/70'}`}>
+                        <span className={`text-white font-black text-sm px-4 ${dragDx > 0 ? '' : 'ml-auto'}`}
+                          style={{ opacity: Math.min(1, Math.abs(dragDx) / SWIPE_THRESHOLD) }}>
+                          {dragDx > 0 ? '✓ KILL' : 'ERROR ✗'}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col"
+                      style={{
+                        transform: `translateX(${dragDx}px)`,
+                        transition: dragDx === 0 ? 'transform 0.2s ease-out' : 'none',
+                      }}>
 
                     {/* Card header */}
                     <div className={`flex items-center gap-2 px-2.5 pt-2 pb-1.5 border-b border-white/5 ${isServer ? 'bg-vr-800/40' : ''}`}>
@@ -1356,18 +1415,18 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                           ))}
                         </div>
 
-                        {/* Pass rating */}
+                        {/* Pass rating — enlarged touch targets since these get tapped on nearly every rally */}
                         <div className={`px-2 pb-2 ${isLocked ? 'pointer-events-none' : ''}`}>
-                          <div className="flex items-center gap-1">
-                            <span className="text-gray-600 text-[10px] w-6 shrink-0">PA</span>
-                            <span className="text-pb-400 text-xs font-bold w-8">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-gray-600 text-xs w-6 shrink-0">PA</span>
+                            <span className="text-pb-400 text-sm font-bold w-8">
                               {ps.passAttempts > 0 ? (ps.passRatingTotal / ps.passAttempts).toFixed(1) : '—'}
                             </span>
-                            <div className="flex gap-1 flex-1">
+                            <div className="flex gap-1.5 flex-1">
                               {[0,1,2,3].map(r => (
                                 <button key={r}
                                   onClick={() => r === 0 ? setPendingError({ playerId, type: 'pass' }) : adjustPass(playerId, r)}
-                                  className={`tap-btn flex-1 rounded text-xs font-bold py-1 border ${
+                                  className={`tap-btn flex-1 rounded-lg text-base font-black py-2 border ${
                                     r === 0 ? 'border-red-600/60 bg-red-900/30 text-red-300' :
                                     r === 1 ? 'border-orange-700/50 bg-orange-900/20 text-orange-300' :
                                     r === 2 ? 'border-yellow-700/50 bg-yellow-900/20 text-yellow-300' :
@@ -1445,6 +1504,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                         </button>
                       </div>
                     )}
+                    </div>
                   </div>
                 )
               })}
