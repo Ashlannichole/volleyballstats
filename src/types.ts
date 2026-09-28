@@ -17,6 +17,7 @@ export interface PlayerStats {
   passRatingTotal: number
   passAttempts: number
   digs: number
+  digErrors: number
   soloBlocks: number
   blockAssists: number
   settingAssists: number
@@ -63,6 +64,7 @@ export const EMPTY_STATS = (): PlayerStats => ({
   passRatingTotal: 0,
   passAttempts: 0,
   digs: 0,
+  digErrors: 0,
   soloBlocks: 0,
   blockAssists: 0,
   settingAssists: 0,

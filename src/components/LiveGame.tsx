@@ -72,6 +72,7 @@ const CHIP_ROWS: StatChipDef[][] = [
   ],
   [
     { key: 'digs',           label: 'DIG',  color: 'text-cyan-300',   bg: 'bg-cyan-900/30 border-cyan-600/30' },
+    { key: 'digErrors',      label: 'DE',   color: 'text-red-400',    bg: 'bg-red-900/30 border-red-700/30' },
     { key: 'settingAssists', label: 'AST',  color: 'text-orange-300', bg: 'bg-orange-900/30 border-orange-600/30' },
     { key: 'serveErrors',    label: 'SE',   color: 'text-red-400',    bg: 'bg-red-900/30 border-red-700/30',    isErrorTrigger: true },
   ],
@@ -82,7 +83,7 @@ const CHIP_ROWS: StatChipDef[][] = [
 ]
 
 const SCORES_OUR_POINT   = new Set<keyof PlayerStats>(['kills', 'aces', 'soloBlocks', 'blockAssists'])
-const SCORES_THEIR_POINT = new Set<keyof PlayerStats>(['attackErrors', 'serveErrors'])
+const SCORES_THEIR_POINT = new Set<keyof PlayerStats>(['attackErrors', 'serveErrors', 'digErrors'])
 
 interface PendingError {
   playerId: string
@@ -537,7 +538,15 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     if (dx >= SWIPE_THRESHOLD) {
       adjust(playerId, 'kills', 1)
     } else if (dx <= -SWIPE_THRESHOLD) {
-      setPendingError({ playerId, type: 'attack' })
+      const trueSlot = rotation.indexOf(playerId)
+      const isBackRow = trueSlot !== -1 && !FRONT_ROW_SLOTS.has(trueSlot)
+      if (isBackRow) {
+        // Back row on defense — record the dig error directly, no picker,
+        // to keep pace with the swipe-right kill shortcut.
+        adjust(playerId, 'digErrors', 1)
+      } else {
+        setPendingError({ playerId, type: 'attack' })
+      }
     }
   }
 
@@ -1281,7 +1290,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       <div className="bg-navy-900 border-b border-white/5 px-3 py-1 flex items-center gap-3 text-[10px] shrink-0">
         <span className="text-gray-600">Auto:</span>
         <span className="text-green-400">KILL/ACE/BS → +1 us</span>
-        <span className="text-red-400">ERR/SE/Pass 0 → +1 them</span>
+        <span className="text-red-400">ERR/SE/DE/Pass 0 → +1 them</span>
         <span className={`ml-auto font-bold whitespace-nowrap ${showBasePositions ? 'text-pb-400' : 'text-vr-400'}`}>
           {showBasePositions ? '⛹ Base' : '🔢 Rotation'}
         </span>
@@ -1364,12 +1373,12 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                     onPointerUp={swipeEnabled ? () => handleSwipeEnd(playerId) : undefined}
                     onPointerCancel={swipeEnabled ? () => handleSwipeEnd(playerId) : undefined}>
 
-                    {/* Swipe reveal — right = KILL, left = attack ERROR */}
+                    {/* Swipe reveal — right = KILL, left = attack ERROR (front row) or DIG ERROR (back row) */}
                     {swipeEnabled && dragDx !== 0 && (
                       <div className={`absolute inset-0 flex items-center ${dragDx > 0 ? 'justify-start bg-green-800/70' : 'justify-end bg-red-900/70'}`}>
-                        <span className={`text-white font-black text-sm px-4 ${dragDx > 0 ? '' : 'ml-auto'}`}
+                        <span className={`text-white font-black text-xs px-3 ${dragDx > 0 ? '' : 'ml-auto'}`}
                           style={{ opacity: Math.min(1, Math.abs(dragDx) / SWIPE_THRESHOLD) }}>
-                          {dragDx > 0 ? '✓ KILL' : 'ERROR ✗'}
+                          {dragDx > 0 ? '✓ KILL' : FRONT_ROW_SLOTS.has(slotIdx) ? 'ATK ERR ✗' : 'DIG ERR ✗'}
                         </span>
                       </div>
                     )}
