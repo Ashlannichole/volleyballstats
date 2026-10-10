@@ -29,6 +29,11 @@ const COURT_LAYOUT = [
 const POSITION_NUMS = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6']
 const FRONT_ROW_SLOTS = new Set(COURT_LAYOUT[0])
 
+// Substitution rule for a set: max subs allowed, and how many used before
+// the warning toast pops up (fires with 5 remaining).
+const MAX_SUBS = 15
+const SUB_WARNING_AT = 10
+
 // Base/functional defensive position each rotational slot releases to once
 // the serve is live — keyed off the current occupant's own tagged position.
 // Front row: outside → P4, middle → P3, setter/opposite (whichever is up) → P2.
@@ -650,7 +655,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     if (!isLiberoSub && !recMode) {
       const next = subCount + 1
       setSubCount(next)
-      if (next >= 10) setShowSubAlert(true)
+      if (next >= SUB_WARNING_AT) setShowSubAlert(true)
     }
     setSubbingOutSlot(null)
   }
@@ -1259,8 +1264,8 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
             REC
           </div>
         ) : (
-          <div className={`px-3 py-1 rounded-lg text-xs font-bold border ${subCount >= 10 ? 'bg-red-900/40 border-red-500/60 text-red-300' : 'bg-navy-600 border-white/10 text-gray-400'}`}>
-            Subs {subCount}/12
+          <div className={`px-3 py-1 rounded-lg text-xs font-bold border ${subCount >= SUB_WARNING_AT ? 'bg-red-900/40 border-red-500/60 text-red-300' : 'bg-navy-600 border-white/10 text-gray-400'}`}>
+            Subs {subCount}/{MAX_SUBS}
           </div>
         )}
 
@@ -1704,8 +1709,8 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
 
               <div className="flex items-center justify-between mb-2">
                 <p className="text-gray-500 text-xs">Select player coming IN from bench:</p>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${subCount >= 9 ? 'bg-red-900/50 text-red-300' : 'bg-navy-600 text-gray-400'}`}>
-                  {subCount}/12 subs used
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${subCount >= SUB_WARNING_AT - 1 ? 'bg-red-900/50 text-red-300' : 'bg-navy-600 text-gray-400'}`}>
+                  {subCount}/{MAX_SUBS} subs used
                 </span>
               </div>
 
@@ -1743,9 +1748,9 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           <div className="bg-navy-800 border-2 border-red-500/60 rounded-2xl p-6 w-full max-w-sm text-center">
             <div className="text-5xl mb-3">⚠️</div>
             <h3 className="text-xl font-bold text-white mb-2">Substitution Limit Reached</h3>
-            <p className="text-red-300 font-semibold text-lg mb-1">10 subs used — 2 remaining</p>
+            <p className="text-red-300 font-semibold text-lg mb-1">{subCount} subs used — {Math.max(0, MAX_SUBS - subCount)} remaining</p>
             <p className="text-gray-400 text-sm mb-5">
-              You have 2 substitutions left this set (12 max).
+              You have {Math.max(0, MAX_SUBS - subCount)} substitutions left this set ({MAX_SUBS} max).
               Libero swaps are still free and unlimited.
             </p>
             <button onClick={() => setShowSubAlert(false)}
