@@ -482,7 +482,7 @@ export default function App() {
       {/* Settings overlay */}
       {showSettings && (
         <div className="absolute inset-0 z-50 bg-navy-900 flex flex-col">
-          <div className="bg-navy-800 border-b border-white/10 px-4 py-3 flex items-center shrink-0">
+          <div className="bg-navy-800 border-b border-white/10 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] flex items-center shrink-0">
             <button onClick={() => setShowSettings(false)} className="tap-btn text-gray-400 text-sm">← Back</button>
             <p className="flex-1 text-center text-white font-bold text-sm">Settings</p>
             <div className="w-14" />
@@ -511,7 +511,7 @@ export default function App() {
 
       {showAd && <AdBanner />}
 
-      <nav className="bg-navy-800 border-t border-white/10 flex shrink-0">
+      <nav className="bg-navy-800 border-t border-white/10 flex shrink-0 pb-[env(safe-area-inset-bottom)]">
         {TABS.map(t => (
           <button key={t.id}
             onClick={() => setTab(t.id)}

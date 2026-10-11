@@ -136,7 +136,7 @@ export default function Onboarding({ onDone }: Props) {
       `}</style>
 
       {/* Progress dots + Skip */}
-      <div className="flex items-center justify-between px-5 pt-safe pt-5 shrink-0">
+      <div className="flex items-center justify-between px-5 pt-[calc(1.25rem+env(safe-area-inset-top))] shrink-0">
         <div className="flex gap-1.5">
           {SLIDES.map((_, i) => (
             <div key={i} className={`rounded-full transition-all duration-300 ${
@@ -169,7 +169,7 @@ export default function Onboarding({ onDone }: Props) {
       </div>
 
       {/* Navigation */}
-      <div className="px-6 pb-10 shrink-0 flex gap-3">
+      <div className="px-6 pb-[calc(2.5rem+env(safe-area-inset-bottom))] shrink-0 flex gap-3">
         {idx > 0 && (
           <button
             onClick={prev}
