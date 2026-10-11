@@ -1,17 +1,61 @@
 import { useState } from 'react'
+import ImportSchedule from './ImportSchedule'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type EventType = 'tournament' | 'scrimmage' | 'open_gym' | 'practice' | 'other'
+export type EventType = 'tournament' | 'scrimmage' | 'open_gym' | 'practice' | 'other'
 
-interface CalEvent {
+export interface CalEvent {
   id: string
   date: string       // YYYY-MM-DD
+  endDate?: string    // YYYY-MM-DD — optional, for multi-day events (most tournaments)
   type: EventType
   title: string
   time?: string      // HH:MM (optional)
   location?: string
   notes?: string
+  seriesId?: string   // shared by every occurrence generated from one recurring series
+}
+
+// A tournament/event can span more than one day — cap how far a single event's
+// dots spread across the grid so one bad date (typo, OCR misread) can't paint
+// half the calendar.
+const MAX_EVENT_SPAN_DAYS = 14
+
+function eachDateInRange(start: string, end?: string): string[] {
+  if (!end || end <= start) return [start]
+  const startMs = new Date(start + 'T12:00:00').getTime()
+  const endMs = new Date(end + 'T12:00:00').getTime()
+  const spanDays = Math.round((endMs - startMs) / 86400000)
+  if (!(spanDays > 0 && spanDays <= MAX_EVENT_SPAN_DAYS)) return [start]
+
+  const dates: string[] = []
+  const d = new Date(startMs)
+  for (let i = 0; i <= spanDays; i++) {
+    dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)
+    d.setDate(d.getDate() + 1)
+  }
+  return dates
+}
+
+// Never generate more than this many occurrences from one recurring series —
+// protects against a mis-set "until" date turning into years of events.
+const MAX_SERIES_OCCURRENCES = 104 // ~2 years, weekly
+
+function expandRecurring(data: Omit<CalEvent, 'id'>, weekdays: number[], until: string): CalEvent[] {
+  if (weekdays.length === 0 || !until || until < data.date) return []
+  const seriesId = `series-${Date.now()}`
+  const out: CalEvent[] = []
+  const d = new Date(data.date + 'T12:00:00')
+  const endMs = new Date(until + 'T12:00:00').getTime()
+  while (d.getTime() <= endMs && out.length < MAX_SERIES_OCCURRENCES) {
+    if (weekdays.includes(d.getDay())) {
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      out.push({ ...data, endDate: undefined, id: `${seriesId}-${ds}`, date: ds, seriesId })
+    }
+    d.setDate(d.getDate() + 1)
+  }
+  return out
 }
 
 // ── Storage ───────────────────────────────────────────────────────────────────
@@ -40,7 +84,14 @@ const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 // ── Blank form ────────────────────────────────────────────────────────────────
 
 function blank(date: string): Omit<CalEvent, 'id'> {
-  return { date, type: 'tournament', title: '', time: '', location: '', notes: '' }
+  return { date, endDate: '', type: 'tournament', title: '', time: '', location: '', notes: '' }
+}
+
+function formatRange(date: string, endDate?: string) {
+  const start = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  if (!endDate || endDate <= date) return start
+  const end = new Date(endDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `${start} – ${end}`
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -53,11 +104,28 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
   const [form,          setForm]          = useState<Omit<CalEvent, 'id'> | null>(null)
   const [editing,       setEditing]       = useState<CalEvent | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [showImport,    setShowImport]    = useState(false)
+  const [repeatWeekly,  setRepeatWeekly]  = useState(false)
+  const [repeatDays,    setRepeatDays]    = useState<number[]>([])
+  const [repeatUntil,   setRepeatUntil]   = useState('')
+
+  function importEvents(imported: CalEvent[]) {
+    const next = [...events, ...imported]
+    setEvents(next); save(next); onSync?.()
+    setShowImport(false)
+  }
 
   const todayStr = (() => {
     const t = new Date()
     return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`
   })()
+
+  function openNewForm(date: string) {
+    setForm(blank(date))
+    setRepeatWeekly(false)
+    setRepeatDays([new Date(date + 'T12:00:00').getDay()])
+    setRepeatUntil('')
+  }
 
   function upsertEvent(ev: CalEvent) {
     const next = events.some(e => e.id === ev.id)
@@ -68,6 +136,11 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
 
   function deleteEvent(id: string) {
     const next = events.filter(e => e.id !== id)
+    setEvents(next); save(next); onSync?.()
+  }
+
+  function deleteSeries(seriesId: string, fromDate: string) {
+    const next = events.filter(e => !(e.seriesId === seriesId && e.date >= fromDate))
     setEvents(next); save(next); onSync?.()
   }
 
@@ -94,11 +167,19 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
 
   const eventsByDate = new Map<string, CalEvent[]>()
   for (const ev of events) {
-    const list = eventsByDate.get(ev.date) ?? []
-    list.push(ev); eventsByDate.set(ev.date, list)
+    for (const d of eachDateInRange(ev.date, ev.endDate)) {
+      const list = eventsByDate.get(d) ?? []
+      list.push(ev); eventsByDate.set(d, list)
+    }
   }
 
   const selectedEvents = selected ? (eventsByDate.get(selected) ?? []) : []
+
+  // ── Import schedule ──────────────────────────────────────────────────────────
+
+  if (showImport) {
+    return <ImportSchedule onImport={importEvents} onCancel={() => setShowImport(false)} />
+  }
 
   // ── Add / Edit form ──────────────────────────────────────────────────────────
 
@@ -111,11 +192,21 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
       else         setForm(f => f ? { ...f, [k]: v } : f)
     }
 
+    const recurrenceValid = isEdit || !repeatWeekly || (repeatDays.length > 0 && !!repeatUntil)
+    const canSubmit = !!data.title.trim() && recurrenceValid
+
     function submit() {
-      if (!data.title.trim()) return
+      if (!canSubmit) return
       if (isEdit && editing) {
         upsertEvent(editing)
         setEditing(null)
+      } else if (repeatWeekly) {
+        const occurrences = expandRecurring(data, repeatDays, repeatUntil)
+        if (occurrences.length === 0) return
+        const next = [...events, ...occurrences]
+        setEvents(next); save(next); onSync?.()
+        setForm(null)
+        setSelected(data.date)
       } else {
         upsertEvent({ ...data, id: Date.now().toString() } as CalEvent)
         setForm(null)
@@ -132,7 +223,7 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
           <p className="flex-1 text-center text-white font-bold text-sm">
             {isEdit ? 'Edit Event' : 'New Event'}
           </p>
-          <button onClick={submit} disabled={!data.title.trim()}
+          <button onClick={submit} disabled={!canSubmit}
             className="tap-btn text-vr-300 font-bold text-sm disabled:opacity-40">
             {isEdit ? 'Save' : 'Add'}
           </button>
@@ -144,6 +235,14 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
             <label className="text-gray-500 text-xs uppercase tracking-wide">Date</label>
             <input type="date" value={data.date}
               onChange={e => setField('date', e.target.value)}
+              className="bg-navy-700 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none" />
+          </div>
+
+          {/* End date (multi-day tournaments) */}
+          <div className="flex flex-col gap-1">
+            <label className="text-gray-500 text-xs uppercase tracking-wide">End Date (optional, for multi-day events)</label>
+            <input type="date" value={data.endDate ?? ''} min={data.date}
+              onChange={e => setField('endDate', e.target.value)}
               className="bg-navy-700 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none" />
           </div>
 
@@ -172,6 +271,43 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
               placeholder={`e.g. ${data.type === 'tournament' ? 'Spring Invitational' : data.type === 'scrimmage' ? 'vs Lincoln High' : data.type === 'open_gym' ? 'Saturday Open Gym' : data.type === 'practice' ? 'Tuesday Practice' : 'Team Event'}`}
               className="bg-navy-700 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none" />
           </div>
+
+          {/* Recurrence — new events only; editing always touches just that one occurrence */}
+          {!isEdit && (
+            <div className="flex flex-col gap-2 bg-navy-800/60 border border-white/10 rounded-2xl p-3">
+              <button onClick={() => setRepeatWeekly(r => !r)} className="tap-btn flex items-center justify-between">
+                <span className="text-sm font-bold text-white">🔁 Repeats weekly</span>
+                <span className={`w-10 h-6 rounded-full relative transition-colors shrink-0 ${repeatWeekly ? 'bg-vr-600' : 'bg-navy-600'}`}>
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${repeatWeekly ? 'left-[18px]' : 'left-0.5'}`} />
+                </span>
+              </button>
+
+              {repeatWeekly && (
+                <>
+                  <div className="flex flex-col gap-1.5 mt-1">
+                    <label className="text-gray-500 text-xs uppercase tracking-wide">Repeat on</label>
+                    <div className="flex gap-1.5">
+                      {DAYS.map((d, i) => (
+                        <button key={d}
+                          onClick={() => setRepeatDays(rd => rd.includes(i) ? rd.filter(x => x !== i) : [...rd, i])}
+                          className={`tap-btn flex-1 py-2 rounded-lg text-xs font-bold border ${
+                            repeatDays.includes(i) ? 'bg-vr-700 border-vr-500 text-white' : 'bg-navy-700 border-white/10 text-gray-500'
+                          }`}>
+                          {d[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1 mt-1">
+                    <label className="text-gray-500 text-xs uppercase tracking-wide">Repeat until</label>
+                    <input type="date" value={repeatUntil} min={data.date}
+                      onChange={e => setRepeatUntil(e.target.value)}
+                      className="bg-navy-700 border border-white/20 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none" />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Time */}
           <div className="flex flex-col gap-1">
@@ -212,7 +348,7 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
         <div className="bg-navy-800 border-b border-white/10 px-4 py-3 flex items-center shrink-0">
           <button onClick={() => { setSelected(null); setConfirmDelete(null) }} className="tap-btn text-gray-400 text-sm">← Calendar</button>
           <p className="flex-1 text-center text-white font-bold text-sm truncate px-2">{label}</p>
-          <button onClick={() => setForm(blank(selected))}
+          <button onClick={() => openNewForm(selected)}
             className="tap-btn text-vr-300 font-bold text-sm">+ Add</button>
         </div>
 
@@ -221,7 +357,7 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
             <div className="text-center py-12">
               <p className="text-3xl mb-3">📅</p>
               <p className="text-gray-500 text-sm">Nothing scheduled yet.</p>
-              <button onClick={() => setForm(blank(selected))}
+              <button onClick={() => openNewForm(selected)}
                 className="tap-btn mt-4 bg-vr-700 border border-vr-500 rounded-2xl px-6 py-2.5 text-white text-sm font-bold">
                 + Add Event
               </button>
@@ -239,6 +375,9 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
                           <span className={`text-[10px] font-black uppercase tracking-wide ${ti.color}`}>
                             {ti.label}
                           </span>
+                          {ev.endDate && ev.endDate > ev.date && (
+                            <span className="text-gray-500 text-[10px]">{formatRange(ev.date, ev.endDate)}</span>
+                          )}
                           {ev.time && (
                             <span className="text-gray-500 text-[10px]">
                               {new Date(`2000-01-01T${ev.time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
@@ -255,10 +394,23 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
                           Edit
                         </button>
                         {confirmDelete === ev.id ? (
-                          <button onClick={() => { deleteEvent(ev.id); setConfirmDelete(null) }}
-                            className="tap-btn text-red-500 text-xs px-2 py-1 rounded-lg border border-red-800/50">
-                            Delete?
-                          </button>
+                          ev.seriesId ? (
+                            <div className="flex flex-col gap-1 items-stretch">
+                              <button onClick={() => { deleteEvent(ev.id); setConfirmDelete(null) }}
+                                className="tap-btn text-red-500 text-[10px] px-2 py-1 rounded-lg border border-red-800/50 whitespace-nowrap">
+                                Just this one
+                              </button>
+                              <button onClick={() => { deleteSeries(ev.seriesId!, ev.date); setConfirmDelete(null) }}
+                                className="tap-btn text-red-500 text-[10px] px-2 py-1 rounded-lg border border-red-800/50 whitespace-nowrap">
+                                This + future
+                              </button>
+                            </div>
+                          ) : (
+                            <button onClick={() => { deleteEvent(ev.id); setConfirmDelete(null) }}
+                              className="tap-btn text-red-500 text-xs px-2 py-1 rounded-lg border border-red-800/50">
+                              Delete?
+                            </button>
+                          )
                         ) : (
                           <button onClick={() => setConfirmDelete(ev.id)}
                             className="tap-btn text-gray-700 text-xs px-2 py-1 rounded-lg border border-white/5">
@@ -351,11 +503,15 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
 
       <div className="mx-3 my-3 border-t border-white/8" />
 
-      {/* Add event CTA */}
-      <div className="px-4 mb-3">
-        <button onClick={() => setForm(blank(todayStr))}
-          className="tap-btn w-full bg-navy-800 border border-dashed border-white/20 rounded-2xl py-3 text-gray-500 text-sm font-bold flex items-center justify-center gap-2">
+      {/* Add event / Import schedule CTAs */}
+      <div className="px-4 mb-3 flex gap-2">
+        <button onClick={() => openNewForm(todayStr)}
+          className="tap-btn flex-1 bg-navy-800 border border-dashed border-white/20 rounded-2xl py-3 text-gray-500 text-sm font-bold flex items-center justify-center gap-2">
           <span className="text-lg">+</span> Add Event
+        </button>
+        <button onClick={() => setShowImport(true)}
+          className="tap-btn flex-1 bg-vr-900/40 border border-vr-600/40 rounded-2xl py-3 text-vr-300 text-sm font-bold flex items-center justify-center gap-2">
+          📤 Import Schedule
         </button>
       </div>
 
@@ -377,7 +533,7 @@ export default function Calendar({ onSync }: { onSync?: () => void }) {
               <div className="flex-1 min-w-0">
                 <p className="text-white text-sm font-bold truncate">{ev.title}</p>
                 <p className="text-gray-500 text-xs">
-                  {evDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  {formatRange(ev.date, ev.endDate)}
                   {ev.time && ` · ${new Date(`2000-01-01T${ev.time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
                   {ev.location && ` · ${ev.location}`}
                 </p>
