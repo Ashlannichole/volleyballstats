@@ -380,7 +380,7 @@ export default function App() {
   return (
     <div className="relative flex flex-col h-dvh bg-navy-900 overflow-hidden overscroll-none">
       {/* Header */}
-      <div className="bg-navy-800 border-b border-white/10 px-4 py-3 shrink-0 flex items-center gap-3">
+      <div className="bg-navy-800 border-b border-white/10 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] shrink-0 flex items-center gap-3">
         {isPro && logo ? (
           <img src={logo} alt="Team logo" className="w-8 h-8 rounded-full object-cover border border-white/20 shrink-0" />
         ) : (
