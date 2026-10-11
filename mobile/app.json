@@ -23,12 +23,17 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ashlancunningham.stats",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Court Scope uses your camera to scan a photo of your tournament schedule, so it can read the dates and add them to your calendar.",
+        "NSPhotoLibraryUsageDescription": "Court Scope needs access to your photos so you can choose a photo of your tournament schedule to import into your calendar."
+      },
       "config": {
         "usesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.ashlancunningham.stats",
+      "permissions": ["CAMERA"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundImage": "./assets/adaptive-icon-background.png",
