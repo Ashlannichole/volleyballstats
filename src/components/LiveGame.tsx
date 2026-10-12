@@ -123,6 +123,7 @@ interface Snapshot {
   servingRun: number
   serveLocked: boolean
   awaitingReceive: boolean
+  positionOverrides: Record<string, Position>
 }
 
 export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice, celebrationAnimations = true, autoAssist = true }: Props) {
@@ -157,6 +158,12 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // liberoId = who is on court, partnerId = who they replaced (sitting on bench)
   const [liberoPair, setLiberoPair]         = useState<{ liberoId: string; partnerId: string } | null>(null)
   const [liberoToast, setLiberoToast]       = useState(false)
+
+  // Mid-game position reassignments (e.g. out of subs, moving someone to
+  // setter) — keyed by player id, overrides their roster position for the
+  // rest of THIS live game only; the roster itself is never touched.
+  const [positionOverrides, setPositionOverrides] = useState<Record<string, Position>>({})
+  const [positionPickerFor, setPositionPickerFor] = useState<string | null>(null)
 
   // Spectator link (Pro only, match mode only)
   const [spectatorCode, setSpectatorCode]   = useState<string | null>(null)
@@ -306,7 +313,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Save current state before any mutation so we can undo it
   function snapshot() {
     setHistory(prev => [...prev.slice(-19), {
-      sets, ourScore, theirScore, weAreServing, rotation, servingRun, serveLocked, awaitingReceive
+      sets, ourScore, theirScore, weAreServing, rotation, servingRun, serveLocked, awaitingReceive, positionOverrides
     }])
   }
 
@@ -322,8 +329,30 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       setServingRun(snap.servingRun)
       setServeLocked(snap.serveLocked)
       setAwaitingReceive(snap.awaitingReceive)
+      setPositionOverrides(snap.positionOverrides)
       return prev.slice(0, -1)
     })
+  }
+
+  // Current effective position for a player, honoring any mid-game override.
+  function effectivePosition(p: Player): Position {
+    return positionOverrides[p.id] ?? p.position
+  }
+
+  function setPositionOverride(playerId: string, pos: Position) {
+    snapshot()
+    setPositionOverrides(prev => ({ ...prev, [playerId]: pos }))
+    setPositionPickerFor(null)
+  }
+
+  function clearPositionOverride(playerId: string) {
+    snapshot()
+    setPositionOverrides(prev => {
+      const next = { ...prev }
+      delete next[playerId]
+      return next
+    })
+    setPositionPickerFor(null)
   }
 
   // Increment serving run for the current server (rotation[0]) and update their maxServingRun
@@ -431,7 +460,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // Whoever is currently on court tagged as the setter — used to auto-credit
   // the assist on a kill unless the coach reassigns it via the quick-swap toast.
   function findOnCourtSetter(excludeId?: string): Player | undefined {
-    return players.find(p => p.id !== excludeId && p.position === 'setter' && rotation.includes(p.id))
+    return players.find(p => p.id !== excludeId && effectivePosition(p) === 'setter' && rotation.includes(p.id))
   }
 
   function adjust(playerId: string, key: keyof PlayerStats, delta: number) {
@@ -771,6 +800,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setRotation([null,null,null,null,null,null])
     setPreLineup([null,null,null,null,null,null])
     setHistory([])
+    setPositionOverrides({})
     setSubCount(0)
     setLiberoPair(null)
     setScoreRun(null)
@@ -787,16 +817,21 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   const onCourtIds = new Set(rotation.filter(Boolean) as string[])
   const benchPlayers = players.filter(p => !onCourtIds.has(p.id))
 
-  // Show base/functional positions once the serve is live; show strict
-  // rotational order only in the brief pre-serve window so legality is
-  // easy to verify right before the server taps SERVE.
-  const showBasePositions = !(serveLocked && weAreServing === true)
+  // Show base/functional positions once the ball is live; show strict
+  // rotational order whenever overlap rules actually apply — our own brief
+  // pre-serve window, and the whole time we're waiting to receive serve
+  // (from the moment they score until our first pass is recorded this
+  // rally), since that's exactly the window where receiving out of order
+  // would be an illegal rotation.
+  const showBasePositions = weAreServing === false
+    ? !awaitingReceive
+    : !(serveLocked && weAreServing === true)
   const displaySlots: (number | null)[] = [null, null, null, null, null, null]
   if (showBasePositions) {
     rotation.forEach((playerId, trueSlot) => {
       if (!playerId) return
       const player = players.find(p => p.id === playerId)
-      const base = player ? getBaseSlot(player.position, FRONT_ROW_SLOTS.has(trueSlot)) : null
+      const base = player ? getBaseSlot(effectivePosition(player), FRONT_ROW_SLOTS.has(trueSlot)) : null
       const gridSlot = base !== null ? base : trueSlot
       displaySlots[gridSlot] = trueSlot
     })
@@ -1404,9 +1439,12 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                           {isServer && <span className="text-xs">🏐</span>}
                           <p className="text-white font-bold text-sm leading-tight truncate">{player.name}</p>
                         </div>
-                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full text-white ${POSITION_COLORS[player.position]}`}>
-                          {POSITION_LABELS[player.position]}
-                        </span>
+                        <button onClick={() => setPositionPickerFor(player.id)}
+                          className={`tap-btn text-xs font-bold px-1.5 py-0.5 rounded-full text-white ${POSITION_COLORS[effectivePosition(player)]} ${
+                            positionOverrides[player.id] ? 'ring-1 ring-yellow-300/70' : ''
+                          }`}>
+                          {POSITION_LABELS[effectivePosition(player)]}
+                        </button>
                       </div>
                       <div className="flex flex-col items-center gap-1 shrink-0">
                         <span className="text-white/20 text-[10px]">{posLabel}</span>
@@ -1685,6 +1723,41 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         </div>
       )}
 
+      {/* ── POSITION OVERRIDE ────────────────────────────────────────────── */}
+      {positionPickerFor && (() => {
+        const p = players.find(pl => pl.id === positionPickerFor)
+        if (!p) return null
+        const current = effectivePosition(p)
+        const isOverridden = !!positionOverrides[p.id]
+        return (
+          <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setPositionPickerFor(null)}>
+            <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-white font-bold text-lg">{p.name} is playing as</h3>
+                <button onClick={() => setPositionPickerFor(null)} className="text-gray-400 text-2xl tap-btn">×</button>
+              </div>
+              <p className="text-gray-500 text-xs mb-4">For this game only — her roster position doesn't change.</p>
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {(Object.keys(POSITION_LABELS) as Position[]).map(pos => (
+                  <button key={pos} onClick={() => setPositionOverride(p.id, pos)}
+                    className={`tap-btn py-3 rounded-xl text-sm font-bold border-2 ${
+                      current === pos ? `${POSITION_COLORS[pos]} border-white/40 text-white` : 'bg-navy-700 border-white/10 text-gray-400'
+                    }`}>
+                    {POSITION_LABELS[pos]}
+                  </button>
+                ))}
+              </div>
+              {isOverridden && (
+                <button onClick={() => clearPositionOverride(p.id)}
+                  className="tap-btn w-full text-gray-500 text-xs underline py-1">
+                  Reset to her normal position ({POSITION_LABELS[p.position]})
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── SUB PICKER ───────────────────────────────────────────────────── */}
       {subbingOutSlot !== null && (() => {
         const outPlayer = players.find(p => p.id === rotation[subbingOutSlot])
@@ -1701,8 +1774,8 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                   <span className="text-red-400 text-xs font-bold">OUT</span>
                   <span className="text-pb-400 font-bold">#{outPlayer.number}</span>
                   <span className="text-white font-medium">{outPlayer.name}</span>
-                  <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full text-white ${POSITION_COLORS[outPlayer.position]}`}>
-                    {POSITION_LABELS[outPlayer.position]}
+                  <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full text-white ${POSITION_COLORS[effectivePosition(outPlayer)]}`}>
+                    {POSITION_LABELS[effectivePosition(outPlayer)]}
                   </span>
                 </div>
               )}
