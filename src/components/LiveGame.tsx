@@ -134,6 +134,16 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   const [practiceName, setPracticeName]     = useState('')
   const [teamLabel, setTeamLabel]           = useState('')
   const [practiceNotes, setPracticeNotes]   = useState('')
+  // Two-coach paired scrimmage: 'A' creates and gets a code, 'B' joins with
+  // it. Confirms both coaches are tracking the same scrimmage, and lets
+  // either side's stats merge into one session once both have ended.
+  const [pairCode, setPairCode]             = useState<string | null>(null)
+  const [pairSide, setPairSide]             = useState<'A' | 'B' | null>(null)
+  const [pairStep, setPairStep]             = useState<'choose' | 'join'>('choose')
+  const [pairJoinInput, setPairJoinInput]   = useState('')
+  const [pairBusy, setPairBusy]             = useState(false)
+  const [pairError, setPairError]           = useState('')
+  const [endingBusy, setEndingBusy]         = useState(false)
   const [ourScore, setOurScore]             = useState(0)
   const [theirScore, setTheirScore]         = useState(0)
   const [ourTimeouts, setOurTimeouts]       = useState(0)
@@ -302,6 +312,47 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setShowShareModal(true)
     // Push immediately so parents see the score right away, not just on next point
     pushSpectatorState(code)
+  }
+
+  // ── Paired scrimmage (two coaches, two iPads) ───────────────────────────────
+
+  async function createPairedScrimmage() {
+    setPairBusy(true); setPairError('')
+    try {
+      const res = await fetch('/api/scrimmage-pair?action=create', { method: 'POST' })
+      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
+      const json = await res.json() as { code: string }
+      setPairCode(json.code)
+      setPairSide('A')
+    } catch (e) {
+      setPairError(e instanceof Error ? e.message : 'Could not start a paired session.')
+    } finally {
+      setPairBusy(false)
+    }
+  }
+
+  async function joinPairedScrimmage() {
+    const code = pairJoinInput.trim().toUpperCase()
+    if (!code) return
+    setPairBusy(true); setPairError('')
+    try {
+      const res = await fetch('/api/scrimmage-pair?action=join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || `HTTP ${res.status}`)
+      setPairCode(code)
+      setPairSide('B')
+    } catch (e) {
+      setPairError(e instanceof Error ? e.message : 'Could not join that session.')
+    } finally {
+      setPairBusy(false)
+    }
+  }
+
+  function unpairScrimmage() {
+    setPairCode(null); setPairSide(null); setPairStep('choose'); setPairJoinInput(''); setPairError('')
   }
 
   function buildSetStats(ps: Player[]): SetStats {
@@ -755,17 +806,52 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setAssigningSlot(null)
   }
 
-  function confirmEnd() {
+  async function confirmEnd() {
     if (spectatorCode && !practiceMode) pushSpectatorState(spectatorCode, true)
     setSpectatorCode(null)
     if (practiceMode && onSavePractice) {
+      let mergedSets = sets
+      let mergedLabel = teamLabel.trim()
+
+      if (pairCode && pairSide) {
+        setEndingBusy(true)
+        try {
+          await fetch('/api/scrimmage-pair?action=push', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: pairCode, side: pairSide, teamLabel: teamLabel.trim(), sets }),
+          })
+          const res = await fetch(`/api/scrimmage-pair?action=pull&code=${pairCode}`)
+          if (res.ok) {
+            const json = await res.json() as {
+              a: { teamLabel: string; sets: SetStats[] } | null
+              b: { teamLabel: string; sets: SetStats[] } | null
+            }
+            const other = pairSide === 'A' ? json.b : json.a
+            if (other) {
+              const setCount = Math.max(sets.length, other.sets.length)
+              mergedSets = Array.from({ length: setCount }, (_, i) => ({
+                ...(other.sets[i] ?? {}),
+                ...(sets[i] ?? {}),
+              }))
+              mergedLabel = [teamLabel.trim(), other.teamLabel].filter(Boolean).join(' + ') || mergedLabel
+            }
+          }
+        } catch {
+          // Offline / the other coach hasn't pushed yet — fall back to this
+          // side's own stats rather than block saving.
+        } finally {
+          setEndingBusy(false)
+        }
+      }
+
       onSavePractice({
         id: crypto.randomUUID(),
         date: new Date().toISOString().split('T')[0],
         name: practiceName.trim(),
-        teamLabel: teamLabel.trim(),
+        teamLabel: mergedLabel,
         notes: practiceNotes.trim(),
-        scrimmages: sets,
+        scrimmages: mergedSets,
       })
     } else {
       const allSetScores = [...completedSetScores, { our: ourScore, their: theirScore }]
@@ -811,6 +897,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     prevScoresRef.current = { our: 0, their: 0 }
     setServingRun(0)
     setShowEndDialog(false)
+    unpairScrimmage()
   }
 
   const setStats = sets[currentSet]
@@ -887,7 +974,56 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               </div>
               {teamLabel && (
                 <p className="text-gray-500 text-xs mt-2">
-                  📱 Two coaches can each track one team — select the same session name on both iPads.
+                  📱 Two coaches can each track one team — pair below to merge your stats automatically, or just match the session name on both iPads.
+                </p>
+              )}
+            </div>
+
+            {/* Pair with another iPad */}
+            <div>
+              <label className="block text-gray-300 text-sm mb-1">
+                Pair With Another iPad <span className="text-gray-500 text-xs">(optional — merges both coaches' stats when either of you ends the scrimmage)</span>
+              </label>
+              {!pairCode ? (
+                pairStep === 'choose' ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={createPairedScrimmage} disabled={pairBusy}
+                      className="tap-btn py-3 rounded-xl font-bold text-sm border-2 bg-navy-700 border-white/10 text-gray-300 disabled:opacity-50">
+                      Create Session
+                    </button>
+                    <button onClick={() => { setPairStep('join'); setPairError('') }} disabled={pairBusy}
+                      className="tap-btn py-3 rounded-xl font-bold text-sm border-2 bg-navy-700 border-white/10 text-gray-300 disabled:opacity-50">
+                      Join Session
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 bg-navy-700 border border-white/20 rounded-xl px-3 py-3 text-white text-lg tracking-[0.15em] text-center uppercase outline-none focus:border-pb-500"
+                      placeholder="CODE" maxLength={8}
+                      value={pairJoinInput}
+                      onChange={e => setPairJoinInput(e.target.value)}
+                    />
+                    <button onClick={joinPairedScrimmage} disabled={pairBusy || !pairJoinInput.trim()}
+                      className="tap-btn px-5 rounded-xl font-bold text-sm bg-vr-700 text-white disabled:opacity-50">
+                      Join
+                    </button>
+                    <button onClick={() => setPairStep('choose')} className="tap-btn text-gray-500 text-xs px-2">←</button>
+                  </div>
+                )
+              ) : (
+                <div className="flex items-center gap-2 bg-navy-700 border border-vr-500/40 rounded-xl px-3 py-2.5">
+                  <span className="text-green-400 text-xs">🔗</span>
+                  <span className="text-white text-sm font-bold">Paired · code {pairCode}</span>
+                  <button onClick={unpairScrimmage} className="tap-btn ml-auto text-gray-500 text-xs underline">Unpair</button>
+                </div>
+              )}
+              {pairError && <p className="text-red-400 text-xs mt-1.5">{pairError}</p>}
+              {pairCode && (
+                <p className="text-gray-500 text-xs mt-2">
+                  {pairSide === 'A'
+                    ? "Share this code with the other coach's iPad — they tap \"Join Session\" and enter it."
+                    : "Joined! When either of you ends the scrimmage, both sides' stats combine into one session."}
                 </p>
               )}
             </div>
@@ -2246,14 +2382,23 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
       {showEndDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="bg-navy-800 border border-vr-700/50 rounded-2xl p-6 w-full max-w-sm">
-            <h3 className="text-xl font-bold text-white mb-1">End Match?</h3>
-            <p className="text-pb-400 text-sm mb-4">{teamName} {ourScore} – {theirScore} {opponent}</p>
-            <p className="text-gray-400 text-sm mb-5">{sets.length} set{sets.length !== 1 ? 's' : ''} tracked.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowEndDialog(false)}
-                className="tap-btn flex-1 py-3 rounded-xl border border-white/20 text-gray-300 font-semibold">Keep Playing</button>
-              <button onClick={confirmEnd}
-                className="tap-btn flex-1 py-3 rounded-xl bg-green-700 text-white font-bold">Save & End</button>
+            <h3 className="text-xl font-bold text-white mb-1">{practiceMode ? 'End Scrimmage?' : 'End Match?'}</h3>
+            <p className="text-pb-400 text-sm mb-4">
+              {practiceMode ? practiceName.trim() || 'Scrimmage' : `${teamName} ${ourScore} – ${theirScore} ${opponent}`}
+            </p>
+            <p className="text-gray-400 text-sm mb-1">{sets.length} set{sets.length !== 1 ? 's' : ''} tracked.</p>
+            {practiceMode && pairCode && (
+              <p className="text-gray-500 text-xs mb-4">
+                🔗 Paired — your stats will combine with the other coach's when you end.
+              </p>
+            )}
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setShowEndDialog(false)} disabled={endingBusy}
+                className="tap-btn flex-1 py-3 rounded-xl border border-white/20 text-gray-300 font-semibold disabled:opacity-50">Keep Playing</button>
+              <button onClick={confirmEnd} disabled={endingBusy}
+                className="tap-btn flex-1 py-3 rounded-xl bg-green-700 text-white font-bold disabled:opacity-70">
+                {endingBusy ? 'Merging…' : 'Save & End'}
+              </button>
             </div>
           </div>
         </div>
