@@ -3,6 +3,7 @@ import type { Player, PlayerStats, SetStats, PracticeSession, Match } from '../t
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { mergeStats, killPct, passAvg } from '../utils/statsHelpers'
 import LiveGame from './LiveGame'
+import ServePassDrill from './ServePassDrill'
 
 interface Props {
   players: Player[]
@@ -32,7 +33,8 @@ function SessionDetail({
   const displayPlayers = players.filter(p =>
     session.scrimmages.some(s => s[p.id] && (
       s[p.id].kills + s[p.id].digs + s[p.id].attackAttempts +
-      s[p.id].aces + s[p.id].settingAssists + s[p.id].passAttempts > 0
+      s[p.id].aces + s[p.id].settingAssists + s[p.id].passAttempts +
+      s[p.id].serveAttempts > 0
     ))
   )
 
@@ -49,7 +51,10 @@ function SessionDetail({
       </button>
       <h2 className="text-2xl font-bold text-white mb-0.5">{session.name}</h2>
       <div className="flex items-center gap-2 flex-wrap mb-1">
-        <p className="text-gray-500 text-sm">{session.date} · {session.scrimmages.length} set{session.scrimmages.length !== 1 ? 's' : ''}</p>
+        <p className="text-gray-500 text-sm">
+          {session.date}
+          {session.drillType === 'serve_pass' ? ' · Serve & Pass drill' : ` · ${session.scrimmages.length} set${session.scrimmages.length !== 1 ? 's' : ''}`}
+        </p>
         {session.teamLabel && (
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-vr-800 border border-vr-500/40 text-vr-300">
             Team {session.teamLabel}
@@ -74,75 +79,117 @@ function SessionDetail({
         </div>
       )}
 
-      {/* Performance ranking */}
-      {scrimmageIdx === null && ranked.length > 0 && (
-        <div className="bg-vr-900/30 border border-vr-600/30 rounded-2xl p-4 mb-5">
-          <p className="text-vr-400 text-xs font-bold uppercase tracking-widest mb-3">⭐ Performance Ranking</p>
-          <div className="space-y-2">
-            {ranked.map((p, i) => {
-              const s = totalStats(session, p.id)
-              const score = s.kills + s.aces + s.soloBlocks
-              const errs  = s.attackErrors + s.serveErrors
-              return (
-                <div key={p.id} className="flex items-center gap-3">
-                  <span className={`text-xs font-black w-6 text-center ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-gray-300' : i === 2 ? 'text-orange-400' : 'text-gray-600'}`}>
-                    #{i + 1}
-                  </span>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full text-white shrink-0 ${POSITION_COLORS[p.position]}`}>
-                    {POSITION_LABELS[p.position]}
-                  </span>
-                  <span className="text-white font-medium flex-1 truncate">{p.name}</span>
-                  <span className="text-green-400 text-xs font-bold">{score} pts</span>
-                  {errs > 0 && <span className="text-red-400 text-xs">{errs} err</span>}
-                  {s.passAttempts >= 5 && <span className="text-cyan-400 text-xs">{(s.passRatingTotal / s.passAttempts).toFixed(1)} PA</span>}
-                </div>
-              )
-            })}
-          </div>
-          <p className="text-gray-600 text-[10px] mt-3">Points = kills + aces + solo blocks</p>
+      {session.drillType === 'serve_pass' ? (
+        /* Serve & Pass drill: dedicated table — kills/digs/attacks don't apply */
+        <div className="overflow-x-auto mb-5">
+          <table className="w-full text-sm min-w-[440px]">
+            <thead>
+              <tr className="text-gray-500 text-xs">
+                <th className="text-left py-1 pr-3">Player</th>
+                <th className="text-center px-2">Srv Att</th>
+                <th className="text-center px-2">Ace</th>
+                <th className="text-center px-2">Err</th>
+                <th className="text-center px-2">Srv%</th>
+                <th className="text-center px-2">Pass Att</th>
+                <th className="text-center px-2">Pass Avg</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayPlayers.map(p => {
+                const s = scrimmageIdx !== null
+                  ? (session.scrimmages[scrimmageIdx][p.id] ?? EMPTY_STATS())
+                  : totalStats(session, p.id)
+                const srvPct = s.serveAttempts > 0
+                  ? Math.round(((s.serveAttempts - s.serveErrors) / s.serveAttempts) * 100) + '%'
+                  : '—'
+                return (
+                  <tr key={p.id} className="border-t border-white/5">
+                    <td className="py-2 pr-3 text-white font-medium truncate max-w-[100px]">{p.name}</td>
+                    <td className="text-center px-2 text-gray-300">{s.serveAttempts}</td>
+                    <td className="text-center px-2 text-yellow-400">{s.aces}</td>
+                    <td className="text-center px-2 text-red-400">{s.serveErrors}</td>
+                    <td className="text-center px-2 text-pb-400">{srvPct}</td>
+                    <td className="text-center px-2 text-gray-300">{s.passAttempts}</td>
+                    <td className="text-center px-2 text-cyan-400">{passAvg(s)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
+      ) : (
+        <>
+          {/* Performance ranking */}
+          {scrimmageIdx === null && ranked.length > 0 && (
+            <div className="bg-vr-900/30 border border-vr-600/30 rounded-2xl p-4 mb-5">
+              <p className="text-vr-400 text-xs font-bold uppercase tracking-widest mb-3">⭐ Performance Ranking</p>
+              <div className="space-y-2">
+                {ranked.map((p, i) => {
+                  const s = totalStats(session, p.id)
+                  const score = s.kills + s.aces + s.soloBlocks
+                  const errs  = s.attackErrors + s.serveErrors
+                  return (
+                    <div key={p.id} className="flex items-center gap-3">
+                      <span className={`text-xs font-black w-6 text-center ${i === 0 ? 'text-yellow-400' : i === 1 ? 'text-gray-300' : i === 2 ? 'text-orange-400' : 'text-gray-600'}`}>
+                        #{i + 1}
+                      </span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full text-white shrink-0 ${POSITION_COLORS[p.position]}`}>
+                        {POSITION_LABELS[p.position]}
+                      </span>
+                      <span className="text-white font-medium flex-1 truncate">{p.name}</span>
+                      <span className="text-green-400 text-xs font-bold">{score} pts</span>
+                      {errs > 0 && <span className="text-red-400 text-xs">{errs} err</span>}
+                      {s.passAttempts >= 5 && <span className="text-cyan-400 text-xs">{(s.passRatingTotal / s.passAttempts).toFixed(1)} PA</span>}
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="text-gray-600 text-[10px] mt-3">Points = kills + aces + solo blocks</p>
+            </div>
+          )}
 
-      {/* Stat table */}
-      <div className="overflow-x-auto mb-5">
-        <table className="w-full text-sm min-w-[500px]">
-          <thead>
-            <tr className="text-gray-500 text-xs">
-              <th className="text-left py-1 pr-3">Player</th>
-              <th className="text-center px-2">K</th>
-              <th className="text-center px-2">E</th>
-              <th className="text-center px-2">TA</th>
-              <th className="text-center px-2">K%</th>
-              <th className="text-center px-2">A</th>
-              <th className="text-center px-2">D</th>
-              <th className="text-center px-2">BS</th>
-              <th className="text-center px-2">Ast</th>
-              <th className="text-center px-2">PA</th>
-            </tr>
-          </thead>
-          <tbody>
-            {displayPlayers.map(p => {
-              const s = scrimmageIdx !== null
-                ? (session.scrimmages[scrimmageIdx][p.id] ?? EMPTY_STATS())
-                : totalStats(session, p.id)
-              return (
-                <tr key={p.id} className="border-t border-white/5">
-                  <td className="py-2 pr-3 text-white font-medium truncate max-w-[100px]">{p.name}</td>
-                  <td className="text-center px-2 text-green-400 font-semibold">{s.kills}</td>
-                  <td className="text-center px-2 text-red-400">{s.attackErrors}</td>
-                  <td className="text-center px-2 text-gray-300">{s.attackAttempts}</td>
-                  <td className="text-center px-2 text-pb-400">{killPct(s)}</td>
-                  <td className="text-center px-2 text-yellow-400">{s.aces}</td>
-                  <td className="text-center px-2 text-cyan-400">{s.digs}</td>
-                  <td className="text-center px-2 text-vr-400">{s.soloBlocks}</td>
-                  <td className="text-center px-2 text-orange-400">{s.settingAssists}</td>
-                  <td className="text-center px-2 text-gray-300">{passAvg(s)}</td>
+          {/* Stat table */}
+          <div className="overflow-x-auto mb-5">
+            <table className="w-full text-sm min-w-[500px]">
+              <thead>
+                <tr className="text-gray-500 text-xs">
+                  <th className="text-left py-1 pr-3">Player</th>
+                  <th className="text-center px-2">K</th>
+                  <th className="text-center px-2">E</th>
+                  <th className="text-center px-2">TA</th>
+                  <th className="text-center px-2">K%</th>
+                  <th className="text-center px-2">A</th>
+                  <th className="text-center px-2">D</th>
+                  <th className="text-center px-2">BS</th>
+                  <th className="text-center px-2">Ast</th>
+                  <th className="text-center px-2">PA</th>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {displayPlayers.map(p => {
+                  const s = scrimmageIdx !== null
+                    ? (session.scrimmages[scrimmageIdx][p.id] ?? EMPTY_STATS())
+                    : totalStats(session, p.id)
+                  return (
+                    <tr key={p.id} className="border-t border-white/5">
+                      <td className="py-2 pr-3 text-white font-medium truncate max-w-[100px]">{p.name}</td>
+                      <td className="text-center px-2 text-green-400 font-semibold">{s.kills}</td>
+                      <td className="text-center px-2 text-red-400">{s.attackErrors}</td>
+                      <td className="text-center px-2 text-gray-300">{s.attackAttempts}</td>
+                      <td className="text-center px-2 text-pb-400">{killPct(s)}</td>
+                      <td className="text-center px-2 text-yellow-400">{s.aces}</td>
+                      <td className="text-center px-2 text-cyan-400">{s.digs}</td>
+                      <td className="text-center px-2 text-vr-400">{s.soloBlocks}</td>
+                      <td className="text-center px-2 text-orange-400">{s.settingAssists}</td>
+                      <td className="text-center px-2 text-gray-300">{passAvg(s)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       <button onClick={() => { if (confirm('Delete this practice session?')) onDelete() }}
         className="tap-btn w-full border border-red-500/30 text-red-400 py-3 rounded-xl text-sm">
@@ -156,10 +203,16 @@ function SessionDetail({
 export default function Practice({ players, sessions, onSave, onDelete }: Props) {
   const [detail, setDetail] = useState<PracticeSession | null>(null)
   const [scrimmageActive, setScrimmageActive] = useState(false)
+  const [drillActive, setDrillActive] = useState(false)
 
   function handleSavePractice(session: PracticeSession) {
     onSave(session)
     setScrimmageActive(false)
+  }
+
+  function handleSaveDrill(session: PracticeSession) {
+    onSave(session)
+    setDrillActive(false)
   }
 
   // ── Session detail ────────────────────────────────────────────────────
@@ -185,6 +238,17 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
           onSavePractice={handleSavePractice}
         />
       </div>
+    )
+  }
+
+  // ── Serve & Pass drill ─────────────────────────────────────────────────
+  if (drillActive) {
+    return (
+      <ServePassDrill
+        players={players}
+        onSave={handleSaveDrill}
+        onCancel={() => setDrillActive(false)}
+      />
     )
   }
 
@@ -215,6 +279,18 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
             >
               Start Scrimmage 🏐
             </button>
+
+            <div className="border-t border-white/10 my-4" />
+
+            <p className="text-gray-400 text-sm mb-4">
+              Track a focused serve-vs-pass drill: who's acing/erring on serve, and how each passer is rating. Works solo on one iPad, or pair two iPads — one on servers, one on passers.
+            </p>
+            <button
+              onClick={() => setDrillActive(true)}
+              className="tap-btn w-full bg-navy-600 border border-vr-500/40 text-white font-bold py-4 rounded-xl text-base"
+            >
+              Start Serve & Pass Drill 🎾
+            </button>
           </>
         )}
       </div>
@@ -232,13 +308,17 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
             const activePlayers = players.filter(p =>
               s.scrimmages.some((sc: SetStats) => sc[p.id] && (
                 sc[p.id].kills + sc[p.id].digs + sc[p.id].attackAttempts +
-                sc[p.id].aces + sc[p.id].settingAssists + sc[p.id].passAttempts > 0
+                sc[p.id].aces + sc[p.id].settingAssists + sc[p.id].passAttempts +
+                sc[p.id].serveAttempts > 0
               ))
             )
             const totals = activePlayers.reduce((acc, p) => {
               const st = totalStats(s, p.id)
-              return { kills: acc.kills + st.kills, digs: acc.digs + st.digs, aces: acc.aces + st.aces }
-            }, { kills: 0, digs: 0, aces: 0 })
+              return {
+                kills: acc.kills + st.kills, digs: acc.digs + st.digs, aces: acc.aces + st.aces,
+                serveAttempts: acc.serveAttempts + st.serveAttempts, passAttempts: acc.passAttempts + st.passAttempts,
+              }
+            }, { kills: 0, digs: 0, aces: 0, serveAttempts: 0, passAttempts: 0 })
 
             return (
               <button key={s.id} onClick={() => setDetail(s)}
@@ -252,14 +332,26 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
                       </span>
                     )}
                   </div>
-                  <p className="text-gray-500 text-xs">{s.date} · {s.scrimmages.length} set{s.scrimmages.length !== 1 ? 's' : ''} · {activePlayers.length} players</p>
+                  <p className="text-gray-500 text-xs">
+                    {s.date}
+                    {s.drillType === 'serve_pass' ? ' · Serve & Pass drill' : ` · ${s.scrimmages.length} set${s.scrimmages.length !== 1 ? 's' : ''}`}
+                    {' · '}{activePlayers.length} players
+                  </p>
                   {s.notes && <p className="text-gray-600 text-xs italic truncate mt-0.5">"{s.notes}"</p>}
                 </div>
-                <div className="flex gap-3 text-center shrink-0">
-                  <div><p className="text-green-400 font-bold">{totals.kills}</p><p className="text-gray-600 text-[10px]">K</p></div>
-                  <div><p className="text-cyan-400 font-bold">{totals.digs}</p><p className="text-gray-600 text-[10px]">D</p></div>
-                  <div><p className="text-yellow-400 font-bold">{totals.aces}</p><p className="text-gray-600 text-[10px]">A</p></div>
-                </div>
+                {s.drillType === 'serve_pass' ? (
+                  <div className="flex gap-3 text-center shrink-0">
+                    <div><p className="text-pb-300 font-bold">{totals.serveAttempts}</p><p className="text-gray-600 text-[10px]">SRV</p></div>
+                    <div><p className="text-yellow-400 font-bold">{totals.aces}</p><p className="text-gray-600 text-[10px]">ACE</p></div>
+                    <div><p className="text-cyan-300 font-bold">{totals.passAttempts}</p><p className="text-gray-600 text-[10px]">PASS</p></div>
+                  </div>
+                ) : (
+                  <div className="flex gap-3 text-center shrink-0">
+                    <div><p className="text-green-400 font-bold">{totals.kills}</p><p className="text-gray-600 text-[10px]">K</p></div>
+                    <div><p className="text-cyan-400 font-bold">{totals.digs}</p><p className="text-gray-600 text-[10px]">D</p></div>
+                    <div><p className="text-yellow-400 font-bold">{totals.aces}</p><p className="text-gray-600 text-[10px]">A</p></div>
+                  </div>
+                )}
                 <span className="text-gray-600 text-lg">›</span>
               </button>
             )
