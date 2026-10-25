@@ -4,6 +4,7 @@ import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { mergeStats, killPct, passAvg } from '../utils/statsHelpers'
 import LiveGame from './LiveGame'
 import ServePassDrill from './ServePassDrill'
+import ThreeBallDrill from './ThreeBallDrill'
 
 interface Props {
   players: Player[]
@@ -19,6 +20,12 @@ function totalStats(session: PracticeSession, playerId: string): PlayerStats {
   )
 }
 
+function drillSubtitle(session: PracticeSession): string {
+  if (session.drillType === 'serve_pass') return 'Serve & Pass drill'
+  if (session.drillType === 'three_ball') return '3-Ball Scrimmage drill'
+  return `${session.scrimmages.length} set${session.scrimmages.length !== 1 ? 's' : ''}`
+}
+
 // ── Session detail view ────────────────────────────────────────────────────
 function SessionDetail({
   session, players, onBack, onDelete,
@@ -32,7 +39,7 @@ function SessionDetail({
 
   const displayPlayers = players.filter(p =>
     session.scrimmages.some(s => s[p.id] && (
-      s[p.id].kills + s[p.id].digs + s[p.id].attackAttempts +
+      s[p.id].kills + s[p.id].digs + s[p.id].attackAttempts + s[p.id].attackErrors +
       s[p.id].aces + s[p.id].settingAssists + s[p.id].passAttempts +
       s[p.id].serveAttempts > 0
     ))
@@ -52,8 +59,7 @@ function SessionDetail({
       <h2 className="text-2xl font-bold text-white mb-0.5">{session.name}</h2>
       <div className="flex items-center gap-2 flex-wrap mb-1">
         <p className="text-gray-500 text-sm">
-          {session.date}
-          {session.drillType === 'serve_pass' ? ' · Serve & Pass drill' : ` · ${session.scrimmages.length} set${session.scrimmages.length !== 1 ? 's' : ''}`}
+          {session.date} · {drillSubtitle(session)}
         </p>
         {session.teamLabel && (
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-vr-800 border border-vr-500/40 text-vr-300">
@@ -109,6 +115,43 @@ function SessionDetail({
                     <td className="text-center px-2 text-yellow-400">{s.aces}</td>
                     <td className="text-center px-2 text-red-400">{s.serveErrors}</td>
                     <td className="text-center px-2 text-pb-400">{srvPct}</td>
+                    <td className="text-center px-2 text-gray-300">{s.passAttempts}</td>
+                    <td className="text-center px-2 text-cyan-400">{passAvg(s)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : session.drillType === 'three_ball' ? (
+        /* 3-Ball Scrimmage drill: kills/errors + serve + pass, no digs/blocks/sets */
+        <div className="overflow-x-auto mb-5">
+          <table className="w-full text-sm min-w-[520px]">
+            <thead>
+              <tr className="text-gray-500 text-xs">
+                <th className="text-left py-1 pr-3">Player</th>
+                <th className="text-center px-2">K</th>
+                <th className="text-center px-2">Err</th>
+                <th className="text-center px-2">Srv Att</th>
+                <th className="text-center px-2">Ace</th>
+                <th className="text-center px-2">Srv Err</th>
+                <th className="text-center px-2">Pass Att</th>
+                <th className="text-center px-2">Pass Avg</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayPlayers.map(p => {
+                const s = scrimmageIdx !== null
+                  ? (session.scrimmages[scrimmageIdx][p.id] ?? EMPTY_STATS())
+                  : totalStats(session, p.id)
+                return (
+                  <tr key={p.id} className="border-t border-white/5">
+                    <td className="py-2 pr-3 text-white font-medium truncate max-w-[100px]">{p.name}</td>
+                    <td className="text-center px-2 text-green-400 font-semibold">{s.kills}</td>
+                    <td className="text-center px-2 text-red-400">{s.attackErrors}</td>
+                    <td className="text-center px-2 text-gray-300">{s.serveAttempts}</td>
+                    <td className="text-center px-2 text-yellow-400">{s.aces}</td>
+                    <td className="text-center px-2 text-red-400">{s.serveErrors}</td>
                     <td className="text-center px-2 text-gray-300">{s.passAttempts}</td>
                     <td className="text-center px-2 text-cyan-400">{passAvg(s)}</td>
                   </tr>
@@ -204,6 +247,7 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
   const [detail, setDetail] = useState<PracticeSession | null>(null)
   const [scrimmageActive, setScrimmageActive] = useState(false)
   const [drillActive, setDrillActive] = useState(false)
+  const [threeBallActive, setThreeBallActive] = useState(false)
 
   function handleSavePractice(session: PracticeSession) {
     onSave(session)
@@ -213,6 +257,11 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
   function handleSaveDrill(session: PracticeSession) {
     onSave(session)
     setDrillActive(false)
+  }
+
+  function handleSaveThreeBall(session: PracticeSession) {
+    onSave(session)
+    setThreeBallActive(false)
   }
 
   // ── Session detail ────────────────────────────────────────────────────
@@ -248,6 +297,17 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
         players={players}
         onSave={handleSaveDrill}
         onCancel={() => setDrillActive(false)}
+      />
+    )
+  }
+
+  // ── 3-Ball Scrimmage drill ─────────────────────────────────────────────
+  if (threeBallActive) {
+    return (
+      <ThreeBallDrill
+        players={players}
+        onSave={handleSaveThreeBall}
+        onCancel={() => setThreeBallActive(false)}
       />
     )
   }
@@ -291,6 +351,18 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
             >
               Start Serve & Pass Drill 🎾
             </button>
+
+            <div className="border-t border-white/10 my-4" />
+
+            <p className="text-gray-400 text-sm mb-4">
+              Fast-paced 3-ball scrimmage: one alphabetical list of everyone, tap Good/Bad Pass, Serve/Ace/Miss, and Kill/Error as it happens.
+            </p>
+            <button
+              onClick={() => setThreeBallActive(true)}
+              className="tap-btn w-full bg-navy-600 border border-vr-500/40 text-white font-bold py-4 rounded-xl text-base"
+            >
+              Start 3-Ball Scrimmage 🎯
+            </button>
           </>
         )}
       </div>
@@ -307,7 +379,7 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
           {sorted.map(s => {
             const activePlayers = players.filter(p =>
               s.scrimmages.some((sc: SetStats) => sc[p.id] && (
-                sc[p.id].kills + sc[p.id].digs + sc[p.id].attackAttempts +
+                sc[p.id].kills + sc[p.id].digs + sc[p.id].attackAttempts + sc[p.id].attackErrors +
                 sc[p.id].aces + sc[p.id].settingAssists + sc[p.id].passAttempts +
                 sc[p.id].serveAttempts > 0
               ))
@@ -317,8 +389,9 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
               return {
                 kills: acc.kills + st.kills, digs: acc.digs + st.digs, aces: acc.aces + st.aces,
                 serveAttempts: acc.serveAttempts + st.serveAttempts, passAttempts: acc.passAttempts + st.passAttempts,
+                attackErrors: acc.attackErrors + st.attackErrors,
               }
-            }, { kills: 0, digs: 0, aces: 0, serveAttempts: 0, passAttempts: 0 })
+            }, { kills: 0, digs: 0, aces: 0, serveAttempts: 0, passAttempts: 0, attackErrors: 0 })
 
             return (
               <button key={s.id} onClick={() => setDetail(s)}
@@ -333,9 +406,7 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
                     )}
                   </div>
                   <p className="text-gray-500 text-xs">
-                    {s.date}
-                    {s.drillType === 'serve_pass' ? ' · Serve & Pass drill' : ` · ${s.scrimmages.length} set${s.scrimmages.length !== 1 ? 's' : ''}`}
-                    {' · '}{activePlayers.length} players
+                    {s.date} · {drillSubtitle(s)} · {activePlayers.length} players
                   </p>
                   {s.notes && <p className="text-gray-600 text-xs italic truncate mt-0.5">"{s.notes}"</p>}
                 </div>
@@ -343,6 +414,12 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
                   <div className="flex gap-3 text-center shrink-0">
                     <div><p className="text-pb-300 font-bold">{totals.serveAttempts}</p><p className="text-gray-600 text-[10px]">SRV</p></div>
                     <div><p className="text-yellow-400 font-bold">{totals.aces}</p><p className="text-gray-600 text-[10px]">ACE</p></div>
+                    <div><p className="text-cyan-300 font-bold">{totals.passAttempts}</p><p className="text-gray-600 text-[10px]">PASS</p></div>
+                  </div>
+                ) : s.drillType === 'three_ball' ? (
+                  <div className="flex gap-3 text-center shrink-0">
+                    <div><p className="text-green-400 font-bold">{totals.kills}</p><p className="text-gray-600 text-[10px]">K</p></div>
+                    <div><p className="text-red-400 font-bold">{totals.attackErrors}</p><p className="text-gray-600 text-[10px]">E</p></div>
                     <div><p className="text-cyan-300 font-bold">{totals.passAttempts}</p><p className="text-gray-600 text-[10px]">PASS</p></div>
                   </div>
                 ) : (

@@ -90,7 +90,7 @@ export interface PracticeSession {
   teamLabel: string     // e.g. "Black" or "White" for two-coach tracking
   notes: string
   scrimmages: SetStats[]
-  drillType?: 'scrimmage' | 'serve_pass'   // absent/undefined = 'scrimmage', for older saved sessions
+  drillType?: 'scrimmage' | 'serve_pass' | 'three_ball'   // absent/undefined = 'scrimmage', for older saved sessions
 }
 
 export interface SavedLineup {
