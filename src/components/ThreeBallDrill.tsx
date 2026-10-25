@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Player, SetStats, PracticeSession } from '../types'
 import { EMPTY_STATS } from '../types'
-import { passAvg } from '../utils/statsHelpers'
+import { passAvg, killPct } from '../utils/statsHelpers'
 
 interface Props {
   players: Player[]
@@ -46,17 +46,16 @@ export default function ThreeBallDrill({ players, onSave, onCancel }: Props) {
     })
   }
 
-  // Kills/errors are tracked as raw counts, same as the swipe-gesture
-  // shortcut in the main live game — not tied to a separate "attempt" tap,
-  // to keep this fast. (Attack % won't compute from this drill alone, same
-  // tradeoff as the swipe shortcut already has elsewhere in the app.)
-  function bumpAttack(playerId: string, outcome: 'kill' | 'error') {
+  // Every tap counts as an attack attempt (kill and error included), same
+  // pattern as serve's In/Ace/Miss, so hitting% is accurate from this drill.
+  function bumpAttack(playerId: string, outcome: 'kill' | 'attempt' | 'error') {
     setStats(prev => {
       const ps = prev[playerId] ?? EMPTY_STATS()
       return {
         ...prev,
         [playerId]: {
           ...ps,
+          attackAttempts: ps.attackAttempts + 1,
           kills: ps.kills + (outcome === 'kill' ? 1 : 0),
           attackErrors: ps.attackErrors + (outcome === 'error' ? 1 : 0),
         },
@@ -93,7 +92,7 @@ export default function ThreeBallDrill({ players, onSave, onCancel }: Props) {
               <div className="flex items-center justify-between mb-2">
                 <p className="text-white font-bold text-sm truncate">#{p.number} {p.name}</p>
                 <p className="text-gray-500 text-[11px] shrink-0">
-                  {passAvg(ps)} PA · {ps.kills}K {ps.attackErrors}E · {ps.aces}A {ps.serveErrors}SE
+                  {passAvg(ps)} PA · {ps.kills}K {ps.attackErrors}E {killPct(ps)} · {ps.aces}A {ps.serveErrors}SE
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -128,6 +127,10 @@ export default function ThreeBallDrill({ players, onSave, onCancel }: Props) {
                   <button onClick={() => bumpAttack(p.id, 'kill')}
                     className="tap-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-green-900/40 border border-green-600/50 text-green-300">
                     Kill
+                  </button>
+                  <button onClick={() => bumpAttack(p.id, 'attempt')}
+                    className="tap-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-navy-700 border border-white/10 text-gray-300">
+                    Att
                   </button>
                   <button onClick={() => bumpAttack(p.id, 'error')}
                     className="tap-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-red-900/40 border border-red-600/50 text-red-300">
