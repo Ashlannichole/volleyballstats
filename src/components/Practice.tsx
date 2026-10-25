@@ -132,6 +132,7 @@ function SessionDetail({
                 <th className="text-left py-1 pr-3">Player</th>
                 <th className="text-center px-2">K</th>
                 <th className="text-center px-2">Err</th>
+                <th className="text-center px-2">Hit%</th>
                 <th className="text-center px-2">Srv Att</th>
                 <th className="text-center px-2">Ace</th>
                 <th className="text-center px-2">Srv Err</th>
@@ -149,6 +150,7 @@ function SessionDetail({
                     <td className="py-2 pr-3 text-white font-medium truncate max-w-[100px]">{p.name}</td>
                     <td className="text-center px-2 text-green-400 font-semibold">{s.kills}</td>
                     <td className="text-center px-2 text-red-400">{s.attackErrors}</td>
+                    <td className="text-center px-2 text-pb-400">{killPct(s)}</td>
                     <td className="text-center px-2 text-gray-300">{s.serveAttempts}</td>
                     <td className="text-center px-2 text-yellow-400">{s.aces}</td>
                     <td className="text-center px-2 text-red-400">{s.serveErrors}</td>
