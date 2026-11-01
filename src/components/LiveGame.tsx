@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Player, PlayerStats, SetStats, Match, SavedLineup, PracticeSession, Position } from '../types'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { loadLineups, saveLineups } from '../utils/storage'
+import LineupPlanner from './LineupPlanner'
 
 interface Props {
   players: Player[]
@@ -13,6 +14,8 @@ interface Props {
   sponsors?: string[]
   showSponsors?: boolean
   bestOf5?: boolean
+  // Past matches, used to power the Lineup & Rotations suggestions panel
+  matches?: Match[]
   // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
   practiceMode?: boolean
   onSavePractice?: (session: PracticeSession) => void
@@ -126,7 +129,7 @@ interface Snapshot {
   positionOverrides: Record<string, Position>
 }
 
-export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice, celebrationAnimations = true, autoAssist = true }: Props) {
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice, celebrationAnimations = true, autoAssist = true, matches = [] }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -219,6 +222,10 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   const [savedLineups, setSavedLineups]     = useState<SavedLineup[]>(loadLineups)
   const [saveLineupName, setSaveLineupName] = useState('')
   const [showSaveForm, setShowSaveForm]     = useState(false)
+
+  // Lineup & Rotations panel — click-through rotation preview + stat-based
+  // suggestions, usable both before the set starts and live mid-game
+  const [showLineupPlanner, setShowLineupPlanner] = useState(false)
 
   // Push state to spectator endpoint whenever score/rotation changes
   const pushSpectatorState = useCallback((code: string, ended = false) => {
@@ -806,6 +813,16 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     setAssigningSlot(null)
   }
 
+  // Used by the Lineup & Rotations panel to save whichever 6 slots it's
+  // currently showing (pre-match preLineup, or the live rotation) as a
+  // reusable SavedLineup — same storage the pre-match builder already uses.
+  function saveLineupNamed(name: string, slotsToSave: (string | null)[]) {
+    const lineup: SavedLineup = { id: crypto.randomUUID(), name, slots: [...slotsToSave] }
+    const updated = [...savedLineups, lineup]
+    setSavedLineups(updated)
+    saveLineups(updated)
+  }
+
   async function confirmEnd() {
     if (spectatorCode && !practiceMode) pushSpectatorState(spectatorCode, true)
     setSpectatorCode(null)
@@ -1092,10 +1109,16 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
             <label className="text-gray-300 text-sm font-medium">
               Starting Lineup <span className="text-gray-500 text-xs">({preOnCourtCount}/6 set)</span>
             </label>
-            <button onClick={() => setPreLineup([null,null,null,null,null,null])}
-              className="tap-btn text-gray-500 text-xs border border-white/10 px-2 py-1 rounded-lg">
-              Clear
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => setShowLineupPlanner(true)}
+                className="tap-btn text-vr-300 text-xs border border-vr-600/40 px-2 py-1 rounded-lg font-bold">
+                📋 Rotations &amp; Suggestions
+              </button>
+              <button onClick={() => setPreLineup([null,null,null,null,null,null])}
+                className="tap-btn text-gray-500 text-xs border border-white/10 px-2 py-1 rounded-lg">
+                Clear
+              </button>
+            </div>
           </div>
 
           {/* Saved lineups row */}
@@ -1260,6 +1283,21 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               })}
             </div>
           </div>
+        )}
+
+        {showLineupPlanner && (
+          <LineupPlanner
+            players={players}
+            matches={matches}
+            slots={preLineup}
+            onAssign={assignPreSlot}
+            effectivePositionOf={p => p.position}
+            savedLineups={savedLineups}
+            onSaveLineup={saveLineupNamed}
+            onDeleteLineup={deleteLineup}
+            tournamentName={practiceMode ? practiceName : tournament}
+            onClose={() => setShowLineupPlanner(false)}
+          />
         )}
       </div>
     )
@@ -1428,6 +1466,11 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         <button onClick={() => setShowRotationEditor(r => !r)}
           className={`tap-btn px-3 py-1 rounded-lg text-xs font-bold border ${showRotationEditor ? 'bg-vr-700 border-vr-500 text-white' : 'bg-navy-600 border-white/10 text-gray-300'}`}>
           ✎ Edit
+        </button>
+
+        <button onClick={() => setShowLineupPlanner(true)}
+          className="tap-btn bg-navy-600 border border-white/10 px-3 py-1 rounded-lg text-gray-300 text-xs font-bold">
+          📋 Lineup
         </button>
 
         {recMode ? (
@@ -2402,6 +2445,22 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
             </div>
           </div>
         </div>
+      )}
+
+      {showLineupPlanner && (
+        <LineupPlanner
+          players={players}
+          matches={matches}
+          slots={rotation}
+          onAssign={assignPlayerToSlot}
+          effectivePositionOf={effectivePosition}
+          weAreServing={weAreServing}
+          savedLineups={savedLineups}
+          onSaveLineup={saveLineupNamed}
+          onDeleteLineup={deleteLineup}
+          tournamentName={practiceMode ? practiceName : tournament}
+          onClose={() => setShowLineupPlanner(false)}
+        />
       )}
     </div>
   )

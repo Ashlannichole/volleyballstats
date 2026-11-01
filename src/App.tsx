@@ -450,6 +450,7 @@ export default function App() {
             autoAssist={teamSettings.autoAssist}
             sponsors={isPro ? (activeTeam === 2 ? teamSettings.team2Sponsors : teamSettings.sponsors) : []}
             showSponsors={isPro && teamSettings.showSponsors}
+            matches={activeMatches}
           />
         </div>
         <div className={tab === 'history' ? '' : 'hidden'}>
