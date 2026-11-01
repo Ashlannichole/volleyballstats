@@ -77,7 +77,13 @@ export default function LineupPlanner({
 }: Props) {
   const [view, setView] = useState<'rotations' | 'suggestions'>('rotations')
   const [previewStep, setPreviewStep] = useState(0)
-  const [showBase, setShowBase] = useState(true)
+  // Defaults to literal serving order rather than base position: base
+  // position can show the same visual slot twice (and drop another) for an
+  // unconventional lineup — e.g. two outside hitters both in the front row
+  // at once — the same collision the main live view's own Base toggle has
+  // for a lineup like that. Serving order has no such ambiguity, and is
+  // the clearer view for confirming a loaded lineup is right anyway.
+  const [showBase, setShowBase] = useState(false)
   const [pickingSlot, setPickingSlot] = useState<number | null>(null)
   const [showSaveForm, setShowSaveForm] = useState(false)
   const [saveLineupName, setSaveLineupName] = useState('')
