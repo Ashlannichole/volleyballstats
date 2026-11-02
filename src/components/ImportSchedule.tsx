@@ -152,7 +152,7 @@ export default function ImportSchedule({ onImport, onCancel }: Props) {
                 Take a photo of a printed or on-screen schedule, or upload a photo or PDF. We'll find the dates and tournament names and let you review them before anything's added to your calendar.
               </p>
             </div>
-            <input ref={inputRef} type="file" accept="image/*,application/pdf" capture="environment"
+            <input ref={inputRef} type="file" accept="image/*,application/pdf"
               className="hidden" onChange={onPick} />
             <button onClick={() => inputRef.current?.click()}
               className="tap-btn w-full bg-vr-700 border border-vr-500 rounded-2xl py-3.5 text-white font-bold text-sm">
