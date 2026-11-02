@@ -357,7 +357,7 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
             <div className="border-t border-white/10 my-4" />
 
             <p className="text-gray-400 text-sm mb-4">
-              Fast-paced 3-ball scrimmage: one alphabetical list of everyone, tap Good/Bad Pass, Serve/Ace/Miss, and Kill/Error as it happens.
+              Fast-paced 3-ball scrimmage: tap a girl's spot on the court grid, then tap what happened (Pass/Serve/Attack). Works solo, or pair two iPads — each tracks its own 6 on court, merged into one session when either of you ends it.
             </p>
             <button
               onClick={() => setThreeBallActive(true)}
