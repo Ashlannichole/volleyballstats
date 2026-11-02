@@ -209,7 +209,7 @@ export default function LineupPlanner({
 
   return (
     <div className="fixed inset-0 z-50 bg-navy-900 flex flex-col">
-      <div className="bg-navy-800 border-b border-white/10 px-4 py-3 flex items-center justify-between shrink-0">
+      <div className="bg-navy-800 border-b border-white/10 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] flex items-center justify-between shrink-0">
         <h2 className="text-white font-bold text-lg">Lineup &amp; Rotations</h2>
         <button onClick={onClose} className="tap-btn text-gray-400 text-2xl leading-none">×</button>
       </div>
