@@ -818,9 +818,15 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   // reusable SavedLineup — same storage the pre-match builder already uses.
   function saveLineupNamed(name: string, slotsToSave: (string | null)[]) {
     const lineup: SavedLineup = { id: crypto.randomUUID(), name, slots: [...slotsToSave] }
-    const updated = [...savedLineups, lineup]
-    setSavedLineups(updated)
-    saveLineups(updated)
+    // Functional update so this is safe to call several times in the same
+    // tick (e.g. importing multiple lineups from a sheet paste at once) —
+    // each call then correctly builds on the previous one's result instead
+    // of all of them reading the same stale `savedLineups` closure.
+    setSavedLineups(prev => {
+      const updated = [...prev, lineup]
+      saveLineups(updated)
+      return updated
+    })
   }
 
   async function confirmEnd() {
