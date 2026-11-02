@@ -73,7 +73,8 @@ export default function ImportSchedule({ onImport, onCancel }: Props) {
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState('')
   const [rows, setRows] = useState<ReviewRow[]>([])
-  const inputRef = useRef<HTMLInputElement>(null)
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleFile(file: File) {
     if (file.size > MAX_FILE_BYTES) {
@@ -152,11 +153,17 @@ export default function ImportSchedule({ onImport, onCancel }: Props) {
                 Take a photo of a printed or on-screen schedule, or upload a photo or PDF. We'll find the dates and tournament names and let you review them before anything's added to your calendar.
               </p>
             </div>
-            <input ref={inputRef} type="file" accept="image/*,application/pdf" capture="environment"
+            <input ref={photoInputRef} type="file" accept="image/*"
               className="hidden" onChange={onPick} />
-            <button onClick={() => inputRef.current?.click()}
+            <input ref={fileInputRef} type="file" accept="application/pdf,image/*"
+              className="hidden" onChange={onPick} />
+            <button onClick={() => photoInputRef.current?.click()}
               className="tap-btn w-full bg-vr-700 border border-vr-500 rounded-2xl py-3.5 text-white font-bold text-sm">
-              📤 Choose Photo or File
+              📸 Take or Choose Photo
+            </button>
+            <button onClick={() => fileInputRef.current?.click()}
+              className="tap-btn w-full bg-navy-700 border border-white/20 rounded-2xl py-3.5 text-white font-bold text-sm">
+              📁 Upload a File
             </button>
           </div>
         )}
