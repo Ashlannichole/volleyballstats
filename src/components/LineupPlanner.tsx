@@ -45,6 +45,60 @@ function getBaseSlot(position: Position, isFrontRow: boolean): number | null {
   }
 }
 
+interface ParsedLineup {
+  name: string
+  slots: (string | null)[]
+  unmatched: string[]
+}
+
+// Parses lineups pasted straight from the "Lineups" tab of a Google Sheet
+// (tab-separated: Lineup name, System, blank, then Zone 1-6 player/role
+// pairs, then Libero and sub columns we don't use). Tolerates two copy/paste
+// quirks we've actually seen: a bare spreadsheet row-number on its own line,
+// and a lineup name that got split onto its own line (so the row after it
+// starts directly with the System column, e.g. "5-1") — that fragment gets
+// re-joined with the orphaned name line before parsing.
+function parseSheetLineups(raw: string, players: Player[]): ParsedLineup[] {
+  const nameByLower = new Map(players.map(p => [p.name.trim().toLowerCase(), p]))
+  const zoneFieldIdx = [3, 5, 7, 9, 11, 13]
+  const rows: ParsedLineup[] = []
+  let pendingName: string | null = null
+
+  function processRow(line: string) {
+    const f = line.split('\t')
+    const name = (f[0] || '').trim()
+    if (!name || name.toLowerCase() === 'lineup name') return
+    const slots: (string | null)[] = []
+    const unmatched: string[] = []
+    for (const idx of zoneFieldIdx) {
+      const pname = (f[idx] || '').trim()
+      if (!pname) { slots.push(null); continue }
+      const match = nameByLower.get(pname.toLowerCase())
+      if (match) slots.push(match.id)
+      else { slots.push(null); unmatched.push(pname) }
+    }
+    rows.push({ name, slots, unmatched })
+  }
+
+  for (const rawLine of raw.split('\n')) {
+    const line = rawLine.replace(/\r$/, '').trim()
+    if (!line) continue
+    if (/^\d+$/.test(line)) continue // bare spreadsheet row number
+    const fields = line.split('\t')
+    if (/^\d+-\d+$/.test(fields[0])) {
+      // Missing its name column — the name was orphaned on the previous line
+      processRow((pendingName ?? '') + '\t' + line)
+      pendingName = null
+    } else if (fields.length === 1) {
+      pendingName = fields[0]
+    } else {
+      processRow(line)
+      pendingName = null
+    }
+  }
+  return rows
+}
+
 function rotateForward(slots: (string | null)[], steps: number): (string | null)[] {
   let n = [...slots]
   for (let i = 0; i < steps; i++) {
@@ -87,6 +141,8 @@ export default function LineupPlanner({
   const [pickingSlot, setPickingSlot] = useState<number | null>(null)
   const [showSaveForm, setShowSaveForm] = useState(false)
   const [saveLineupName, setSaveLineupName] = useState('')
+  const [showImport, setShowImport] = useState(false)
+  const [importText, setImportText] = useState('')
 
   const tournamentMatches = tournamentName ? matches.filter(m => m.tournament === tournamentName) : []
   const [scope, setScope] = useState<'tournament' | 'season'>(tournamentMatches.length > 0 ? 'tournament' : 'season')
@@ -130,6 +186,17 @@ export default function LineupPlanner({
     onSaveLineup(saveLineupName.trim(), slots)
     setSaveLineupName('')
     setShowSaveForm(false)
+  }
+
+  const importRows = showImport ? parseSheetLineups(importText, players) : []
+  const importValidCount = importRows.filter(r => r.unmatched.length === 0).length
+
+  function runImport() {
+    for (const row of importRows) {
+      if (row.unmatched.length === 0) onSaveLineup(row.name, row.slots)
+    }
+    setImportText('')
+    setShowImport(false)
   }
 
   const categories: { label: string; metric: (s: PlayerStats) => number | null; fmt: (v: number) => string }[] = [
@@ -247,10 +314,16 @@ export default function LineupPlanner({
             )}
 
             {!showSaveForm ? (
-              <button onClick={() => setShowSaveForm(true)}
-                className="tap-btn w-full border border-white/10 text-gray-400 text-sm py-2 rounded-xl">
-                + Save this lineup for later
-              </button>
+              <div className="flex gap-2">
+                <button onClick={() => setShowSaveForm(true)}
+                  className="tap-btn flex-1 border border-white/10 text-gray-400 text-sm py-2 rounded-xl">
+                  + Save this lineup for later
+                </button>
+                <button onClick={() => setShowImport(true)}
+                  className="tap-btn flex-1 border border-vr-600/40 text-vr-300 text-sm py-2 rounded-xl font-semibold">
+                  📥 Import from Sheet
+                </button>
+              </div>
             ) : (
               <div className="flex gap-2">
                 <input
@@ -358,6 +431,48 @@ export default function LineupPlanner({
                 </button>
               )
             })}
+          </div>
+        </div>
+      )}
+
+      {showImport && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/70" onClick={() => setShowImport(false)}>
+          <div className="w-full bg-navy-800 border-t border-white/10 rounded-t-2xl p-4 max-h-[85vh] overflow-y-auto overscroll-y-contain" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-white font-bold text-lg">Import Lineups from Sheet</h3>
+              <button onClick={() => setShowImport(false)} className="text-gray-400 text-2xl tap-btn">×</button>
+            </div>
+            <p className="text-gray-500 text-xs mb-3">
+              In Google Sheets, select the rows on the "Lineups" tab (including the header row), copy, and paste below. Players are matched to your roster by name.
+            </p>
+            <textarea
+              value={importText}
+              onChange={e => setImportText(e.target.value)}
+              placeholder="Paste the copied rows here…"
+              rows={6}
+              className="w-full bg-navy-700 border border-white/20 rounded-xl px-3 py-2 text-white text-xs font-mono outline-none focus:border-pb-500 mb-3"
+            />
+            {importRows.length > 0 && (
+              <div className="space-y-1.5 mb-3">
+                {importRows.map((row, i) => (
+                  <div key={i} className="bg-navy-700 border border-white/10 rounded-xl px-3 py-2">
+                    <p className="text-white text-sm font-semibold">{row.name}</p>
+                    {row.unmatched.length === 0 ? (
+                      <p className="text-green-400 text-xs">✓ all 6 players matched</p>
+                    ) : (
+                      <p className="text-yellow-400 text-xs">⚠ not on your roster: {row.unmatched.join(', ')}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={runImport}
+              disabled={importValidCount === 0}
+              className="tap-btn w-full bg-vr-600 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-sm"
+            >
+              Import {importValidCount > 0 ? `${importValidCount} Lineup${importValidCount > 1 ? 's' : ''}` : ''}
+            </button>
           </div>
         </div>
       )}
