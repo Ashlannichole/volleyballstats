@@ -83,6 +83,21 @@ export const EMPTY_STATS = (): PlayerStats => ({
   maxServingRun: 0,
 })
 
+// One side's result in a Pass Challenge drill: a fixed number of serves
+// (e.g. 50), each received and rated 0-3 (an ace auto-scores 0; a service
+// error isn't logged here at all — it doesn't count toward the reps).
+export interface PassChallengeRound {
+  sideLabel: string     // e.g. "Black" or "Receiving" — whatever the coach typed in
+  reps: number[]        // one 0-3 rating per served-and-received ball, in order
+  serveErrors: number   // service errors that didn't count toward reps (for reference only)
+}
+
+export interface PassChallenge {
+  repsGoal: number       // e.g. 50
+  targetTotal: number    // e.g. 125 (the cumulative score needed to "win")
+  rounds: PassChallengeRound[]   // one per side; two once both sides have gone
+}
+
 export interface PracticeSession {
   id: string
   date: string
@@ -90,7 +105,8 @@ export interface PracticeSession {
   teamLabel: string     // e.g. "Black" or "White" for two-coach tracking
   notes: string
   scrimmages: SetStats[]
-  drillType?: 'scrimmage' | 'serve_pass' | 'three_ball'   // absent/undefined = 'scrimmage', for older saved sessions
+  drillType?: 'scrimmage' | 'serve_pass' | 'three_ball' | 'pass_challenge'   // absent/undefined = 'scrimmage', for older saved sessions
+  passChallenge?: PassChallenge   // present only when drillType === 'pass_challenge'
 }
 
 export interface SavedLineup {

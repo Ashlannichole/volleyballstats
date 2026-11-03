@@ -1,10 +1,18 @@
 import { useState } from 'react'
-import type { Player, PlayerStats, SetStats, PracticeSession, Match } from '../types'
+import type { Player, PlayerStats, SetStats, PracticeSession, Match, PassChallengeRound } from '../types'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { mergeStats, killPct, passAvg } from '../utils/statsHelpers'
 import LiveGame from './LiveGame'
 import ServePassDrill from './ServePassDrill'
 import ThreeBallDrill from './ThreeBallDrill'
+import PassChallengeDrill from './PassChallengeDrill'
+
+function roundStats(round: PassChallengeRound, repsGoal: number) {
+  const count = round.reps.length
+  const total = round.reps.reduce((n, r) => n + r, 0)
+  const avg = count > 0 ? total / count : 0
+  return { count, total, avg, complete: count >= repsGoal }
+}
 
 interface Props {
   players: Player[]
@@ -23,6 +31,7 @@ function totalStats(session: PracticeSession, playerId: string): PlayerStats {
 function drillSubtitle(session: PracticeSession): string {
   if (session.drillType === 'serve_pass') return 'Serve & Pass drill'
   if (session.drillType === 'three_ball') return '3-Ball Scrimmage drill'
+  if (session.drillType === 'pass_challenge') return 'Pass Challenge drill'
   return `${session.scrimmages.length} set${session.scrimmages.length !== 1 ? 's' : ''}`
 }
 
@@ -85,7 +94,47 @@ function SessionDetail({
         </div>
       )}
 
-      {session.drillType === 'serve_pass' ? (
+      {session.drillType === 'pass_challenge' && session.passChallenge ? (
+        /* Pass Challenge drill: a serving-side total/average per round, no per-player breakdown */
+        <div className="space-y-3 mb-5">
+          {session.passChallenge.rounds.map((r, i) => {
+            const { count, total, avg, complete } = roundStats(r, session.passChallenge!.repsGoal)
+            const maxTotal = session.passChallenge!.repsGoal * 3
+            const won = total >= session.passChallenge!.targetTotal
+            return (
+              <div key={i} className="bg-navy-800 border border-white/10 rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-white font-bold text-sm">{r.sideLabel || `Round ${i + 1}`}</p>
+                  {complete && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${won ? 'bg-green-900/40 border border-green-600/50 text-green-300' : 'bg-red-900/30 border border-red-600/40 text-red-300'}`}>
+                      {won ? '🏆 WON' : 'FELL SHORT'}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="text-white text-2xl font-black leading-none">{total}<span className="text-gray-600 text-base">/{maxTotal}</span></p>
+                    <p className="text-gray-500 text-[11px] mt-0.5">{count}/{session.passChallenge!.repsGoal} serves</p>
+                  </div>
+                  <div>
+                    <p className={`text-2xl font-black leading-none ${avg >= 2.5 ? 'text-green-400' : 'text-yellow-400'}`}>{avg.toFixed(2)}</p>
+                    <p className="text-gray-500 text-[11px] mt-0.5">pass avg</p>
+                  </div>
+                  {r.serveErrors > 0 && (
+                    <div>
+                      <p className="text-red-400 text-2xl font-black leading-none">{r.serveErrors}</p>
+                      <p className="text-gray-500 text-[11px] mt-0.5">re-served</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          <p className="text-gray-600 text-[10px] text-center">
+            Target: {session.passChallenge.targetTotal}/{session.passChallenge.repsGoal * 3} points ({(session.passChallenge.targetTotal / session.passChallenge.repsGoal).toFixed(1)} avg) across {session.passChallenge.repsGoal} serves to win
+          </p>
+        </div>
+      ) : session.drillType === 'serve_pass' ? (
         /* Serve & Pass drill: dedicated table — kills/digs/attacks don't apply */
         <div className="overflow-x-auto mb-5">
           <table className="w-full text-sm min-w-[440px]">
@@ -250,6 +299,7 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
   const [scrimmageActive, setScrimmageActive] = useState(false)
   const [drillActive, setDrillActive] = useState(false)
   const [threeBallActive, setThreeBallActive] = useState(false)
+  const [passChallengeActive, setPassChallengeActive] = useState(false)
 
   function handleSavePractice(session: PracticeSession) {
     onSave(session)
@@ -264,6 +314,11 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
   function handleSaveThreeBall(session: PracticeSession) {
     onSave(session)
     setThreeBallActive(false)
+  }
+
+  function handleSavePassChallenge(session: PracticeSession) {
+    onSave(session)
+    setPassChallengeActive(false)
   }
 
   // ── Session detail ────────────────────────────────────────────────────
@@ -310,6 +365,16 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
         players={players}
         onSave={handleSaveThreeBall}
         onCancel={() => setThreeBallActive(false)}
+      />
+    )
+  }
+
+  // ── Pass Challenge drill ────────────────────────────────────────────────
+  if (passChallengeActive) {
+    return (
+      <PassChallengeDrill
+        onSave={handleSavePassChallenge}
+        onCancel={() => setPassChallengeActive(false)}
       />
     )
   }
@@ -367,6 +432,18 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
             </button>
           </>
         )}
+
+        <div className="border-t border-white/10 my-4" />
+
+        <p className="text-gray-400 text-sm mb-4">
+          Serve/pass competition: one side receives 50 serves trying to hit a 2.5 pass average (125/150 points) to "win," then switch sides and run it again. No roster needed — just a running team total.
+        </p>
+        <button
+          onClick={() => setPassChallengeActive(true)}
+          className="tap-btn w-full bg-navy-600 border border-vr-500/40 text-white font-bold py-4 rounded-xl text-base"
+        >
+          Start Pass Challenge 🏆
+        </button>
       </div>
 
       {/* Past sessions */}
@@ -408,11 +485,26 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
                     )}
                   </div>
                   <p className="text-gray-500 text-xs">
-                    {s.date} · {drillSubtitle(s)} · {activePlayers.length} players
+                    {s.date} · {drillSubtitle(s)}{s.drillType === 'pass_challenge'
+                      ? ` · ${s.passChallenge?.rounds.length ?? 0} round${s.passChallenge?.rounds.length === 1 ? '' : 's'}`
+                      : ` · ${activePlayers.length} players`}
                   </p>
                   {s.notes && <p className="text-gray-600 text-xs italic truncate mt-0.5">"{s.notes}"</p>}
                 </div>
-                {s.drillType === 'serve_pass' ? (
+                {s.drillType === 'pass_challenge' && s.passChallenge ? (
+                  <div className="flex gap-3 text-center shrink-0">
+                    {s.passChallenge.rounds.map((r, i) => {
+                      const { total, complete } = roundStats(r, s.passChallenge!.repsGoal)
+                      const won = total >= s.passChallenge!.targetTotal
+                      return (
+                        <div key={i}>
+                          <p className={`font-bold ${complete ? (won ? 'text-green-400' : 'text-red-400') : 'text-gray-400'}`}>{total}</p>
+                          <p className="text-gray-600 text-[10px]">R{i + 1}{complete ? (won ? ' ✓' : ' ✗') : ''}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : s.drillType === 'serve_pass' ? (
                   <div className="flex gap-3 text-center shrink-0">
                     <div><p className="text-pb-300 font-bold">{totals.serveAttempts}</p><p className="text-gray-600 text-[10px]">SRV</p></div>
                     <div><p className="text-yellow-400 font-bold">{totals.aces}</p><p className="text-gray-600 text-[10px]">ACE</p></div>
