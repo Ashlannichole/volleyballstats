@@ -6,6 +6,7 @@ import LiveGame from './LiveGame'
 import ServePassDrill from './ServePassDrill'
 import ThreeBallDrill from './ThreeBallDrill'
 import PassChallengeDrill from './PassChallengeDrill'
+import TeamGameDrill from './TeamGameDrill'
 
 function roundStats(round: PassChallengeRound, repsGoal: number) {
   const count = round.reps.length
@@ -16,6 +17,7 @@ function roundStats(round: PassChallengeRound, repsGoal: number) {
 
 interface Props {
   players: Player[]
+  matches: Match[]
   sessions: PracticeSession[]
   onSave: (s: PracticeSession) => void
   onDelete: (id: string) => void
@@ -28,10 +30,20 @@ function totalStats(session: PracticeSession, playerId: string): PlayerStats {
   )
 }
 
+// Roster players plus any stand-in guests (e.g. a coach who filled in) saved
+// on this specific session — so a session's history still shows her name
+// after she's no longer part of `players`.
+function sessionPlayers(session: PracticeSession, rosterPlayers: Player[]): Player[] {
+  if (!session.guestPlayers || session.guestPlayers.length === 0) return rosterPlayers
+  const guests: Player[] = session.guestPlayers.map(g => ({ id: g.id, name: g.name, number: 0, position: 'coach' }))
+  return [...rosterPlayers, ...guests]
+}
+
 function drillSubtitle(session: PracticeSession): string {
   if (session.drillType === 'serve_pass') return 'Serve & Pass drill'
   if (session.drillType === 'three_ball') return '3-Ball Scrimmage drill'
   if (session.drillType === 'pass_challenge') return 'Pass Challenge drill'
+  if (session.drillType === 'team_game') return session.teamGame?.drillName || 'Team Drill'
   return `${session.scrimmages.length} set${session.scrimmages.length !== 1 ? 's' : ''}`
 }
 
@@ -45,8 +57,9 @@ function SessionDetail({
   onDelete: () => void
 }) {
   const [scrimmageIdx, setScrimmageIdx] = useState<number | null>(null)
+  const allPlayers = sessionPlayers(session, players)
 
-  const displayPlayers = players.filter(p =>
+  const displayPlayers = allPlayers.filter(p =>
     session.scrimmages.some(s => s[p.id] && (
       s[p.id].kills + s[p.id].digs + s[p.id].attackAttempts + s[p.id].attackErrors +
       s[p.id].aces + s[p.id].settingAssists + s[p.id].passAttempts +
@@ -94,7 +107,35 @@ function SessionDetail({
         </div>
       )}
 
-      {session.drillType === 'pass_challenge' && session.passChallenge ? (
+      {session.drillType === 'team_game' && session.teamGame ? (
+        /* Team drill: just the teams and who won, no per-player stats */
+        <div className="space-y-3 mb-5">
+          <div className={`grid gap-3 ${session.teamGame.teams.length <= 2 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>
+            {session.teamGame.teams.map((team, i) => {
+              const won = session.teamGame!.winningTeamIndex === i
+              return (
+                <div key={i} className={`border rounded-2xl p-4 ${won ? 'border-green-500/50 bg-green-900/15' : 'border-white/10 bg-navy-800'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-white font-bold text-sm">{team.name}</p>
+                    {won && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-900/40 border border-green-600/50 text-green-300">🏆 WON</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {team.playerIds.map(id => {
+                      const p = allPlayers.find(pl => pl.id === id)
+                      return p ? (
+                        <span key={id} className="bg-navy-700 border border-white/10 rounded-full px-2.5 py-1 text-white text-xs">{p.name}</span>
+                      ) : null
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          {session.teamGame.winningTeamIndex === null && (
+            <p className="text-gray-500 text-xs text-center">No winner recorded for this drill.</p>
+          )}
+        </div>
+      ) : session.drillType === 'pass_challenge' && session.passChallenge ? (
         /* Pass Challenge drill: a serving-side total/average per round, no per-player breakdown */
         <div className="space-y-3 mb-5">
           {session.passChallenge.rounds.map((r, i) => {
@@ -294,31 +335,73 @@ function SessionDetail({
 }
 
 // ── Main Practice component ────────────────────────────────────────────────
-export default function Practice({ players, sessions, onSave, onDelete }: Props) {
+export default function Practice({ players, matches, sessions, onSave, onDelete }: Props) {
   const [detail, setDetail] = useState<PracticeSession | null>(null)
   const [scrimmageActive, setScrimmageActive] = useState(false)
   const [drillActive, setDrillActive] = useState(false)
   const [threeBallActive, setThreeBallActive] = useState(false)
   const [passChallengeActive, setPassChallengeActive] = useState(false)
+  const [teamGameActive, setTeamGameActive] = useState(false)
+
+  // Who's actually here today — defaults to the whole roster, uncheck anyone
+  // absent. A coach stepping in gets added as a one-off guest for just this
+  // visit (not saved to the permanent roster).
+  const [absentIds, setAbsentIds] = useState<Set<string>>(new Set())
+  const [guests, setGuests] = useState<Player[]>([])
+  const [guestName, setGuestName] = useState('')
+
+  const todaysRoster = [...players.filter(p => !absentIds.has(p.id)), ...guests]
+
+  function toggleAbsent(id: string) {
+    setAbsentIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function addGuest() {
+    const name = guestName.trim()
+    if (!name) return
+    setGuests(prev => [...prev, { id: crypto.randomUUID(), name, number: 0, position: 'coach' }])
+    setGuestName('')
+  }
+
+  function removeGuest(id: string) {
+    setGuests(prev => prev.filter(g => g.id !== id))
+  }
+
+  // Stamps today's guests onto a saved session so her name still resolves
+  // once this visit's `guests` state resets.
+  function tagGuests(session: PracticeSession): PracticeSession {
+    if (guests.length === 0) return session
+    return { ...session, guestPlayers: guests.map(g => ({ id: g.id, name: g.name })) }
+  }
 
   function handleSavePractice(session: PracticeSession) {
-    onSave(session)
+    onSave(tagGuests(session))
     setScrimmageActive(false)
   }
 
   function handleSaveDrill(session: PracticeSession) {
-    onSave(session)
+    onSave(tagGuests(session))
     setDrillActive(false)
   }
 
   function handleSaveThreeBall(session: PracticeSession) {
-    onSave(session)
+    onSave(tagGuests(session))
     setThreeBallActive(false)
   }
 
   function handleSavePassChallenge(session: PracticeSession) {
     onSave(session)
     setPassChallengeActive(false)
+  }
+
+  function handleSaveTeamGame(session: PracticeSession) {
+    onSave(tagGuests(session))
+    setTeamGameActive(false)
   }
 
   // ── Session detail ────────────────────────────────────────────────────
@@ -338,7 +421,7 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
     return (
       <div className="h-full flex flex-col">
         <LiveGame
-          players={players}
+          players={todaysRoster}
           onSaveMatch={(_: Match) => {}}
           practiceMode={true}
           onSavePractice={handleSavePractice}
@@ -351,7 +434,7 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
   if (drillActive) {
     return (
       <ServePassDrill
-        players={players}
+        players={todaysRoster}
         onSave={handleSaveDrill}
         onCancel={() => setDrillActive(false)}
       />
@@ -362,7 +445,7 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
   if (threeBallActive) {
     return (
       <ThreeBallDrill
-        players={players}
+        players={todaysRoster}
         onSave={handleSaveThreeBall}
         onCancel={() => setThreeBallActive(false)}
       />
@@ -379,6 +462,19 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
     )
   }
 
+  // ── Team drill (3v3, Queen of the Court, etc.) ──────────────────────────
+  if (teamGameActive) {
+    return (
+      <TeamGameDrill
+        players={todaysRoster}
+        matches={matches}
+        practices={sessions}
+        onSave={handleSaveTeamGame}
+        onCancel={() => setTeamGameActive(false)}
+      />
+    )
+  }
+
   // ── Session list / setup ──────────────────────────────────────────────
   const sorted = [...sessions].sort((a, b) => b.date.localeCompare(a.date))
 
@@ -389,12 +485,57 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
         <span className="text-gray-500 text-sm">{sessions.length} session{sessions.length !== 1 ? 's' : ''}</span>
       </div>
 
+      {/* Who's here today */}
+      {players.length > 0 && (
+        <div className="bg-navy-700 border border-white/10 rounded-2xl p-4 mb-4">
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Today's Roster</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {players.map(p => {
+              const absent = absentIds.has(p.id)
+              return (
+                <button key={p.id} onClick={() => toggleAbsent(p.id)}
+                  className={`tap-btn flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 border ${absent ? 'bg-navy-800 border-white/10 opacity-40' : 'bg-navy-600 border-vr-500/40'}`}>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white ${POSITION_COLORS[p.position]}`}>
+                    {POSITION_LABELS[p.position]}
+                  </span>
+                  <span className={`text-xs font-medium ${absent ? 'text-gray-500 line-through' : 'text-white'}`}>{p.name}</span>
+                </button>
+              )
+            })}
+          </div>
+          {guests.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {guests.map(g => (
+                <span key={g.id} className="tap-btn flex items-center gap-1.5 bg-vr-900/30 border border-vr-500/40 rounded-full pl-2.5 pr-1 py-1">
+                  <span className="text-xs font-medium text-white">{g.name}</span>
+                  <button onClick={() => removeGuest(g.id)} className="tap-btn text-gray-500 hover:text-red-400 text-xs px-1">✕</button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              value={guestName}
+              onChange={e => setGuestName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addGuest() }}
+              placeholder="Coach stepping in? Add her name"
+              className="flex-1 bg-navy-600 border border-white/20 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-pb-500"
+            />
+            <button onClick={addGuest} disabled={!guestName.trim()}
+              className="tap-btn bg-vr-600 disabled:opacity-40 text-white font-bold px-4 rounded-xl text-sm">
+              + Add
+            </button>
+          </div>
+          <p className="text-gray-600 text-[10px] mt-2">Uncheck anyone who isn't here today. Added guests count toward today's drills only.</p>
+        </div>
+      )}
+
       {/* Start new practice */}
       <div className="bg-navy-700 border border-vr-700/40 rounded-2xl p-4 mb-6">
         <p className="text-vr-400 text-xs font-bold uppercase tracking-widest mb-3">New Practice Session</p>
 
-        {players.length === 0 ? (
-          <p className="text-yellow-400 text-sm">Add players to your roster first.</p>
+        {todaysRoster.length === 0 ? (
+          <p className="text-yellow-400 text-sm">Add players to your roster first, or add a guest above.</p>
         ) : (
           <>
             <p className="text-gray-400 text-sm mb-4">
@@ -430,6 +571,18 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
             >
               Start 3-Ball Scrimmage 🎯
             </button>
+
+            <div className="border-t border-white/10 my-4" />
+
+            <p className="text-gray-400 text-sm mb-4">
+              Small-sided competitive drills (3v3, Queen of the Court, Mini Tournament): auto-balance the roster into teams, play it out, and log who won. Builds each girl's season win/loss record.
+            </p>
+            <button
+              onClick={() => setTeamGameActive(true)}
+              className="tap-btn w-full bg-navy-600 border border-vr-500/40 text-white font-bold py-4 rounded-xl text-base"
+            >
+              Start Team Drill 🆚
+            </button>
           </>
         )}
 
@@ -456,7 +609,7 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
         <div className="space-y-3">
           <p className="text-gray-500 text-xs font-bold uppercase tracking-widest px-1">Past Sessions</p>
           {sorted.map(s => {
-            const activePlayers = players.filter(p =>
+            const activePlayers = sessionPlayers(s, players).filter(p =>
               s.scrimmages.some((sc: SetStats) => sc[p.id] && (
                 sc[p.id].kills + sc[p.id].digs + sc[p.id].attackAttempts + sc[p.id].attackErrors +
                 sc[p.id].aces + sc[p.id].settingAssists + sc[p.id].passAttempts +
@@ -487,11 +640,21 @@ export default function Practice({ players, sessions, onSave, onDelete }: Props)
                   <p className="text-gray-500 text-xs">
                     {s.date} · {drillSubtitle(s)}{s.drillType === 'pass_challenge'
                       ? ` · ${s.passChallenge?.rounds.length ?? 0} round${s.passChallenge?.rounds.length === 1 ? '' : 's'}`
+                      : s.drillType === 'team_game'
+                      ? ` · ${s.teamGame?.teams.length ?? 0} teams`
                       : ` · ${activePlayers.length} players`}
                   </p>
                   {s.notes && <p className="text-gray-600 text-xs italic truncate mt-0.5">"{s.notes}"</p>}
                 </div>
-                {s.drillType === 'pass_challenge' && s.passChallenge ? (
+                {s.drillType === 'team_game' && s.teamGame ? (
+                  <div className="shrink-0 text-right">
+                    {s.teamGame.winningTeamIndex !== null ? (
+                      <p className="text-green-400 font-bold text-sm">🏆 {s.teamGame.teams[s.teamGame.winningTeamIndex]?.name}</p>
+                    ) : (
+                      <p className="text-gray-500 text-xs">No winner</p>
+                    )}
+                  </div>
+                ) : s.drillType === 'pass_challenge' && s.passChallenge ? (
                   <div className="flex gap-3 text-center shrink-0">
                     {s.passChallenge.rounds.map((r, i) => {
                       const { total, complete } = roundStats(r, s.passChallenge!.repsGoal)

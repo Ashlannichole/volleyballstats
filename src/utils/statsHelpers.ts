@@ -1,4 +1,29 @@
-import type { PlayerStats, Match } from '../types'
+import type { PlayerStats, Match, PracticeSession } from '../types'
+import { EMPTY_STATS } from '../types'
+
+// A single number to rank players by for auto-balancing teams in small-sided
+// drills — not shown to anyone, just a sort key. Rewards production, docks errors.
+export function playerImpactScore(s: PlayerStats): number {
+  return s.kills + s.aces + s.digs + s.soloBlocks + s.blockAssists + s.settingAssists
+    - s.attackErrors - s.serveErrors
+}
+
+// A player's season win/loss record across all saved team-game drills
+// (3v3, Queen of the Court, Mini Tournament, etc.) she's been assigned to.
+// A session with no winner recorded (tie / not declared) counts toward neither.
+export function aggregateTeamGameRecord(playerId: string, sessions: PracticeSession[]): { wins: number; losses: number } {
+  let wins = 0, losses = 0
+  for (const session of sessions) {
+    if (session.drillType !== 'team_game' || !session.teamGame) continue
+    const { teams, winningTeamIndex } = session.teamGame
+    if (winningTeamIndex === null) continue
+    const myTeamIndex = teams.findIndex(t => t.playerIds.includes(playerId))
+    if (myTeamIndex === -1) continue
+    if (myTeamIndex === winningTeamIndex) wins++
+    else losses++
+  }
+  return { wins, losses }
+}
 
 export function killPct(s: PlayerStats): string {
   if (s.attackAttempts === 0) return '—'
@@ -68,6 +93,21 @@ export function aggregatePlayerStats(playerId: string, matches: Match[]): Player
       if (setStats[playerId]) {
         Object.assign(base, mergeStats(base, setStats[playerId]))
       }
+    }
+  }
+  return base
+}
+
+// Same idea as aggregatePlayerStats, but over practice sessions instead of
+// matches — scrimmage/serve_pass/three_ball drills all store per-player
+// stats the same way (session.scrimmages is the same SetStats[] shape as
+// match.sets). Pass Challenge sessions contribute nothing here since that
+// drill tracks a team total only (scrimmages is always empty for it).
+export function aggregatePracticeStats(playerId: string, sessions: PracticeSession[]): PlayerStats {
+  let base = EMPTY_STATS()
+  for (const session of sessions) {
+    for (const setStats of session.scrimmages) {
+      if (setStats[playerId]) base = mergeStats(base, setStats[playerId])
     }
   }
   return base

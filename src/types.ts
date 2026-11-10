@@ -1,4 +1,4 @@
-export type Position = 'setter' | 'outside' | 'middle' | 'opposite' | 'libero' | 'ds'
+export type Position = 'setter' | 'outside' | 'middle' | 'opposite' | 'libero' | 'ds' | 'coach'
 
 export interface Player {
   id: string
@@ -98,6 +98,20 @@ export interface PassChallenge {
   rounds: PassChallengeRound[]   // one per side; two once both sides have gone
 }
 
+// One side of a small-sided competitive drill (3v3, Queen of the Court,
+// Mini Tournament, etc.) — just a label and the girls assigned to it, no
+// per-player stats.
+export interface TeamGameTeam {
+  name: string
+  playerIds: string[]
+}
+
+export interface TeamGame {
+  drillName: string               // e.g. "Queen of the Court", "3v3" — whatever the coach typed in
+  teams: TeamGameTeam[]
+  winningTeamIndex: number | null // index into teams; null = tie / not recorded, doesn't count toward anyone's record
+}
+
 export interface PracticeSession {
   id: string
   date: string
@@ -105,8 +119,23 @@ export interface PracticeSession {
   teamLabel: string     // e.g. "Black" or "White" for two-coach tracking
   notes: string
   scrimmages: SetStats[]
-  drillType?: 'scrimmage' | 'serve_pass' | 'three_ball' | 'pass_challenge'   // absent/undefined = 'scrimmage', for older saved sessions
+  drillType?: 'scrimmage' | 'serve_pass' | 'three_ball' | 'pass_challenge' | 'team_game'   // absent/undefined = 'scrimmage', for older saved sessions
   passChallenge?: PassChallenge   // present only when drillType === 'pass_challenge'
+  teamGame?: TeamGame              // present only when drillType === 'team_game'
+  // Stand-ins for this one session (e.g. a coach filling in short-handed) who
+  // aren't on the permanent roster — kept here so her name still resolves
+  // when viewing this session later, after she's no longer in `players`.
+  guestPlayers?: { id: string; name: string }[]
+}
+
+// A dated coaching note / action-plan entry for one player — written during
+// a mid-season or end-of-season check-in, kept so the next conversation can
+// pick up where the last one left off.
+export interface PlayerNote {
+  id: string
+  playerId: string
+  date: string   // ISO date, when the note was written
+  text: string
 }
 
 export interface SavedLineup {
@@ -123,6 +152,7 @@ export const POSITION_LABELS: Record<Position, string> = {
   opposite: 'OPP',
   libero: 'L',
   ds: 'DS',
+  coach: 'Coach',
 }
 
 export const POSITION_COLORS: Record<Position, string> = {
@@ -132,4 +162,5 @@ export const POSITION_COLORS: Record<Position, string> = {
   opposite: 'bg-purple-600',
   libero: 'bg-red-600',
   ds: 'bg-orange-600',
+  coach: 'bg-gray-600',
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Player, PracticeSession } from '../types'
+import type { Player, Match, PracticeSession } from '../types'
 import Practice from './Practice'
 import Scouting from './Scouting'
 import Calendar from './Calendar'
@@ -11,6 +11,7 @@ interface Props {
   isPro: boolean
   onUpgrade: () => void
   players: Player[]
+  matches: Match[]
   practices: PracticeSession[]
   onSavePractice: (s: PracticeSession) => void
   onDeletePractice: (id: string) => void
@@ -33,7 +34,7 @@ const TOOLS: {
   { id: 'ai',       icon: '🤖', label: 'AI Suggestions',    description: 'Personalized drills based on your stats',      available: false, proOnly: true  },
 ]
 
-export default function Tools({ isPro, onUpgrade, players, practices, onSavePractice, onDeletePractice, onToolSync, onActiveChange }: Props) {
+export default function Tools({ isPro, onUpgrade, players, matches, practices, onSavePractice, onDeletePractice, onToolSync, onActiveChange }: Props) {
   const [active, setActive] = useState<ToolId | null>(null)
 
   useEffect(() => {
@@ -46,7 +47,7 @@ export default function Tools({ isPro, onUpgrade, players, practices, onSavePrac
     <div className="h-full flex flex-col">
       <ToolHeader label="Practice Tracker" onBack={back} />
       <div className="flex-1 overflow-y-auto overscroll-contain">
-        <Practice players={players} sessions={practices} onSave={onSavePractice} onDelete={onDeletePractice} />
+        <Practice players={players} matches={matches} sessions={practices} onSave={onSavePractice} onDelete={onDeletePractice} />
       </div>
     </div>
   )
