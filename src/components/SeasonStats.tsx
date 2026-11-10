@@ -1,17 +1,22 @@
 import { useState } from 'react'
-import type { Match, Player, PlayerStats } from '../types'
+import type { Match, Player, PlayerStats, PracticeSession, PlayerNote } from '../types'
 import { aggregatePlayerStats, buildTeamSummary, killPct, passAvg, hittingPct, mergeStats } from '../utils/statsHelpers'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { LockedSection } from './UpgradePrompt'
+import PlayerReport from './PlayerReport'
 
 interface Props {
   matches: Match[]
   players: Player[]
+  practices?: PracticeSession[]
+  notes?: PlayerNote[]
+  onAddNote?: (playerId: string, text: string) => void
+  onDeleteNote?: (id: string) => void
   isPro?: boolean
   onUpgrade?: () => void
 }
 
-type View = 'overview' | 'progress' | 'awards'
+type View = 'overview' | 'progress' | 'players' | 'awards'
 
 // Group matches by tournament name (falls back to date string)
 function groupByTournament(matches: Match[]): { name: string; matches: Match[] }[] {
@@ -64,15 +69,31 @@ function Sparkline({ values, color = '#5ab3d0' }: { values: number[]; color?: st
   )
 }
 
-export default function SeasonStats({ matches, players, isPro = false, onUpgrade }: Props) {
-  const [view, setView] = useState<View>('overview')
+export default function SeasonStats({ matches, players, practices = [], notes = [], onAddNote, onDeleteNote, isPro = false, onUpgrade }: Props) {
+  const [view, setView] = useState<View>(matches.length === 0 && practices.length > 0 ? 'players' : 'overview')
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
 
-  if (matches.length === 0) {
+  if (matches.length === 0 && practices.length === 0) {
     return (
       <div className="p-6 text-center mt-12">
-        <p className="text-gray-400 text-lg">No match data yet.</p>
-        <p className="text-gray-600 text-sm mt-2">Save matches to see season stats.</p>
+        <p className="text-gray-400 text-lg">No match or practice data yet.</p>
+        <p className="text-gray-600 text-sm mt-2">Save a match or a practice drill to see season stats.</p>
       </div>
+    )
+  }
+
+  if (selectedPlayer) {
+    return (
+      <PlayerReport
+        player={selectedPlayer}
+        players={players}
+        matches={matches}
+        practices={practices}
+        notes={notes}
+        onAddNote={text => onAddNote?.(selectedPlayer.id, text)}
+        onDeleteNote={id => onDeleteNote?.(id)}
+        onBack={() => setSelectedPlayer(null)}
+      />
     )
   }
 
@@ -94,6 +115,7 @@ export default function SeasonStats({ matches, players, isPro = false, onUpgrade
         {([
           { id: 'overview', label: '📊 Overview', locked: false },
           { id: 'progress', label: '📈 Progress', locked: false },
+          { id: 'players',  label: '👤 Players',  locked: !isPro },
           { id: 'awards',   label: '🏆 Awards',   locked: !isPro },
         ] as { id: View; label: string; locked: boolean }[]).map(t => (
           <button key={t.id}
@@ -180,7 +202,11 @@ export default function SeasonStats({ matches, players, isPro = false, onUpgrade
                     {POSITION_LABELS[p.position]}
                   </span>
                   <span className="text-white font-semibold">{p.name}</span>
-                  <span className="ml-auto text-gray-500 text-xs">{setsPlayed} sets</span>
+                  <span className="text-gray-500 text-xs ml-auto">{setsPlayed} sets</span>
+                  <button onClick={() => setSelectedPlayer(p)}
+                    className="tap-btn text-vr-400 text-xs font-bold shrink-0">
+                    Full Report →
+                  </button>
                 </div>
                 <div className="grid grid-cols-4 gap-2 mb-3">
                   {[
@@ -431,6 +457,40 @@ export default function SeasonStats({ matches, players, isPro = false, onUpgrade
                   )
                 })()}
               </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ── PLAYERS ──────────────────────────────────────────────────────────── */}
+      {view === 'players' && !isPro && (
+        <LockedSection
+          title="Individual Player Reports"
+          description="Full development reports per player — season trends, practice stats, team comparisons, and talking points for check-ins — plus a running action-plan log."
+          onUpgrade={onUpgrade ?? (() => {})}
+        />
+      )}
+      {view === 'players' && isPro && (
+        <div className="space-y-2">
+          <p className="text-gray-500 text-xs text-center mb-2">Tap a player for her full development report</p>
+          {players.map(p => {
+            const s = aggregatePlayerStats(p.id, matches)
+            const hasPractice = practices.some(session => session.scrimmages.some(sc => sc[p.id]))
+            return (
+              <button key={p.id} onClick={() => setSelectedPlayer(p)}
+                className="tap-btn w-full bg-navy-700 border border-white/10 rounded-2xl p-4 text-left flex items-center gap-3">
+                <span className="text-white font-bold text-base shrink-0">#{p.number}</span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full text-white shrink-0 ${POSITION_COLORS[p.position]}`}>
+                  {POSITION_LABELS[p.position]}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold truncate">{p.name}</p>
+                  <p className="text-gray-500 text-xs">
+                    {s.kills} K · {s.digs} D · {passAvg(s)} PA{hasPractice ? ' · has practice data' : ''}
+                  </p>
+                </div>
+                <span className="text-gray-600 text-lg shrink-0">›</span>
+              </button>
             )
           })}
         </div>

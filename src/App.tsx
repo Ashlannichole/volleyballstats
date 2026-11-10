@@ -3,6 +3,7 @@ import type { Player, Match } from './types'
 import {
   loadPlayers, savePlayers, loadMatches, saveMatches, loadPractices, savePractices,
   loadPlayers2, savePlayers2, loadMatches2, saveMatches2, loadPractices2, savePractices2,
+  loadPlayerNotes, savePlayerNotes, loadPlayerNotes2, savePlayerNotes2,
 } from './utils/storage'
 import { loadTier } from './utils/tier'
 import type { Tier } from './utils/tier'
@@ -21,7 +22,7 @@ import AdBanner from './components/AdBanner'
 import Onboarding from './components/Onboarding'
 import { useUpgradeModal } from './components/UpgradePrompt'
 import Tools from './components/Tools'
-import type { PracticeSession } from './types'
+import type { PracticeSession, PlayerNote } from './types'
 
 type Tab = 'roster' | 'live' | 'history' | 'season' | 'tools'
 
@@ -46,11 +47,13 @@ export default function App() {
   const [players,   setPlayers]   = useState<Player[]>(loadPlayers)
   const [matches,   setMatches]   = useState<Match[]>(loadMatches)
   const [practices, setPractices] = useState<PracticeSession[]>(loadPractices)
+  const [playerNotes, setPlayerNotes] = useState<PlayerNote[]>(loadPlayerNotes)
 
   // Team 2 data (Pro only)
   const [players2,   setPlayers2]   = useState<Player[]>(loadPlayers2)
   const [matches2,   setMatches2]   = useState<Match[]>(loadMatches2)
   const [practices2, setPractices2] = useState<PracticeSession[]>(loadPractices2)
+  const [playerNotes2, setPlayerNotes2] = useState<PlayerNote[]>(loadPlayerNotes2)
 
   const isPro       = tier === 'pro'
   const activeTeam  = isPro ? (teamSettings.activeTeam ?? 1) : 1
@@ -60,9 +63,19 @@ export default function App() {
   const activePlayers   = activeTeam === 2 ? players2   : players
   const activeMatches   = activeTeam === 2 ? matches2   : matches
   const activePractices = activeTeam === 2 ? practices2 : practices
+  const activePlayerNotes = activeTeam === 2 ? playerNotes2 : playerNotes
   const setActivePlayers   = activeTeam === 2 ? setPlayers2   : setPlayers
   const setActiveMatches   = activeTeam === 2 ? setMatches2   : setMatches
   const setActivePractices = activeTeam === 2 ? setPractices2 : setPractices
+  const setActivePlayerNotes = activeTeam === 2 ? setPlayerNotes2 : setPlayerNotes
+
+  function handleAddPlayerNote(playerId: string, text: string) {
+    setActivePlayerNotes(prev => [...prev, { id: crypto.randomUUID(), playerId, date: new Date().toISOString().split('T')[0], text }])
+  }
+
+  function handleDeletePlayerNote(id: string) {
+    setActivePlayerNotes(prev => prev.filter(n => n.id !== id))
+  }
 
   const activeTeamName = isPro
     ? (activeTeam === 2 ? teamSettings.team2Name : teamSettings.teamName)
@@ -87,9 +100,11 @@ export default function App() {
   useEffect(() => { savePlayers(players) },     [players])
   useEffect(() => { saveMatches(matches) },     [matches])
   useEffect(() => { savePractices(practices) }, [practices])
+  useEffect(() => { savePlayerNotes(playerNotes) }, [playerNotes])
   useEffect(() => { savePlayers2(players2) },     [players2])
   useEffect(() => { saveMatches2(matches2) },     [matches2])
   useEffect(() => { savePractices2(practices2) }, [practices2])
+  useEffect(() => { savePlayerNotes2(playerNotes2) }, [playerNotes2])
 
   // Keep a ref so timer callbacks always see the latest coachTeam without stale closures
   const coachTeamRef = useRef(coachTeam)
@@ -464,7 +479,16 @@ export default function App() {
           />
         </div>
         <div className={tab === 'season' ? '' : 'hidden'}>
-          <SeasonStats matches={activeMatches} players={activePlayers} isPro={isPro} onUpgrade={openModal} />
+          <SeasonStats
+            matches={activeMatches}
+            players={activePlayers}
+            practices={activePractices}
+            notes={activePlayerNotes}
+            onAddNote={handleAddPlayerNote}
+            onDeleteNote={handleDeletePlayerNote}
+            isPro={isPro}
+            onUpgrade={openModal}
+          />
         </div>
         <div className={tab === 'tools' ? 'h-full flex flex-col' : 'hidden'}>
           <Tools

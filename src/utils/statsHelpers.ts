@@ -1,4 +1,5 @@
-import type { PlayerStats, Match } from '../types'
+import type { PlayerStats, Match, PracticeSession } from '../types'
+import { EMPTY_STATS } from '../types'
 
 export function killPct(s: PlayerStats): string {
   if (s.attackAttempts === 0) return '—'
@@ -68,6 +69,21 @@ export function aggregatePlayerStats(playerId: string, matches: Match[]): Player
       if (setStats[playerId]) {
         Object.assign(base, mergeStats(base, setStats[playerId]))
       }
+    }
+  }
+  return base
+}
+
+// Same idea as aggregatePlayerStats, but over practice sessions instead of
+// matches — scrimmage/serve_pass/three_ball drills all store per-player
+// stats the same way (session.scrimmages is the same SetStats[] shape as
+// match.sets). Pass Challenge sessions contribute nothing here since that
+// drill tracks a team total only (scrimmages is always empty for it).
+export function aggregatePracticeStats(playerId: string, sessions: PracticeSession[]): PlayerStats {
+  let base = EMPTY_STATS()
+  for (const session of sessions) {
+    for (const setStats of session.scrimmages) {
+      if (setStats[playerId]) base = mergeStats(base, setStats[playerId])
     }
   }
   return base

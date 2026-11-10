@@ -109,6 +109,16 @@ export interface PracticeSession {
   passChallenge?: PassChallenge   // present only when drillType === 'pass_challenge'
 }
 
+// A dated coaching note / action-plan entry for one player — written during
+// a mid-season or end-of-season check-in, kept so the next conversation can
+// pick up where the last one left off.
+export interface PlayerNote {
+  id: string
+  playerId: string
+  date: string   // ISO date, when the note was written
+  text: string
+}
+
 export interface SavedLineup {
   id: string
   name: string
