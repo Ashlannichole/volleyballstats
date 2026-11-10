@@ -5,7 +5,7 @@ import { POSITION_LABELS, POSITION_COLORS } from '../types'
 const POSITIONS: Position[] = ['setter', 'outside', 'middle', 'opposite', 'libero', 'ds']
 const POSITION_NAMES: Record<Position, string> = {
   setter: 'Setter', outside: 'Outside Hitter', middle: 'Middle Blocker',
-  opposite: 'Opposite', libero: 'Libero', ds: 'DS',
+  opposite: 'Opposite', libero: 'Libero', ds: 'DS', coach: 'Coach',
 }
 
 interface Props {

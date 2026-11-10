@@ -1,4 +1,4 @@
-export type Position = 'setter' | 'outside' | 'middle' | 'opposite' | 'libero' | 'ds'
+export type Position = 'setter' | 'outside' | 'middle' | 'opposite' | 'libero' | 'ds' | 'coach'
 
 export interface Player {
   id: string
@@ -122,6 +122,10 @@ export interface PracticeSession {
   drillType?: 'scrimmage' | 'serve_pass' | 'three_ball' | 'pass_challenge' | 'team_game'   // absent/undefined = 'scrimmage', for older saved sessions
   passChallenge?: PassChallenge   // present only when drillType === 'pass_challenge'
   teamGame?: TeamGame              // present only when drillType === 'team_game'
+  // Stand-ins for this one session (e.g. a coach filling in short-handed) who
+  // aren't on the permanent roster — kept here so her name still resolves
+  // when viewing this session later, after she's no longer in `players`.
+  guestPlayers?: { id: string; name: string }[]
 }
 
 // A dated coaching note / action-plan entry for one player — written during
@@ -148,6 +152,7 @@ export const POSITION_LABELS: Record<Position, string> = {
   opposite: 'OPP',
   libero: 'L',
   ds: 'DS',
+  coach: 'Coach',
 }
 
 export const POSITION_COLORS: Record<Position, string> = {
@@ -157,4 +162,5 @@ export const POSITION_COLORS: Record<Position, string> = {
   opposite: 'bg-purple-600',
   libero: 'bg-red-600',
   ds: 'bg-orange-600',
+  coach: 'bg-gray-600',
 }

@@ -30,6 +30,15 @@ function totalStats(session: PracticeSession, playerId: string): PlayerStats {
   )
 }
 
+// Roster players plus any stand-in guests (e.g. a coach who filled in) saved
+// on this specific session — so a session's history still shows her name
+// after she's no longer part of `players`.
+function sessionPlayers(session: PracticeSession, rosterPlayers: Player[]): Player[] {
+  if (!session.guestPlayers || session.guestPlayers.length === 0) return rosterPlayers
+  const guests: Player[] = session.guestPlayers.map(g => ({ id: g.id, name: g.name, number: 0, position: 'coach' }))
+  return [...rosterPlayers, ...guests]
+}
+
 function drillSubtitle(session: PracticeSession): string {
   if (session.drillType === 'serve_pass') return 'Serve & Pass drill'
   if (session.drillType === 'three_ball') return '3-Ball Scrimmage drill'
@@ -48,8 +57,9 @@ function SessionDetail({
   onDelete: () => void
 }) {
   const [scrimmageIdx, setScrimmageIdx] = useState<number | null>(null)
+  const allPlayers = sessionPlayers(session, players)
 
-  const displayPlayers = players.filter(p =>
+  const displayPlayers = allPlayers.filter(p =>
     session.scrimmages.some(s => s[p.id] && (
       s[p.id].kills + s[p.id].digs + s[p.id].attackAttempts + s[p.id].attackErrors +
       s[p.id].aces + s[p.id].settingAssists + s[p.id].passAttempts +
@@ -111,7 +121,7 @@ function SessionDetail({
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {team.playerIds.map(id => {
-                      const p = players.find(pl => pl.id === id)
+                      const p = allPlayers.find(pl => pl.id === id)
                       return p ? (
                         <span key={id} className="bg-navy-700 border border-white/10 rounded-full px-2.5 py-1 text-white text-xs">{p.name}</span>
                       ) : null
@@ -333,18 +343,54 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
   const [passChallengeActive, setPassChallengeActive] = useState(false)
   const [teamGameActive, setTeamGameActive] = useState(false)
 
+  // Who's actually here today — defaults to the whole roster, uncheck anyone
+  // absent. A coach stepping in gets added as a one-off guest for just this
+  // visit (not saved to the permanent roster).
+  const [absentIds, setAbsentIds] = useState<Set<string>>(new Set())
+  const [guests, setGuests] = useState<Player[]>([])
+  const [guestName, setGuestName] = useState('')
+
+  const todaysRoster = [...players.filter(p => !absentIds.has(p.id)), ...guests]
+
+  function toggleAbsent(id: string) {
+    setAbsentIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function addGuest() {
+    const name = guestName.trim()
+    if (!name) return
+    setGuests(prev => [...prev, { id: crypto.randomUUID(), name, number: 0, position: 'coach' }])
+    setGuestName('')
+  }
+
+  function removeGuest(id: string) {
+    setGuests(prev => prev.filter(g => g.id !== id))
+  }
+
+  // Stamps today's guests onto a saved session so her name still resolves
+  // once this visit's `guests` state resets.
+  function tagGuests(session: PracticeSession): PracticeSession {
+    if (guests.length === 0) return session
+    return { ...session, guestPlayers: guests.map(g => ({ id: g.id, name: g.name })) }
+  }
+
   function handleSavePractice(session: PracticeSession) {
-    onSave(session)
+    onSave(tagGuests(session))
     setScrimmageActive(false)
   }
 
   function handleSaveDrill(session: PracticeSession) {
-    onSave(session)
+    onSave(tagGuests(session))
     setDrillActive(false)
   }
 
   function handleSaveThreeBall(session: PracticeSession) {
-    onSave(session)
+    onSave(tagGuests(session))
     setThreeBallActive(false)
   }
 
@@ -354,7 +400,7 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
   }
 
   function handleSaveTeamGame(session: PracticeSession) {
-    onSave(session)
+    onSave(tagGuests(session))
     setTeamGameActive(false)
   }
 
@@ -375,7 +421,7 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
     return (
       <div className="h-full flex flex-col">
         <LiveGame
-          players={players}
+          players={todaysRoster}
           onSaveMatch={(_: Match) => {}}
           practiceMode={true}
           onSavePractice={handleSavePractice}
@@ -388,7 +434,7 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
   if (drillActive) {
     return (
       <ServePassDrill
-        players={players}
+        players={todaysRoster}
         onSave={handleSaveDrill}
         onCancel={() => setDrillActive(false)}
       />
@@ -399,7 +445,7 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
   if (threeBallActive) {
     return (
       <ThreeBallDrill
-        players={players}
+        players={todaysRoster}
         onSave={handleSaveThreeBall}
         onCancel={() => setThreeBallActive(false)}
       />
@@ -420,7 +466,7 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
   if (teamGameActive) {
     return (
       <TeamGameDrill
-        players={players}
+        players={todaysRoster}
         matches={matches}
         practices={sessions}
         onSave={handleSaveTeamGame}
@@ -439,12 +485,57 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
         <span className="text-gray-500 text-sm">{sessions.length} session{sessions.length !== 1 ? 's' : ''}</span>
       </div>
 
+      {/* Who's here today */}
+      {players.length > 0 && (
+        <div className="bg-navy-700 border border-white/10 rounded-2xl p-4 mb-4">
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Today's Roster</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {players.map(p => {
+              const absent = absentIds.has(p.id)
+              return (
+                <button key={p.id} onClick={() => toggleAbsent(p.id)}
+                  className={`tap-btn flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 border ${absent ? 'bg-navy-800 border-white/10 opacity-40' : 'bg-navy-600 border-vr-500/40'}`}>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white ${POSITION_COLORS[p.position]}`}>
+                    {POSITION_LABELS[p.position]}
+                  </span>
+                  <span className={`text-xs font-medium ${absent ? 'text-gray-500 line-through' : 'text-white'}`}>{p.name}</span>
+                </button>
+              )
+            })}
+          </div>
+          {guests.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {guests.map(g => (
+                <span key={g.id} className="tap-btn flex items-center gap-1.5 bg-vr-900/30 border border-vr-500/40 rounded-full pl-2.5 pr-1 py-1">
+                  <span className="text-xs font-medium text-white">{g.name}</span>
+                  <button onClick={() => removeGuest(g.id)} className="tap-btn text-gray-500 hover:text-red-400 text-xs px-1">✕</button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              value={guestName}
+              onChange={e => setGuestName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addGuest() }}
+              placeholder="Coach stepping in? Add her name"
+              className="flex-1 bg-navy-600 border border-white/20 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-pb-500"
+            />
+            <button onClick={addGuest} disabled={!guestName.trim()}
+              className="tap-btn bg-vr-600 disabled:opacity-40 text-white font-bold px-4 rounded-xl text-sm">
+              + Add
+            </button>
+          </div>
+          <p className="text-gray-600 text-[10px] mt-2">Uncheck anyone who isn't here today. Added guests count toward today's drills only.</p>
+        </div>
+      )}
+
       {/* Start new practice */}
       <div className="bg-navy-700 border border-vr-700/40 rounded-2xl p-4 mb-6">
         <p className="text-vr-400 text-xs font-bold uppercase tracking-widest mb-3">New Practice Session</p>
 
-        {players.length === 0 ? (
-          <p className="text-yellow-400 text-sm">Add players to your roster first.</p>
+        {todaysRoster.length === 0 ? (
+          <p className="text-yellow-400 text-sm">Add players to your roster first, or add a guest above.</p>
         ) : (
           <>
             <p className="text-gray-400 text-sm mb-4">
@@ -518,7 +609,7 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
         <div className="space-y-3">
           <p className="text-gray-500 text-xs font-bold uppercase tracking-widest px-1">Past Sessions</p>
           {sorted.map(s => {
-            const activePlayers = players.filter(p =>
+            const activePlayers = sessionPlayers(s, players).filter(p =>
               s.scrimmages.some((sc: SetStats) => sc[p.id] && (
                 sc[p.id].kills + sc[p.id].digs + sc[p.id].attackAttempts + sc[p.id].attackErrors +
                 sc[p.id].aces + sc[p.id].settingAssists + sc[p.id].passAttempts +
