@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Player, PlayerStats, Match, PracticeSession, PlayerNote } from '../types'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
-import { mergeStats, aggregatePlayerStats, aggregatePracticeStats, buildTeamSummary, killPct, passAvg, hittingPct } from '../utils/statsHelpers'
+import { mergeStats, aggregatePlayerStats, aggregatePracticeStats, aggregateTeamGameRecord, buildTeamSummary, killPct, passAvg, hittingPct } from '../utils/statsHelpers'
 
 interface Props {
   player: Player
@@ -149,6 +149,7 @@ export default function PlayerReport({ player, players, matches, practices, note
   const practicePassSeries = practiceSessionSeries.filter(s => s.stats.passAttempts > 0).map(s => s.stats.passRatingTotal / s.stats.passAttempts)
   const practiceHitSeries = practiceSessionSeries.filter(s => s.stats.attackAttempts > 0).map(s => (s.stats.kills - s.stats.attackErrors) / s.stats.attackAttempts)
 
+  const teamGameRecord = aggregateTeamGameRecord(player.id, practices)
   const insights = buildInsights(matchStats, practiceStats, team, tournamentSeries)
   const playerNotes = notes.filter(n => n.playerId === player.id).sort((a, b) => b.date.localeCompare(a.date))
 
@@ -317,6 +318,18 @@ export default function PlayerReport({ player, players, matches, practices, note
           </>
         )}
       </div>
+
+      {/* Team drill win/loss record */}
+      {(teamGameRecord.wins + teamGameRecord.losses) > 0 && (
+        <div className="bg-navy-700 border border-white/10 rounded-2xl p-4 mb-4 flex items-center justify-between">
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">🆚 Team Drill Record</p>
+          <p className="text-white font-bold text-sm">
+            <span className="text-green-400">{teamGameRecord.wins}W</span>
+            {' – '}
+            <span className="text-red-400">{teamGameRecord.losses}L</span>
+          </p>
+        </div>
+      )}
 
       {/* Notes & action plan */}
       <div className="bg-navy-700 border border-white/10 rounded-2xl p-4 mb-4">

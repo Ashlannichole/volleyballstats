@@ -98,6 +98,20 @@ export interface PassChallenge {
   rounds: PassChallengeRound[]   // one per side; two once both sides have gone
 }
 
+// One side of a small-sided competitive drill (3v3, Queen of the Court,
+// Mini Tournament, etc.) — just a label and the girls assigned to it, no
+// per-player stats.
+export interface TeamGameTeam {
+  name: string
+  playerIds: string[]
+}
+
+export interface TeamGame {
+  drillName: string               // e.g. "Queen of the Court", "3v3" — whatever the coach typed in
+  teams: TeamGameTeam[]
+  winningTeamIndex: number | null // index into teams; null = tie / not recorded, doesn't count toward anyone's record
+}
+
 export interface PracticeSession {
   id: string
   date: string
@@ -105,8 +119,9 @@ export interface PracticeSession {
   teamLabel: string     // e.g. "Black" or "White" for two-coach tracking
   notes: string
   scrimmages: SetStats[]
-  drillType?: 'scrimmage' | 'serve_pass' | 'three_ball' | 'pass_challenge'   // absent/undefined = 'scrimmage', for older saved sessions
+  drillType?: 'scrimmage' | 'serve_pass' | 'three_ball' | 'pass_challenge' | 'team_game'   // absent/undefined = 'scrimmage', for older saved sessions
   passChallenge?: PassChallenge   // present only when drillType === 'pass_challenge'
+  teamGame?: TeamGame              // present only when drillType === 'team_game'
 }
 
 // A dated coaching note / action-plan entry for one player — written during
