@@ -142,6 +142,20 @@ export interface ThreeBeforeTen {
   winner: 'hitting' | 'defense' | null   // null = drill not finished/recorded
 }
 
+// "Servers vs Passers" (2 teams of 5): competitive serve/receive where each
+// rep scores both a team tally AND per-player PlayerStats (unlike the other
+// team-vs-team drills, this one feeds individual Player Reports). Serve
+// scoring: ace or a 1-pass = +1 servers; missed serve = -1 servers, +1
+// passers. Receive scoring: 3-pass = +1 passers; 0-pass (including an ace)
+// = -1 passers; 2-pass is a wash.
+export interface ServersVsPassers {
+  serverTeam: TeamGameTeam
+  passerTeam: TeamGameTeam
+  serverScore: number
+  passerScore: number
+  winner: 'servers' | 'passers' | null   // null = tie / not recorded, doesn't count toward anyone's record
+}
+
 export interface PracticeSession {
   id: string
   date: string
@@ -149,11 +163,14 @@ export interface PracticeSession {
   teamLabel: string     // e.g. "Black" or "White" for two-coach tracking
   notes: string
   scrimmages: SetStats[]
-  drillType?: 'scrimmage' | 'serve_pass' | 'three_ball' | 'pass_challenge' | 'team_game' | 'zero_vs_eighteen' | 'three_before_ten'   // absent/undefined = 'scrimmage', for older saved sessions
+  drillType?: 'scrimmage' | 'serve_pass' | 'three_ball' | 'pass_challenge' | 'team_game' | 'zero_vs_eighteen' | 'three_before_ten' | 'servers_vs_passers' | 'pressure_serve_receive'   // absent/undefined = 'scrimmage', for older saved sessions
   passChallenge?: PassChallenge   // present only when drillType === 'pass_challenge'
   teamGame?: TeamGame              // present only when drillType === 'team_game'
   zeroVsEighteen?: ZeroVsEighteen   // present only when drillType === 'zero_vs_eighteen'
   threeBeforeTen?: ThreeBeforeTen   // present only when drillType === 'three_before_ten'
+  serversVsPassers?: ServersVsPassers   // present only when drillType === 'servers_vs_passers'
+  // 'pressure_serve_receive' has no extra metadata — it's a pure per-player
+  // stat-gathering rotation drill (no team/winner), same shape as 'serve_pass'.
   // Stand-ins for this one session (e.g. a coach filling in short-handed) who
   // aren't on the permanent roster — kept here so her name still resolves
   // when viewing this session later, after she's no longer in `players`.

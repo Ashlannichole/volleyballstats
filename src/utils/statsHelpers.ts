@@ -32,6 +32,11 @@ export function aggregateTeamGameRecord(playerId: string, sessions: PracticeSess
       if (winner === null) continue
       if (hittingTeam.playerIds.includes(playerId)) { winner === 'hitting' ? wins++ : losses++ }
       else if (defenseTeam.playerIds.includes(playerId)) { winner === 'defense' ? wins++ : losses++ }
+    } else if (session.drillType === 'servers_vs_passers' && session.serversVsPassers) {
+      const { serverTeam, passerTeam, winner } = session.serversVsPassers
+      if (winner === null) continue
+      if (serverTeam.playerIds.includes(playerId)) { winner === 'servers' ? wins++ : losses++ }
+      else if (passerTeam.playerIds.includes(playerId)) { winner === 'passers' ? wins++ : losses++ }
     }
   }
   return { wins, losses }

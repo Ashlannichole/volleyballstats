@@ -9,6 +9,8 @@ import PassChallengeDrill from './PassChallengeDrill'
 import TeamGameDrill from './TeamGameDrill'
 import ZeroVsEighteenDrill from './ZeroVsEighteenDrill'
 import ThreeBeforeTenDrill from './ThreeBeforeTenDrill'
+import ServersVsPassersDrill from './ServersVsPassersDrill'
+import PressureServeReceiveDrill from './PressureServeReceiveDrill'
 import type { PresetTeams } from '../utils/teamSplit'
 
 function roundStats(round: PassChallengeRound, repsGoal: number) {
@@ -49,6 +51,8 @@ function drillSubtitle(session: PracticeSession): string {
   if (session.drillType === 'team_game') return session.teamGame?.drillName || 'Team Drill'
   if (session.drillType === 'zero_vs_eighteen') return '0 vs 18 drill'
   if (session.drillType === 'three_before_ten') return '3 Before 10 drill'
+  if (session.drillType === 'servers_vs_passers') return 'Servers vs Passers drill'
+  if (session.drillType === 'pressure_serve_receive') return 'Pressure Serve Receive drill'
   return `${session.scrimmages.length} set${session.scrimmages.length !== 1 ? 's' : ''}`
 }
 
@@ -272,8 +276,68 @@ function SessionDetail({
             Target: {session.passChallenge.targetTotal}/{session.passChallenge.repsGoal * 3} points ({(session.passChallenge.targetTotal / session.passChallenge.repsGoal).toFixed(1)} avg) across {session.passChallenge.repsGoal} serves to win
           </p>
         </div>
-      ) : session.drillType === 'serve_pass' ? (
-        /* Serve & Pass drill: dedicated table — kills/digs/attacks don't apply */
+      ) : session.drillType === 'servers_vs_passers' && session.serversVsPassers ? (
+        /* Servers vs Passers: team score/winner banner, then the same per-player serve/pass table */
+        (() => {
+          const svp = session.serversVsPassers!
+          return (
+            <div className="mb-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div className={`border rounded-2xl p-4 ${svp.winner === 'servers' ? 'border-green-500/50 bg-green-900/15' : 'border-white/10 bg-navy-800'}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-white font-bold text-sm">Serving — {svp.serverTeam.name}</p>
+                    {svp.winner === 'servers' && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-900/40 border border-green-600/50 text-green-300">🏆 WON</span>}
+                  </div>
+                  <p className="text-vr-300 text-2xl font-black">{svp.serverScore}</p>
+                </div>
+                <div className={`border rounded-2xl p-4 ${svp.winner === 'passers' ? 'border-green-500/50 bg-green-900/15' : 'border-white/10 bg-navy-800'}`}>
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-white font-bold text-sm">Passing — {svp.passerTeam.name}</p>
+                    {svp.winner === 'passers' && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-900/40 border border-green-600/50 text-green-300">🏆 WON</span>}
+                  </div>
+                  <p className="text-cyan-300 text-2xl font-black">{svp.passerScore}</p>
+                </div>
+              </div>
+              {svp.winner === null && <p className="text-gray-500 text-xs text-center mb-3">No winner recorded for this drill.</p>}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[440px]">
+                  <thead>
+                    <tr className="text-gray-500 text-xs">
+                      <th className="text-left py-1 pr-3">Player</th>
+                      <th className="text-center px-2">Srv Att</th>
+                      <th className="text-center px-2">Ace</th>
+                      <th className="text-center px-2">Err</th>
+                      <th className="text-center px-2">Srv%</th>
+                      <th className="text-center px-2">Pass Att</th>
+                      <th className="text-center px-2">Pass Avg</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayPlayers.map(p => {
+                      const s = totalStats(session, p.id)
+                      const srvPct = s.serveAttempts > 0
+                        ? Math.round(((s.serveAttempts - s.serveErrors) / s.serveAttempts) * 100) + '%'
+                        : '—'
+                      return (
+                        <tr key={p.id} className="border-t border-white/5">
+                          <td className="py-2 pr-3 text-white font-medium truncate max-w-[100px]">{p.name}</td>
+                          <td className="text-center px-2 text-gray-300">{s.serveAttempts}</td>
+                          <td className="text-center px-2 text-yellow-400">{s.aces}</td>
+                          <td className="text-center px-2 text-red-400">{s.serveErrors}</td>
+                          <td className="text-center px-2 text-pb-400">{srvPct}</td>
+                          <td className="text-center px-2 text-gray-300">{s.passAttempts}</td>
+                          <td className="text-center px-2 text-cyan-400">{passAvg(s)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })()
+      ) : session.drillType === 'serve_pass' || session.drillType === 'pressure_serve_receive' ? (
+        /* Serve & Pass / Pressure Serve Receive: dedicated table — kills/digs/attacks don't apply */
         <div className="overflow-x-auto mb-5">
           <table className="w-full text-sm min-w-[440px]">
             <thead>
@@ -441,6 +505,8 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
   const [teamGameActive, setTeamGameActive] = useState(false)
   const [zeroVsEighteenActive, setZeroVsEighteenActive] = useState(false)
   const [threeBeforeTenActive, setThreeBeforeTenActive] = useState(false)
+  const [serversVsPassersActive, setServersVsPassersActive] = useState(false)
+  const [pressureServeReceiveActive, setPressureServeReceiveActive] = useState(false)
 
   // Who's actually here today — defaults to the whole roster, uncheck anyone
   // absent. A coach stepping in gets added as a one-off guest for just this
@@ -532,6 +598,16 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
   function handleSaveThreeBeforeTen(session: PracticeSession) {
     onSave(tagGuests(session))
     setThreeBeforeTenActive(false)
+  }
+
+  function handleSaveServersVsPassers(session: PracticeSession) {
+    onSave(tagGuests(session))
+    setServersVsPassersActive(false)
+  }
+
+  function handleSavePressureServeReceive(session: PracticeSession) {
+    onSave(tagGuests(session))
+    setPressureServeReceiveActive(false)
   }
 
   // ── Session detail ────────────────────────────────────────────────────
@@ -630,6 +706,31 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
         presetTeams={presetTeams}
         onSave={handleSaveThreeBeforeTen}
         onCancel={() => setThreeBeforeTenActive(false)}
+      />
+    )
+  }
+
+  // ── Servers vs Passers ───────────────────────────────────────────────────
+  if (serversVsPassersActive) {
+    return (
+      <ServersVsPassersDrill
+        players={todaysRoster}
+        matches={matches}
+        practices={sessions}
+        presetTeams={presetTeams}
+        onSave={handleSaveServersVsPassers}
+        onCancel={() => setServersVsPassersActive(false)}
+      />
+    )
+  }
+
+  // ── Pressure Serve Receive (Danger) ──────────────────────────────────────
+  if (pressureServeReceiveActive) {
+    return (
+      <PressureServeReceiveDrill
+        players={todaysRoster}
+        onSave={handleSavePressureServeReceive}
+        onCancel={() => setPressureServeReceiveActive(false)}
       />
     )
   }
@@ -791,6 +892,30 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
             >
               Start 3 Before 10 🔟
             </button>
+
+            <div className="border-t border-white/10 my-4" />
+
+            <p className="text-gray-400 text-sm mb-4">
+              Servers vs Passers (2 teams of 5): ace or a 1-pass scores servers, a 3-pass scores passers, a missed serve scores passers, a 0-pass costs passers. Tracks each girl's serve/pass reps toward her season stats.
+            </p>
+            <button
+              onClick={() => setServersVsPassersActive(true)}
+              className="tap-btn w-full bg-navy-600 border border-vr-500/40 text-white font-bold py-4 rounded-xl text-base"
+            >
+              Start Servers vs Passers 🎾🙌
+            </button>
+
+            <div className="border-t border-white/10 my-4" />
+
+            <p className="text-gray-400 text-sm mb-4">
+              Pressure Serve Receive (Danger): the active passer starts at 10 — a 3-pass earns a point, a 1-pass or ace puts her in danger, and a 2nd shaky pass while in danger swaps her out for the server. Tracks every passer's and server's reps.
+            </p>
+            <button
+              onClick={() => setPressureServeReceiveActive(true)}
+              className="tap-btn w-full bg-navy-600 border border-vr-500/40 text-white font-bold py-4 rounded-xl text-base"
+            >
+              Start Pressure Serve Receive ⚠️
+            </button>
           </>
         )}
 
@@ -854,6 +979,8 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
                       ? ` · ${s.zeroVsEighteen?.score ?? 0}/${s.zeroVsEighteen?.scoreGoal ?? 25} pts, ${s.zeroVsEighteen?.errors ?? 0}/${s.zeroVsEighteen?.errorGoal ?? 7} err`
                       : s.drillType === 'three_before_ten'
                       ? ` · ${s.threeBeforeTen?.streak ?? 0}/${s.threeBeforeTen?.streakGoal ?? 3} streak, ${s.threeBeforeTen?.defenseTotal ?? 0}/${s.threeBeforeTen?.digGoal ?? 10} digs`
+                      : s.drillType === 'servers_vs_passers'
+                      ? ` · ${s.serversVsPassers?.serverScore ?? 0}–${s.serversVsPassers?.passerScore ?? 0}`
                       : ` · ${activePlayers.length} players`}
                   </p>
                   {s.notes && <p className="text-gray-600 text-xs italic truncate mt-0.5">"{s.notes}"</p>}
@@ -882,6 +1009,14 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
                       <p className="text-gray-500 text-xs">No winner</p>
                     )}
                   </div>
+                ) : s.drillType === 'servers_vs_passers' && s.serversVsPassers ? (
+                  <div className="shrink-0 text-right">
+                    {s.serversVsPassers.winner !== null ? (
+                      <p className="text-green-400 font-bold text-sm">🏆 {s.serversVsPassers.winner === 'servers' ? s.serversVsPassers.serverTeam.name : s.serversVsPassers.passerTeam.name}</p>
+                    ) : (
+                      <p className="text-gray-500 text-xs">No winner</p>
+                    )}
+                  </div>
                 ) : s.drillType === 'pass_challenge' && s.passChallenge ? (
                   <div className="flex gap-3 text-center shrink-0">
                     {s.passChallenge.rounds.map((r, i) => {
@@ -895,7 +1030,7 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
                       )
                     })}
                   </div>
-                ) : s.drillType === 'serve_pass' ? (
+                ) : s.drillType === 'serve_pass' || s.drillType === 'pressure_serve_receive' ? (
                   <div className="flex gap-3 text-center shrink-0">
                     <div><p className="text-pb-300 font-bold">{totals.serveAttempts}</p><p className="text-gray-600 text-[10px]">SRV</p></div>
                     <div><p className="text-yellow-400 font-bold">{totals.aces}</p><p className="text-gray-600 text-[10px]">ACE</p></div>
