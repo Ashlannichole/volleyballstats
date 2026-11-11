@@ -7,6 +7,9 @@ import ServePassDrill from './ServePassDrill'
 import ThreeBallDrill from './ThreeBallDrill'
 import PassChallengeDrill from './PassChallengeDrill'
 import TeamGameDrill from './TeamGameDrill'
+import ZeroVsEighteenDrill from './ZeroVsEighteenDrill'
+import ThreeBeforeTenDrill from './ThreeBeforeTenDrill'
+import type { PresetTeams } from '../utils/teamSplit'
 
 function roundStats(round: PassChallengeRound, repsGoal: number) {
   const count = round.reps.length
@@ -44,6 +47,8 @@ function drillSubtitle(session: PracticeSession): string {
   if (session.drillType === 'three_ball') return '3-Ball Scrimmage drill'
   if (session.drillType === 'pass_challenge') return 'Pass Challenge drill'
   if (session.drillType === 'team_game') return session.teamGame?.drillName || 'Team Drill'
+  if (session.drillType === 'zero_vs_eighteen') return '0 vs 18 drill'
+  if (session.drillType === 'three_before_ten') return '3 Before 10 drill'
   return `${session.scrimmages.length} set${session.scrimmages.length !== 1 ? 's' : ''}`
 }
 
@@ -135,6 +140,98 @@ function SessionDetail({
             <p className="text-gray-500 text-xs text-center">No winner recorded for this drill.</p>
           )}
         </div>
+      ) : session.drillType === 'zero_vs_eighteen' && session.zeroVsEighteen ? (
+        /* 0 vs 18: team-total score/error race, no per-player stats */
+        (() => {
+          const zve = session.zeroVsEighteen!
+          return (
+            <div className="space-y-3 mb-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className={`border rounded-2xl p-4 ${zve.winner === 'zero' ? 'border-green-500/50 bg-green-900/15' : 'border-white/10 bg-navy-800'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-white font-bold text-sm">0-Side — {zve.zeroTeam.name}</p>
+                    {zve.winner === 'zero' && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-900/40 border border-green-600/50 text-green-300">🏆 WON</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {zve.zeroTeam.playerIds.map(id => {
+                      const p = allPlayers.find(pl => pl.id === id)
+                      return p ? <span key={id} className="bg-navy-700 border border-white/10 rounded-full px-2.5 py-1 text-white text-xs">{p.name}</span> : null
+                    })}
+                  </div>
+                </div>
+                <div className={`border rounded-2xl p-4 ${zve.winner === 'eighteen' ? 'border-green-500/50 bg-green-900/15' : 'border-white/10 bg-navy-800'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-white font-bold text-sm">18-Side — {zve.eighteenTeam.name}</p>
+                    {zve.winner === 'eighteen' && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-900/40 border border-green-600/50 text-green-300">🏆 WON</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {zve.eighteenTeam.playerIds.map(id => {
+                      const p = allPlayers.find(pl => pl.id === id)
+                      return p ? <span key={id} className="bg-navy-700 border border-white/10 rounded-full px-2.5 py-1 text-white text-xs">{p.name}</span> : null
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="bg-navy-800 border border-white/10 rounded-2xl p-4 flex items-center justify-around text-center">
+                <div>
+                  <p className="text-white text-2xl font-black leading-none">{zve.score}<span className="text-gray-600 text-base">/{zve.scoreGoal}</span></p>
+                  <p className="text-gray-500 text-[11px] mt-0.5">0-side points</p>
+                </div>
+                <div>
+                  <p className="text-red-400 text-2xl font-black leading-none">{zve.errors}<span className="text-gray-600 text-base">/{zve.errorGoal}</span></p>
+                  <p className="text-gray-500 text-[11px] mt-0.5">0-side errors</p>
+                </div>
+              </div>
+              {zve.winner === null && <p className="text-gray-500 text-xs text-center">No winner recorded for this drill.</p>}
+            </div>
+          )
+        })()
+      ) : session.drillType === 'three_before_ten' && session.threeBeforeTen ? (
+        /* 3 Before 10: team-total streak/dig race, no per-player stats */
+        (() => {
+          const tbt = session.threeBeforeTen!
+          return (
+            <div className="space-y-3 mb-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className={`border rounded-2xl p-4 ${tbt.winner === 'hitting' ? 'border-green-500/50 bg-green-900/15' : 'border-white/10 bg-navy-800'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-white font-bold text-sm">Hitting — {tbt.hittingTeam.name}</p>
+                    {tbt.winner === 'hitting' && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-900/40 border border-green-600/50 text-green-300">🏆 WON</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tbt.hittingTeam.playerIds.map(id => {
+                      const p = allPlayers.find(pl => pl.id === id)
+                      return p ? <span key={id} className="bg-navy-700 border border-white/10 rounded-full px-2.5 py-1 text-white text-xs">{p.name}</span> : null
+                    })}
+                  </div>
+                </div>
+                <div className={`border rounded-2xl p-4 ${tbt.winner === 'defense' ? 'border-green-500/50 bg-green-900/15' : 'border-white/10 bg-navy-800'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-white font-bold text-sm">Defense — {tbt.defenseTeam.name}</p>
+                    {tbt.winner === 'defense' && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-900/40 border border-green-600/50 text-green-300">🏆 WON</span>}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {tbt.defenseTeam.playerIds.map(id => {
+                      const p = allPlayers.find(pl => pl.id === id)
+                      return p ? <span key={id} className="bg-navy-700 border border-white/10 rounded-full px-2.5 py-1 text-white text-xs">{p.name}</span> : null
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="bg-navy-800 border border-white/10 rounded-2xl p-4 flex items-center justify-around text-center">
+                <div>
+                  <p className="text-white text-2xl font-black leading-none">{tbt.streak}<span className="text-gray-600 text-base">/{tbt.streakGoal}</span></p>
+                  <p className="text-gray-500 text-[11px] mt-0.5">kill streak</p>
+                </div>
+                <div>
+                  <p className="text-cyan-400 text-2xl font-black leading-none">{tbt.defenseTotal}<span className="text-gray-600 text-base">/{tbt.digGoal}</span></p>
+                  <p className="text-gray-500 text-[11px] mt-0.5">total digs/blocks</p>
+                </div>
+              </div>
+              {tbt.winner === null && <p className="text-gray-500 text-xs text-center">No winner recorded for this drill.</p>}
+            </div>
+          )
+        })()
       ) : session.drillType === 'pass_challenge' && session.passChallenge ? (
         /* Pass Challenge drill: a serving-side total/average per round, no per-player breakdown */
         <div className="space-y-3 mb-5">
@@ -342,6 +439,8 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
   const [threeBallActive, setThreeBallActive] = useState(false)
   const [passChallengeActive, setPassChallengeActive] = useState(false)
   const [teamGameActive, setTeamGameActive] = useState(false)
+  const [zeroVsEighteenActive, setZeroVsEighteenActive] = useState(false)
+  const [threeBeforeTenActive, setThreeBeforeTenActive] = useState(false)
 
   // Who's actually here today — defaults to the whole roster, uncheck anyone
   // absent. A coach stepping in gets added as a one-off guest for just this
@@ -350,7 +449,28 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
   const [guests, setGuests] = useState<Player[]>([])
   const [guestName, setGuestName] = useState('')
 
+  // Optional Team 1 / Team 2 split for the whole practice, set once up front
+  // so starting a team-vs-team drill doesn't mean re-splitting the roster
+  // every time. Cycles none → team1 → team2 → none per tap.
+  const [teamAssign, setTeamAssign] = useState<Record<string, 'team1' | 'team2'>>({})
+
   const todaysRoster = [...players.filter(p => !absentIds.has(p.id)), ...guests]
+
+  function cycleTeamAssign(id: string) {
+    setTeamAssign(prev => {
+      const current = prev[id]
+      const next = { ...prev }
+      if (!current) next[id] = 'team1'
+      else if (current === 'team1') next[id] = 'team2'
+      else delete next[id]
+      return next
+    })
+  }
+
+  const presetTeams: PresetTeams = {
+    team1: todaysRoster.filter(p => teamAssign[p.id] === 'team1').map(p => p.id),
+    team2: todaysRoster.filter(p => teamAssign[p.id] === 'team2').map(p => p.id),
+  }
 
   function toggleAbsent(id: string) {
     setAbsentIds(prev => {
@@ -402,6 +522,16 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
   function handleSaveTeamGame(session: PracticeSession) {
     onSave(tagGuests(session))
     setTeamGameActive(false)
+  }
+
+  function handleSaveZeroVsEighteen(session: PracticeSession) {
+    onSave(tagGuests(session))
+    setZeroVsEighteenActive(false)
+  }
+
+  function handleSaveThreeBeforeTen(session: PracticeSession) {
+    onSave(tagGuests(session))
+    setThreeBeforeTenActive(false)
   }
 
   // ── Session detail ────────────────────────────────────────────────────
@@ -469,8 +599,37 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
         players={todaysRoster}
         matches={matches}
         practices={sessions}
+        presetTeams={presetTeams}
         onSave={handleSaveTeamGame}
         onCancel={() => setTeamGameActive(false)}
+      />
+    )
+  }
+
+  // ── 0 vs 18 ──────────────────────────────────────────────────────────────
+  if (zeroVsEighteenActive) {
+    return (
+      <ZeroVsEighteenDrill
+        players={todaysRoster}
+        matches={matches}
+        practices={sessions}
+        presetTeams={presetTeams}
+        onSave={handleSaveZeroVsEighteen}
+        onCancel={() => setZeroVsEighteenActive(false)}
+      />
+    )
+  }
+
+  // ── 3 Before 10 ──────────────────────────────────────────────────────────
+  if (threeBeforeTenActive) {
+    return (
+      <ThreeBeforeTenDrill
+        players={todaysRoster}
+        matches={matches}
+        practices={sessions}
+        presetTeams={presetTeams}
+        onSave={handleSaveThreeBeforeTen}
+        onCancel={() => setThreeBeforeTenActive(false)}
       />
     )
   }
@@ -527,6 +686,31 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
             </button>
           </div>
           <p className="text-gray-600 text-[10px] mt-2">Uncheck anyone who isn't here today. Added guests count toward today's drills only.</p>
+
+          <div className="border-t border-white/10 my-3" />
+
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Set Teams for Today (optional)</p>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {todaysRoster.map(p => {
+              const t = teamAssign[p.id]
+              return (
+                <button key={p.id} onClick={() => cycleTeamAssign(p.id)}
+                  className={`tap-btn flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 border ${
+                    t === 'team1' ? 'bg-vr-900/30 border-vr-500/50'
+                    : t === 'team2' ? 'bg-cyan-900/30 border-cyan-500/50'
+                    : 'bg-navy-800 border-white/10'
+                  }`}>
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white ${POSITION_COLORS[p.position]}`}>
+                    {POSITION_LABELS[p.position]}
+                  </span>
+                  <span className={`text-xs font-medium ${t === 'team1' ? 'text-vr-300' : t === 'team2' ? 'text-cyan-300' : 'text-gray-400'}`}>
+                    {p.name}{t === 'team1' ? ' · T1' : t === 'team2' ? ' · T2' : ''}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-gray-600 text-[10px]">Tap a girl to cycle Team 1 → Team 2 → unassigned. Team Drill, 0 vs 18, and 3 Before 10 will start from this split.</p>
         </div>
       )}
 
@@ -582,6 +766,30 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
               className="tap-btn w-full bg-navy-600 border border-vr-500/40 text-white font-bold py-4 rounded-xl text-base"
             >
               Start Team Drill 🆚
+            </button>
+
+            <div className="border-t border-white/10 my-4" />
+
+            <p className="text-gray-400 text-sm mb-4">
+              0 vs 18: the 0-side scores on everything, the 18-side only on the 0-side's errors. 0-side wins by reaching 25 before 7 errors.
+            </p>
+            <button
+              onClick={() => setZeroVsEighteenActive(true)}
+              className="tap-btn w-full bg-navy-600 border border-vr-500/40 text-white font-bold py-4 rounded-xl text-base"
+            >
+              Start 0 vs 18 🎯
+            </button>
+
+            <div className="border-t border-white/10 my-4" />
+
+            <p className="text-gray-400 text-sm mb-4">
+              3 Before 10: hitting lines vs. a full-6 defense with blockers. Hitters win with 3 kills in a row; defense wins first with 10 total digs/blocks.
+            </p>
+            <button
+              onClick={() => setThreeBeforeTenActive(true)}
+              className="tap-btn w-full bg-navy-600 border border-vr-500/40 text-white font-bold py-4 rounded-xl text-base"
+            >
+              Start 3 Before 10 🔟
             </button>
           </>
         )}
@@ -642,6 +850,10 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
                       ? ` · ${s.passChallenge?.rounds.length ?? 0} round${s.passChallenge?.rounds.length === 1 ? '' : 's'}`
                       : s.drillType === 'team_game'
                       ? ` · ${s.teamGame?.teams.length ?? 0} teams`
+                      : s.drillType === 'zero_vs_eighteen'
+                      ? ` · ${s.zeroVsEighteen?.score ?? 0}/${s.zeroVsEighteen?.scoreGoal ?? 25} pts, ${s.zeroVsEighteen?.errors ?? 0}/${s.zeroVsEighteen?.errorGoal ?? 7} err`
+                      : s.drillType === 'three_before_ten'
+                      ? ` · ${s.threeBeforeTen?.streak ?? 0}/${s.threeBeforeTen?.streakGoal ?? 3} streak, ${s.threeBeforeTen?.defenseTotal ?? 0}/${s.threeBeforeTen?.digGoal ?? 10} digs`
                       : ` · ${activePlayers.length} players`}
                   </p>
                   {s.notes && <p className="text-gray-600 text-xs italic truncate mt-0.5">"{s.notes}"</p>}
@@ -650,6 +862,22 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
                   <div className="shrink-0 text-right">
                     {s.teamGame.winningTeamIndex !== null ? (
                       <p className="text-green-400 font-bold text-sm">🏆 {s.teamGame.teams[s.teamGame.winningTeamIndex]?.name}</p>
+                    ) : (
+                      <p className="text-gray-500 text-xs">No winner</p>
+                    )}
+                  </div>
+                ) : s.drillType === 'zero_vs_eighteen' && s.zeroVsEighteen ? (
+                  <div className="shrink-0 text-right">
+                    {s.zeroVsEighteen.winner !== null ? (
+                      <p className="text-green-400 font-bold text-sm">🏆 {s.zeroVsEighteen.winner === 'zero' ? s.zeroVsEighteen.zeroTeam.name : s.zeroVsEighteen.eighteenTeam.name}</p>
+                    ) : (
+                      <p className="text-gray-500 text-xs">No winner</p>
+                    )}
+                  </div>
+                ) : s.drillType === 'three_before_ten' && s.threeBeforeTen ? (
+                  <div className="shrink-0 text-right">
+                    {s.threeBeforeTen.winner !== null ? (
+                      <p className="text-green-400 font-bold text-sm">🏆 {s.threeBeforeTen.winner === 'hitting' ? s.threeBeforeTen.hittingTeam.name : s.threeBeforeTen.defenseTeam.name}</p>
                     ) : (
                       <p className="text-gray-500 text-xs">No winner</p>
                     )}

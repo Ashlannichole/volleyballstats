@@ -8,19 +8,31 @@ export function playerImpactScore(s: PlayerStats): number {
     - s.attackErrors - s.serveErrors
 }
 
-// A player's season win/loss record across all saved team-game drills
-// (3v3, Queen of the Court, Mini Tournament, etc.) she's been assigned to.
-// A session with no winner recorded (tie / not declared) counts toward neither.
+// A player's season win/loss record across all saved team-vs-team drills
+// (3v3, Queen of the Court, Mini Tournament, 0 vs 18, 3 Before 10, etc.)
+// she's been assigned to. A session with no winner recorded (tie / not
+// declared / not finished) counts toward neither.
 export function aggregateTeamGameRecord(playerId: string, sessions: PracticeSession[]): { wins: number; losses: number } {
   let wins = 0, losses = 0
   for (const session of sessions) {
-    if (session.drillType !== 'team_game' || !session.teamGame) continue
-    const { teams, winningTeamIndex } = session.teamGame
-    if (winningTeamIndex === null) continue
-    const myTeamIndex = teams.findIndex(t => t.playerIds.includes(playerId))
-    if (myTeamIndex === -1) continue
-    if (myTeamIndex === winningTeamIndex) wins++
-    else losses++
+    if (session.drillType === 'team_game' && session.teamGame) {
+      const { teams, winningTeamIndex } = session.teamGame
+      if (winningTeamIndex === null) continue
+      const myTeamIndex = teams.findIndex(t => t.playerIds.includes(playerId))
+      if (myTeamIndex === -1) continue
+      if (myTeamIndex === winningTeamIndex) wins++
+      else losses++
+    } else if (session.drillType === 'zero_vs_eighteen' && session.zeroVsEighteen) {
+      const { zeroTeam, eighteenTeam, winner } = session.zeroVsEighteen
+      if (winner === null) continue
+      if (zeroTeam.playerIds.includes(playerId)) { winner === 'zero' ? wins++ : losses++ }
+      else if (eighteenTeam.playerIds.includes(playerId)) { winner === 'eighteen' ? wins++ : losses++ }
+    } else if (session.drillType === 'three_before_ten' && session.threeBeforeTen) {
+      const { hittingTeam, defenseTeam, winner } = session.threeBeforeTen
+      if (winner === null) continue
+      if (hittingTeam.playerIds.includes(playerId)) { winner === 'hitting' ? wins++ : losses++ }
+      else if (defenseTeam.playerIds.includes(playerId)) { winner === 'defense' ? wins++ : losses++ }
+    }
   }
   return { wins, losses }
 }
