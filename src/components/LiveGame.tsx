@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { Player, PlayerStats, SetStats, Match, SavedLineup, PracticeSession, Position } from '../types'
+import type { Player, PlayerStats, SetStats, Match, SavedLineup, PracticeSession, Position, TeamGameTeam } from '../types'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { loadLineups, saveLineups } from '../utils/storage'
 import LineupPlanner from './LineupPlanner'
@@ -19,6 +19,18 @@ interface Props {
   // Practice mode: replaces pre-match fields + saves as PracticeSession instead of Match
   practiceMode?: boolean
   onSavePractice?: (session: PracticeSession) => void
+  // 0 vs 18 scoring variant (practiceMode only): `players` is the 0-side's
+  // roster, tracked with real per-player stats same as a normal scrimmage.
+  // The 0-side scores on its own kills/aces/blocks (already SCORES_OUR_POINT)
+  // and the 18-side only "scores" on the 0-side's own errors (already
+  // SCORES_THEIR_POINT) — so the existing scoring engine already produces
+  // the right numbers. This flag just relabels the scoreboard, disables the
+  // manual +1-their-point tap (18-side never gets credit for its own kills),
+  // suppresses the normal volleyball set-complete check, and auto-decides a
+  // winner at 25 points or 7 errors instead.
+  zeroVsEighteen?: boolean
+  zveZeroTeam?: TeamGameTeam
+  zveEighteenTeam?: TeamGameTeam
   // On Fire! / Jinx! full-screen run popups — on by default
   celebrationAnimations?: boolean
   // Auto-credit the on-court setter with an assist on every kill — on by default
@@ -129,7 +141,10 @@ interface Snapshot {
   positionOverrides: Record<string, Position>
 }
 
-export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice, celebrationAnimations = true, autoAssist = true, matches = [] }: Props) {
+const ZVE_SCORE_GOAL = 25
+const ZVE_ERROR_GOAL = 7
+
+export default function LiveGame({ players, onSaveMatch, onGameStartedChange, isPro = false, teamName = 'My Team', recMode = false, sponsors = [], showSponsors = false, bestOf5 = false, practiceMode = false, onSavePractice, celebrationAnimations = true, autoAssist = true, matches = [], zeroVsEighteen = false, zveZeroTeam, zveEighteenTeam }: Props) {
   const [gameStarted, setGameStarted]       = useState(false)
   const [tournament, setTournament]         = useState('')
   const [opponent, setOpponent]             = useState('')
@@ -286,14 +301,15 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
     }
   }, [lastTimeout])
 
-  // Auto set-end: deciding set plays to 15, all others to 25
+  // Auto set-end: deciding set plays to 15, all others to 25 — doesn't apply
+  // to 0 vs 18, which has its own win condition (25 points or 7 errors).
   useEffect(() => {
-    if (!gameStarted) return
+    if (!gameStarted || zeroVsEighteen) return
     const hi = Math.max(ourScore, theirScore)
     const lo = Math.min(ourScore, theirScore)
     const limit = currentSet === (bestOf5 ? 4 : 2) ? 15 : 25
     if (hi >= limit && hi - lo >= 2) setSetCompleteAlert(true)
-  }, [ourScore, theirScore, currentSet, bestOf5])
+  }, [ourScore, theirScore, currentSet, bestOf5, zeroVsEighteen])
 
   // Score run tracking — the opponent hitting a 5-point run pops the Jinx! celebration
   useEffect(() => {
@@ -475,6 +491,13 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
   const setsToWin   = bestOf5 ? 3 : 2
   const ourSetsWon  = completedSetScores.filter(s => s.our > s.their).length
   const theirSetsWon = completedSetScores.filter(s => s.their > s.our).length
+
+  // 0 vs 18: ourScore is the 0-side's points (goal 25), theirScore is its
+  // error count (goal 7) — whichever threshold is hit first decides it.
+  const zveWinner: 'zero' | 'eighteen' | null = !zeroVsEighteen ? null
+    : ourScore >= ZVE_SCORE_GOAL ? 'zero'
+    : theirScore >= ZVE_ERROR_GOAL ? 'eighteen'
+    : null
 
   // Manual score tap — handles side-out rotation just like stat-based scoring
   function addOurPoint() {
@@ -875,6 +898,16 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
         teamLabel: mergedLabel,
         notes: practiceNotes.trim(),
         scrimmages: mergedSets,
+        ...(zeroVsEighteen ? {
+          drillType: 'zero_vs_eighteen' as const,
+          zeroVsEighteen: {
+            zeroTeam: zveZeroTeam ?? { name: '0-Side', playerIds: players.map(p => p.id) },
+            eighteenTeam: zveEighteenTeam ?? { name: '18-Side', playerIds: [] },
+            scoreGoal: ZVE_SCORE_GOAL, errorGoal: ZVE_ERROR_GOAL,
+            score: ourScore, errors: theirScore,
+            winner: zveWinner,
+          },
+        } : {}),
       })
     } else {
       const allSetScores = [...completedSetScores, { our: ourScore, their: theirScore }]
@@ -1334,7 +1367,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
             <div className="flex items-center gap-1 flex-wrap justify-center">
               {weAreServing && <span className="text-sm animate-pulse">🏐</span>}
               <p className={`text-xs font-bold tracking-wide ${weAreServing ? 'text-pb-300' : 'text-pb-400/60'}`}>
-                {teamName.toUpperCase()}
+                {zeroVsEighteen ? '0-SIDE' : teamName.toUpperCase()}
               </p>
               {scoreRun?.team === 'us' && scoreRun.count >= 3 && (
                 <span className="text-[10px] font-black bg-pb-900/60 border border-pb-500/50 text-pb-300 px-1.5 py-0.5 rounded-full">
@@ -1368,6 +1401,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
               }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
             </div>
+            {zeroVsEighteen && <p className="text-gray-500 text-[9px] mt-0.5">of {ZVE_SCORE_GOAL}</p>}
           </div>
 
           {/* Center */}
@@ -1388,7 +1422,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           <div className="flex-1 flex flex-col items-center">
             <div className="flex items-center gap-1 flex-wrap justify-center">
               <p className={`text-xs font-bold tracking-wide truncate ${!weAreServing ? 'text-gray-300' : 'text-gray-500'}`}>
-                {opponent.toUpperCase()}
+                {zeroVsEighteen ? 'ERRORS' : opponent.toUpperCase()}
               </p>
               {weAreServing === false && <span className="text-sm animate-pulse">🏐</span>}
               {scoreRun?.team === 'them' && scoreRun.count >= 3 && (
@@ -1407,8 +1441,8 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                 }
               }}
                 className="tap-btn text-gray-600 text-xs px-1">−</button>
-              <button onClick={addTheirPoint}
-                className="tap-btn text-4xl font-black text-white leading-none w-14 text-center">
+              <button onClick={zeroVsEighteen ? undefined : addTheirPoint} disabled={zeroVsEighteen}
+                className="tap-btn text-4xl font-black text-white leading-none w-14 text-center disabled:cursor-default">
                 {String(theirScore).padStart(2, '0')}
               </button>
               <div className="flex gap-1">
@@ -1422,6 +1456,7 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
                 ))}
               </div>
             </div>
+            {zeroVsEighteen && <p className="text-gray-500 text-[9px] mt-0.5">of {ZVE_ERROR_GOAL}</p>}
           </div>
 
           <div className="flex flex-col gap-1 shrink-0">
@@ -1440,6 +1475,14 @@ export default function LiveGame({ players, onSaveMatch, onGameStartedChange, is
           </div>
         </div>
       </div>
+
+      {zeroVsEighteen && zveWinner && (
+        <div className={`px-3 py-2 text-center text-sm font-bold shrink-0 ${
+          zveWinner === 'zero' ? 'bg-green-900/40 border-b border-green-600/50 text-green-300' : 'bg-red-900/30 border-b border-red-600/40 text-red-300'
+        }`}>
+          {zveWinner === 'zero' ? `🏆 0-side wins! Reached ${ZVE_SCORE_GOAL} points first.` : `🏆 18-side wins! 0-side hit ${ZVE_ERROR_GOAL} errors.`}
+        </div>
+      )}
 
       {/* ── SERVE TOGGLE + UNDO + ROTATION ────────────────────────────────── */}
       <div className="bg-navy-800/60 border-b border-white/5 px-3 py-1.5 flex items-center gap-2 shrink-0">

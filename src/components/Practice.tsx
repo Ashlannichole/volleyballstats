@@ -7,7 +7,6 @@ import ServePassDrill from './ServePassDrill'
 import ThreeBallDrill from './ThreeBallDrill'
 import PassChallengeDrill from './PassChallengeDrill'
 import TeamGameDrill from './TeamGameDrill'
-import ZeroVsEighteenDrill from './ZeroVsEighteenDrill'
 import ThreeBeforeTenDrill from './ThreeBeforeTenDrill'
 import ServersVsPassersDrill from './ServersVsPassersDrill'
 import PressureServeReceiveDrill from './PressureServeReceiveDrill'
@@ -145,7 +144,7 @@ function SessionDetail({
           )}
         </div>
       ) : session.drillType === 'zero_vs_eighteen' && session.zeroVsEighteen ? (
-        /* 0 vs 18: team-total score/error race, no per-player stats */
+        /* 0 vs 18: team score/error race, plus the 0-side's real per-player stats */
         (() => {
           const zve = session.zeroVsEighteen!
           return (
@@ -187,6 +186,45 @@ function SessionDetail({
                 </div>
               </div>
               {zve.winner === null && <p className="text-gray-500 text-xs text-center">No winner recorded for this drill.</p>}
+              {displayPlayers.length > 0 && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm min-w-[500px]">
+                    <thead>
+                      <tr className="text-gray-500 text-xs">
+                        <th className="text-left py-1 pr-3">Player</th>
+                        <th className="text-center px-2">K</th>
+                        <th className="text-center px-2">E</th>
+                        <th className="text-center px-2">TA</th>
+                        <th className="text-center px-2">K%</th>
+                        <th className="text-center px-2">A</th>
+                        <th className="text-center px-2">D</th>
+                        <th className="text-center px-2">BS</th>
+                        <th className="text-center px-2">Ast</th>
+                        <th className="text-center px-2">PA</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayPlayers.map(p => {
+                        const s = totalStats(session, p.id)
+                        return (
+                          <tr key={p.id} className="border-t border-white/5">
+                            <td className="py-2 pr-3 text-white font-medium truncate max-w-[100px]">{p.name}</td>
+                            <td className="text-center px-2 text-green-400 font-semibold">{s.kills}</td>
+                            <td className="text-center px-2 text-red-400">{s.attackErrors}</td>
+                            <td className="text-center px-2 text-gray-300">{s.attackAttempts}</td>
+                            <td className="text-center px-2 text-pb-400">{killPct(s)}</td>
+                            <td className="text-center px-2 text-yellow-400">{s.aces}</td>
+                            <td className="text-center px-2 text-cyan-400">{s.digs}</td>
+                            <td className="text-center px-2 text-vr-400">{s.soloBlocks}</td>
+                            <td className="text-center px-2 text-orange-400">{s.settingAssists}</td>
+                            <td className="text-center px-2 text-gray-300">{passAvg(s)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )
         })()
@@ -537,6 +575,18 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
     team1: todaysRoster.filter(p => teamAssign[p.id] === 'team1').map(p => p.id),
     team2: todaysRoster.filter(p => teamAssign[p.id] === 'team2').map(p => p.id),
   }
+  const hasPresetTeams = presetTeams.team1.length > 0 || presetTeams.team2.length > 0
+
+  // 0 vs 18 is run on the real rotation/stat engine (LiveGame), tracking the
+  // 0-side's actual per-player stats. If today's Team 1/Team 2 split is set,
+  // the coach picks which one is the 0-side; otherwise it's just everyone
+  // present, same as a normal Scrimmage.
+  const [zveZeroIsTeam1, setZveZeroIsTeam1] = useState(true)
+  const zveZeroIds = hasPresetTeams ? (zveZeroIsTeam1 ? presetTeams.team1 : presetTeams.team2) : todaysRoster.map(p => p.id)
+  const zveEighteenIds = hasPresetTeams ? (zveZeroIsTeam1 ? presetTeams.team2 : presetTeams.team1) : []
+  const zveZeroRoster = todaysRoster.filter(p => zveZeroIds.includes(p.id))
+  const zveZeroTeam = { name: hasPresetTeams ? (zveZeroIsTeam1 ? 'Team 1' : 'Team 2') : '0-Side', playerIds: zveZeroIds }
+  const zveEighteenTeam = { name: hasPresetTeams ? (zveZeroIsTeam1 ? 'Team 2' : 'Team 1') : '18-Side', playerIds: zveEighteenIds }
 
   function toggleAbsent(id: string) {
     setAbsentIds(prev => {
@@ -682,17 +732,21 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
     )
   }
 
-  // ── 0 vs 18 ──────────────────────────────────────────────────────────────
+  // ── 0 vs 18 — real rotations/stats via LiveGame, with 0-vs-18 scoring ─────
   if (zeroVsEighteenActive) {
     return (
-      <ZeroVsEighteenDrill
-        players={todaysRoster}
-        matches={matches}
-        practices={sessions}
-        presetTeams={presetTeams}
-        onSave={handleSaveZeroVsEighteen}
-        onCancel={() => setZeroVsEighteenActive(false)}
-      />
+      <div className="h-full flex flex-col">
+        <LiveGame
+          players={zveZeroRoster}
+          onSaveMatch={(_: Match) => {}}
+          practiceMode={true}
+          onSavePractice={handleSaveZeroVsEighteen}
+          zeroVsEighteen={true}
+          zveZeroTeam={zveZeroTeam}
+          zveEighteenTeam={zveEighteenTeam}
+          celebrationAnimations={false}
+        />
+      </div>
     )
   }
 
@@ -872,11 +926,24 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
             <div className="border-t border-white/10 my-4" />
 
             <p className="text-gray-400 text-sm mb-4">
-              0 vs 18: the 0-side scores on everything, the 18-side only on the 0-side's errors. 0-side wins by reaching 25 before 7 errors.
+              0 vs 18: the 0-side scores on everything, the 18-side only on the 0-side's errors. 0-side wins by reaching 25 before 7 errors. Full rotations and real per-player stats for the 0-side, same as a Scrimmage.
             </p>
+            {hasPresetTeams && (
+              <div className="flex gap-2 mb-2">
+                <button onClick={() => setZveZeroIsTeam1(true)}
+                  className={`tap-btn flex-1 py-2 rounded-xl text-xs font-bold border ${zveZeroIsTeam1 ? 'bg-vr-700 border-vr-500 text-white' : 'bg-navy-700 border-white/10 text-gray-400'}`}>
+                  0-side: Team 1
+                </button>
+                <button onClick={() => setZveZeroIsTeam1(false)}
+                  className={`tap-btn flex-1 py-2 rounded-xl text-xs font-bold border ${!zveZeroIsTeam1 ? 'bg-vr-700 border-vr-500 text-white' : 'bg-navy-700 border-white/10 text-gray-400'}`}>
+                  0-side: Team 2
+                </button>
+              </div>
+            )}
             <button
               onClick={() => setZeroVsEighteenActive(true)}
-              className="tap-btn w-full bg-navy-600 border border-vr-500/40 text-white font-bold py-4 rounded-xl text-base"
+              disabled={zveZeroRoster.length === 0}
+              className="tap-btn w-full bg-navy-600 border border-vr-500/40 text-white font-bold py-4 rounded-xl text-base disabled:opacity-40"
             >
               Start 0 vs 18 🎯
             </button>
