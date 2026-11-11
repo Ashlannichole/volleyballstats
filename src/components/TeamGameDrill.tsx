@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import type { Player, Match, PracticeSession, TeamGameTeam } from '../types'
 import { POSITION_LABELS, POSITION_COLORS } from '../types'
-import { mergeStats, aggregatePlayerStats, aggregatePracticeStats, playerImpactScore } from '../utils/statsHelpers'
+import { autoBalanceTeams, computeImpactScores, initialTwoTeams, type PresetTeams } from '../utils/teamSplit'
 
 interface Props {
   players: Player[]
   matches: Match[]
   practices: PracticeSession[]
+  presetTeams?: PresetTeams | null
   onSave: (s: PracticeSession) => void
   onCancel: () => void
 }
@@ -19,35 +20,29 @@ const TEAM_COLORS = [
 ]
 const TEAM_TEXT = ['text-vr-300', 'text-cyan-300', 'text-orange-300', 'text-pink-300']
 
-// Snake draft by impact score so each team ends up roughly as strong as the next.
-function autoBalance(players: Player[], teamCount: number, scores: Map<string, number>): TeamGameTeam[] {
-  const sorted = [...players].sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0))
-  const teams: TeamGameTeam[] = Array.from({ length: teamCount }, (_, i) => ({ name: `Team ${i + 1}`, playerIds: [] }))
-  let idx = 0, dir = 1
-  for (const p of sorted) {
-    teams[idx].playerIds.push(p.id)
-    idx += dir
-    if (idx === teamCount) { idx = teamCount - 1; dir = -1 }
-    else if (idx < 0) { idx = 0; dir = 1 }
-  }
-  return teams
-}
-
-export default function TeamGameDrill({ players, matches, practices, onSave, onCancel }: Props) {
+export default function TeamGameDrill({ players, matches, practices, presetTeams, onSave, onCancel }: Props) {
   const [drillName, setDrillName] = useState('')
   const [teamCount, setTeamCount] = useState(2)
 
-  const scores = new Map(players.map(p => {
-    const combined = mergeStats(aggregatePlayerStats(p.id, matches), aggregatePracticeStats(p.id, practices))
-    return [p.id, playerImpactScore(combined)] as const
-  }))
+  const scores = computeImpactScores(players, matches, practices)
 
-  const [teams, setTeams] = useState<TeamGameTeam[]>(() => autoBalance(players, teamCount, scores))
+  function teamsForCount(count: number): TeamGameTeam[] {
+    if (count === 2) return initialTwoTeams(players, scores, presetTeams)
+    return autoBalanceTeams(players, count, scores)
+  }
+
+  const [teams, setTeams] = useState<TeamGameTeam[]>(() => teamsForCount(teamCount))
   const [winner, setWinner] = useState<number | null>(null)
+  const usingPreset = teamCount === 2 && !!presetTeams && (presetTeams.team1.length > 0 || presetTeams.team2.length > 0)
 
-  function rebalance(count: number) {
+  function selectTeamCount(count: number) {
     setTeamCount(count)
-    setTeams(autoBalance(players, count, scores))
+    setTeams(teamsForCount(count))
+    setWinner(null)
+  }
+
+  function forceAutoBalance() {
+    setTeams(autoBalanceTeams(players, teamCount, scores))
     setWinner(null)
   }
 
@@ -100,18 +95,22 @@ export default function TeamGameDrill({ players, matches, practices, onSave, onC
         <label className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2 block">Number of Teams</label>
         <div className="flex gap-2 mb-4">
           {[2, 3, 4].map(n => (
-            <button key={n} onClick={() => rebalance(n)}
+            <button key={n} onClick={() => selectTeamCount(n)}
               className={`tap-btn flex-1 py-2.5 rounded-xl text-sm font-bold border ${teamCount === n ? 'bg-vr-600 border-vr-500 text-white' : 'bg-navy-600 border-white/10 text-gray-400'}`}>
               {n}
             </button>
           ))}
         </div>
 
-        <button onClick={() => rebalance(teamCount)}
+        <button onClick={forceAutoBalance}
           className="tap-btn w-full border border-vr-500/40 text-vr-300 font-bold py-2.5 rounded-xl text-sm">
           🔀 Auto-Balance Teams
         </button>
-        <p className="text-gray-600 text-[10px] mt-2">Balances by season stats (matches + practice). Tap a girl's name to move her to the next team.</p>
+        <p className="text-gray-600 text-[10px] mt-2">
+          {usingPreset
+            ? "Using today's Team 1 / Team 2 split. Tap a girl's name to move her, or Auto-Balance to split by stats instead."
+            : 'Balances by season stats (matches + practice). Tap a girl\'s name to move her to the next team.'}
+        </p>
       </div>
 
       <div className={`grid gap-3 mb-4 ${teamCount <= 2 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'}`}>

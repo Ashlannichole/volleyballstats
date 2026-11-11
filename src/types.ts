@@ -112,6 +112,50 @@ export interface TeamGame {
   winningTeamIndex: number | null // index into teams; null = tie / not recorded, doesn't count toward anyone's record
 }
 
+// "0 vs 18": the side at 0 scores on everything (kills, aces, opponent
+// errors); the side at 18 only scores when the 0-side makes an error.
+// The 0-side wins by reaching `scoreGoal` (25) before reaching `errorGoal`
+// (7 errors) — whichever happens first ends the drill.
+export interface ZeroVsEighteen {
+  zeroTeam: TeamGameTeam
+  eighteenTeam: TeamGameTeam
+  scoreGoal: number    // 25
+  errorGoal: number    // 7
+  score: number        // 0-side's current points
+  errors: number       // 0-side's current errors
+  winner: 'zero' | 'eighteen' | null   // null = drill not finished/recorded
+}
+
+// "3 Before 10": a hitting group works lines against a full-6 defense with
+// blockers. The hitting side wins by landing `streakGoal` (3) kills in a
+// row; the defense wins first by reaching `digGoal` (10) total digs/blocks
+// (not necessarily consecutive). Any dig, block, or hitting error resets
+// the hitting streak back to 0; only digs/blocks count toward the
+// defense's total (a hitting error doesn't).
+export interface ThreeBeforeTen {
+  hittingTeam: TeamGameTeam
+  defenseTeam: TeamGameTeam
+  streakGoal: number   // 3
+  digGoal: number      // 10
+  streak: number       // hitting side's current consecutive kills
+  defenseTotal: number // defense side's current total digs/blocks
+  winner: 'hitting' | 'defense' | null   // null = drill not finished/recorded
+}
+
+// "Servers vs Passers" (2 teams of 5): competitive serve/receive where each
+// rep scores both a team tally AND per-player PlayerStats (unlike the other
+// team-vs-team drills, this one feeds individual Player Reports). Serve
+// scoring: ace or a 1-pass = +1 servers; missed serve = -1 servers, +1
+// passers. Receive scoring: 3-pass = +1 passers; 0-pass (including an ace)
+// = -1 passers; 2-pass is a wash.
+export interface ServersVsPassers {
+  serverTeam: TeamGameTeam
+  passerTeam: TeamGameTeam
+  serverScore: number
+  passerScore: number
+  winner: 'servers' | 'passers' | null   // null = tie / not recorded, doesn't count toward anyone's record
+}
+
 export interface PracticeSession {
   id: string
   date: string
@@ -119,9 +163,14 @@ export interface PracticeSession {
   teamLabel: string     // e.g. "Black" or "White" for two-coach tracking
   notes: string
   scrimmages: SetStats[]
-  drillType?: 'scrimmage' | 'serve_pass' | 'three_ball' | 'pass_challenge' | 'team_game'   // absent/undefined = 'scrimmage', for older saved sessions
+  drillType?: 'scrimmage' | 'serve_pass' | 'three_ball' | 'pass_challenge' | 'team_game' | 'zero_vs_eighteen' | 'three_before_ten' | 'servers_vs_passers' | 'pressure_serve_receive'   // absent/undefined = 'scrimmage', for older saved sessions
   passChallenge?: PassChallenge   // present only when drillType === 'pass_challenge'
   teamGame?: TeamGame              // present only when drillType === 'team_game'
+  zeroVsEighteen?: ZeroVsEighteen   // present only when drillType === 'zero_vs_eighteen'
+  threeBeforeTen?: ThreeBeforeTen   // present only when drillType === 'three_before_ten'
+  serversVsPassers?: ServersVsPassers   // present only when drillType === 'servers_vs_passers'
+  // 'pressure_serve_receive' has no extra metadata — it's a pure per-player
+  // stat-gathering rotation drill (no team/winner), same shape as 'serve_pass'.
   // Stand-ins for this one session (e.g. a coach filling in short-handed) who
   // aren't on the permanent roster — kept here so her name still resolves
   // when viewing this session later, after she's no longer in `players`.
