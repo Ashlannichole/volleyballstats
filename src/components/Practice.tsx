@@ -922,7 +922,7 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
         <div className="border-t border-white/10 my-4" />
 
         <p className="text-gray-400 text-sm mb-4">
-          Serve/pass competition: one side receives 50 serves trying to hit a 2.5 pass average (125/150 points) to "win," then switch sides and run it again. No roster needed — just a running team total.
+          Serve/pass competition: one side receives a set number of serves trying to reach a target total to "win" (e.g. 125 of 150 for a 2.5 avg, or 100 Before 50), then switch sides and run it again. Reps and target are editable at setup. No roster needed — just a running team total.
         </p>
         <button
           onClick={() => setPassChallengeActive(true)}
