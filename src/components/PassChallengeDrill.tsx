@@ -22,9 +22,10 @@ function roundStats(round: PassChallengeRound, repsGoal: number) {
 }
 
 export default function PassChallengeDrill({ onSave, onCancel }: Props) {
+  const [phase, setPhase] = useState<'setup' | 'live'>('setup')
   const [name, setName] = useState('Pass Challenge')
-  const [repsGoal] = useState(DEFAULT_REPS_GOAL)
-  const [targetTotal] = useState(DEFAULT_TARGET)
+  const [repsGoal, setRepsGoal] = useState(DEFAULT_REPS_GOAL)
+  const [targetTotal, setTargetTotal] = useState(DEFAULT_TARGET)
   const [rounds, setRounds] = useState<PassChallengeRound[]>([blankRound()])
   const [roundIdx, setRoundIdx] = useState(0)
 
@@ -77,6 +78,70 @@ export default function PassChallengeDrill({ onSave, onCancel }: Props) {
 
   const barPct = Math.min(100, (total / maxTotal) * 100)
   const targetPct = (targetTotal / maxTotal) * 100
+
+  if (phase === 'setup') {
+    return (
+      <div className="p-4 max-w-2xl mx-auto pb-8">
+        <button onClick={onCancel} className="tap-btn text-pb-400 text-sm mb-4 flex items-center gap-1">
+          ← Cancel
+        </button>
+
+        <h2 className="text-2xl font-bold text-white mb-1">New Pass Challenge</h2>
+        <p className="text-gray-500 text-sm mb-5">
+          Servers serve a fixed number of balls; passers add up their 0-3 pass ratings. Passers "win" by reaching the target total before the serves run out.
+        </p>
+
+        <div className="bg-navy-700 border border-white/10 rounded-2xl p-4 mb-4">
+          <label className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2 block">Drill Name</label>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="e.g. 100 Before 50"
+            className="w-full bg-navy-600 border border-white/20 rounded-xl px-3 py-2 text-white text-sm outline-none focus:border-pb-500 mb-4"
+          />
+
+          <label className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2 block">Quick Presets</label>
+          <div className="flex gap-2 mb-4">
+            <button onClick={() => { setRepsGoal(50); setTargetTotal(125); setName(n => n.trim() === '' || n === '100 Before 50' ? 'Pass Challenge' : n) }}
+              className="tap-btn flex-1 py-2.5 rounded-xl text-xs font-bold border border-white/10 bg-navy-600 text-gray-300">
+              125 of 150 (2.5 avg)
+            </button>
+            <button onClick={() => { setRepsGoal(50); setTargetTotal(100); setName(n => n.trim() === '' || n === 'Pass Challenge' ? '100 Before 50' : n) }}
+              className="tap-btn flex-1 py-2.5 rounded-xl text-xs font-bold border border-white/10 bg-navy-600 text-gray-300">
+              100 Before 50
+            </button>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2 block">Serves (reps)</label>
+              <div className="flex items-center gap-2 bg-navy-600 border border-white/20 rounded-xl px-3 py-2">
+                <button onClick={() => setRepsGoal(n => Math.max(10, n - 5))} className="tap-btn text-gray-400 text-lg w-6">−</button>
+                <span className="flex-1 text-center text-white text-lg font-bold">{repsGoal}</span>
+                <button onClick={() => setRepsGoal(n => Math.min(100, n + 5))} className="tap-btn text-gray-400 text-lg w-6">+</button>
+              </div>
+            </div>
+            <div className="flex-1">
+              <label className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2 block">Target Total</label>
+              <div className="flex items-center gap-2 bg-navy-600 border border-white/20 rounded-xl px-3 py-2">
+                <button onClick={() => setTargetTotal(n => Math.max(0, n - 5))} className="tap-btn text-gray-400 text-lg w-6">−</button>
+                <span className="flex-1 text-center text-white text-lg font-bold">{targetTotal}</span>
+                <button onClick={() => setTargetTotal(n => Math.min(repsGoal * 3, n + 5))} className="tap-btn text-gray-400 text-lg w-6">+</button>
+              </div>
+            </div>
+          </div>
+          <p className="text-gray-600 text-[10px] mt-2">
+            Target of {targetTotal} across {repsGoal} serves = {(targetTotal / repsGoal).toFixed(2)} pass average to win.
+          </p>
+        </div>
+
+        <button onClick={() => setPhase('live')}
+          className="tap-btn w-full bg-vr-600 text-white font-bold py-4 rounded-xl text-base">
+          Start Drill
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">
