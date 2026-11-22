@@ -5,6 +5,7 @@ const MATCHES_KEY   = 'vb_matches'
 const LINEUPS_KEY   = 'vb_lineups'
 const PRACTICE_KEY  = 'vb_practice'
 const NOTES_KEY     = 'vb_player_notes'
+const TEAM_SPLIT_KEY = 'vb_practice_team_split'
 
 // Team 2 keys
 const PLAYERS2_KEY  = 'vb_players_2'
@@ -32,6 +33,16 @@ export function saveLineups(v:   SavedLineup[])    { localStorage.setItem(LINEUP
 
 export function loadPlayerNotes(): PlayerNote[]     { return parseOr(NOTES_KEY, []) }
 export function savePlayerNotes(v: PlayerNote[])     { localStorage.setItem(NOTES_KEY, JSON.stringify(v)) }
+
+// Today's Team 1 / Team 2 split for practice drills (0 vs 18, Team Drill,
+// etc.) — kept locked in across tab switches for the rest of the day it was
+// set, then starts fresh the next time the stored date isn't today's.
+export interface TeamSplitRecord {
+  date: string   // ISO date the split was set on
+  assign: Record<string, 'team1' | 'team2'>
+}
+export function loadTeamSplit(): TeamSplitRecord { return parseOr(TEAM_SPLIT_KEY, { date: '', assign: {} }) }
+export function saveTeamSplit(v: TeamSplitRecord) { localStorage.setItem(TEAM_SPLIT_KEY, JSON.stringify(v)) }
 
 // ── Team 2 ──────────────────────────────────────────────
 export function loadPlayers2():   Player[]         { return parseOr(PLAYERS2_KEY,  []) }

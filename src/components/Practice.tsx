@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Player, PlayerStats, SetStats, PracticeSession, Match, PassChallengeRound } from '../types'
 import { EMPTY_STATS, POSITION_LABELS, POSITION_COLORS } from '../types'
 import { mergeStats, killPct, passAvg } from '../utils/statsHelpers'
+import { loadTeamSplit, saveTeamSplit } from '../utils/storage'
 import LiveGame from './LiveGame'
 import ServePassDrill from './ServePassDrill'
 import ThreeBallDrill from './ThreeBallDrill'
@@ -555,8 +556,20 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
 
   // Optional Team 1 / Team 2 split for the whole practice, set once up front
   // so starting a team-vs-team drill doesn't mean re-splitting the roster
-  // every time. Cycles none → team1 → team2 → none per tap.
-  const [teamAssign, setTeamAssign] = useState<Record<string, 'team1' | 'team2'>>({})
+  // every time. Cycles none → team1 → team2 → none per tap. Locked in across
+  // tab switches by persisting to storage, but only for the day it was set —
+  // the next visit on a different date starts fresh rather than carrying
+  // over a stale split.
+  const today = new Date().toISOString().split('T')[0]
+  const [teamAssign, setTeamAssign] = useState<Record<string, 'team1' | 'team2'>>(() => {
+    const stored = loadTeamSplit()
+    return stored.date === today ? stored.assign : {}
+  })
+
+  useEffect(() => {
+    saveTeamSplit({ date: today, assign: teamAssign })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamAssign])
 
   const todaysRoster = [...players.filter(p => !absentIds.has(p.id)), ...guests]
 
@@ -569,6 +582,10 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
       else delete next[id]
       return next
     })
+  }
+
+  function clearTeamAssign() {
+    setTeamAssign({})
   }
 
   const presetTeams: PresetTeams = {
@@ -844,7 +861,12 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
 
           <div className="border-t border-white/10 my-3" />
 
-          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-2">Set Teams for Today (optional)</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Set Teams for Today (optional)</p>
+            {hasPresetTeams && (
+              <button onClick={clearTeamAssign} className="tap-btn text-gray-500 hover:text-red-400 text-xs font-bold">Clear</button>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2 mb-2">
             {todaysRoster.map(p => {
               const t = teamAssign[p.id]
@@ -865,7 +887,7 @@ export default function Practice({ players, matches, sessions, onSave, onDelete 
               )
             })}
           </div>
-          <p className="text-gray-600 text-[10px]">Tap a girl to cycle Team 1 → Team 2 → unassigned. Team Drill, 0 vs 18, and 3 Before 10 will start from this split.</p>
+          <p className="text-gray-600 text-[10px]">Tap a girl to cycle Team 1 → Team 2 → unassigned. Locked in for the rest of today, even if you switch tabs — Team Drill, 0 vs 18, 3 Before 10, and Servers vs Passers will all start from this split.</p>
         </div>
       )}
 
